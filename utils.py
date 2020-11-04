@@ -3,7 +3,7 @@ import logging
 from collections import defaultdict
 from enum import Enum
 import random
-from typing import Union, List, Dict
+from typing import Union, List, Dict, Tuple
 import pandas as pd
 from tqdm import tqdm
 import spacy
@@ -21,12 +21,34 @@ class Utils:
         return d
 
     @staticmethod
-    def revert_dictionaries(list_of_dictionaries: List[Dict[Union[str, int], Union[str, int]]]) -> List[Dict]:
+    def revert_dictionaries_list(list_of_dictionaries: List[Dict[Union[str, int], Union[str, int]]]) -> List[Dict]:
+        print(list_of_dictionaries)
         resulting_list = []
         for dictionary in list_of_dictionaries:
             resulting_list.append(Utils.revert_dictionary(dictionary))
 
         return resulting_list
+
+    @staticmethod
+    def revert_dictionaries_dict(list_of_dictionaries: Dict[str, Dict[Union[str, int], Union[str, int]]]) \
+            -> Dict[str, Dict]:
+        print(list_of_dictionaries)
+        resulting_list = {}
+        for key, dictionary in list_of_dictionaries.items():
+            resulting_list[key] = Utils.revert_dictionary(dictionary)
+
+        return resulting_list
+
+    @staticmethod
+    def revert_dictionaries(collection_of_dictionaries: Union[List[Dict[Union[str, int], Union[str, int]]],
+                                                              Dict[str, Dict[Union[str, int], Union[str, int]]]]) \
+            -> Union[List[Dict], Dict[str, Dict]]:
+        if isinstance(collection_of_dictionaries, list):
+            return Utils.revert_dictionaries_list(collection_of_dictionaries)
+        elif isinstance(collection_of_dictionaries, dict):
+            return Utils.revert_dictionaries_dict(collection_of_dictionaries)
+        else:
+            raise UserWarning("Passed entities are neither in list or dict!")
 
 
 class DataHandler:
@@ -233,6 +255,42 @@ class Language(str, Enum):
         return Language.UNKNOWN
 
 
+class Token:
+    def __init__(self, text: str,
+                 lemma: str = None,
+                 pos: str = None,
+                 ne: str = None,
+                 punctuation: bool = None,
+                 alpha: bool = None,
+                 stop: bool = None):
+        self.text = text
+        self.lemma = lemma
+        self.pos = pos
+        self.ne = ne
+        self.punctuation = punctuation
+        self.alpha = alpha
+        self.stop = stop
+
+    def representation(self, lemma: bool = False, lower: bool = False):
+        if lemma:
+            rep = self.lemma
+        else:
+            rep = self.text
+        if lower:
+            rep = rep.lower()
+        return rep
+
+
+class Sentence:
+    # def __init__(self, tokens: List[str]):
+    #     self.tokens = tokens
+    def __init__(self, tokens: List[Token]):
+        self.tokens = tokens
+
+    def representation(self, lemma: bool = False, lower: bool = False):
+        return [token.representation(lemma, lower) for token in self.tokens]
+
+
 class Document:
     def __init__(self, doc_id: str, text: str, title: str, language: Language,
                  authors: str = None, date: str = None, genres: str = None):
@@ -243,6 +301,16 @@ class Document:
         self.authors = authors
         self.date = date
         self.genres = genres
+        self.sentences: List[Sentence] = []  # None
+        # self.tokens: List[str] = []  # None
+
+    # def set_sentences(self, sentences: List[List[str]]):
+    #     self.sentences = [Sentence(sentence) for sentence in sentences]
+    #     self.tokens = [token for sentence in sentences for token in sentence]
+
+    def set_sentences(self, sentences: List[Sentence]):
+        self.sentences = sentences
+        # self.tokens = [token for sentence in sentences for token in sentence.tokens]
 
     def __str__(self):
         return f'{self.authors} ({self.date}): {self.title[:50]}'
@@ -256,15 +324,16 @@ class Corpus:
                  language: Language):
         self.name = name
         self.language = language
+        self.document_entities = None
 
         if isinstance(source, str):
             documents = self.load_corpus(path=source)
         else:
             documents = source
         if isinstance(documents, dict):
-            self.documents = documents
+            self.documents: Dict[str, Document] = documents
         elif isinstance(documents, list):
-            self.documents = {document.doc_id: document for document in documents}
+            self.documents: Dict[str, Document] = {document.doc_id: document for document in documents}
         else:
             raise NotImplementedError("Not supported Document collection!")
 
@@ -366,6 +435,33 @@ class Corpus:
             print(f"Language {Language.DE} detected.")
             return spacy.load("de_core_news_sm")
 
+    def set_document_entities(self, entities_dict: Dict[str, List[str]]):
+        self.document_entities = entities_dict
+
+    def set_sentences(self, sentences: Dict[str, List[Sentence]]):
+        for doc_id, document in self.documents.items():
+            document.set_sentences(sentences[doc_id])
+
+    def get_flat_document_tokens(self, lemma: bool = False, lower: bool = False):
+        # for doc_id, document in self.documents.items():
+        #     print(document.sentences[1].tokens)
+        return [[token.representation(lemma, lower) for sentence in document.sentences for token in sentence.tokens]
+                for doc_id, document in self.documents.items()]
+
+    def get_flat_corpus_sentences(self, lemma: bool = False, lower: bool = False):
+        return [sentence.representation(lemma, lower)
+                for doc_id, document in self.documents.items()
+                for sentence in document.sentences]
+
+    def fake_series(self) -> Tuple["Corpus", Dict[str, List[str]]]:
+        pass
+
+    def get_common_words(self, series_dictionary: Dict[str, List[str]]) -> Dict[str, List[str]]:
+        pass
+
+    def filter(self, mode: str) -> "Corpus":
+        pass
+
     def __iter__(self):
         return self.documents.values().__iter__()
 
@@ -462,6 +558,141 @@ class Preprocesser:
         return unchunked
 
     @staticmethod
+    def annotate_corpus(corpus: Corpus):
+        texts, doc_ids = corpus.get_texts_and_doc_ids()
+        lan_model = corpus.give_spacy_lan_model()
+        prep_sentences, prep_entities = Preprocesser.annotate_tokens(texts,
+                                                                       doc_ids,
+                                                                       # lemmatize,
+                                                                       # lower,
+                                                                       # remove_punctuation,
+                                                                       lan_model
+                                                                     )
+
+        preprocessed_corpus = Corpus(corpus.documents,
+                                     name=f'{corpus.name}_prep',
+                                     language=corpus.language)
+        preprocessed_corpus.set_sentences(prep_sentences)
+        preprocessed_corpus.set_document_entities(prep_entities)
+
+        return preprocessed_corpus
+
+    @staticmethod
+    def structure_string_texts(texts: List[str], lan_model, lemma: bool = False, lower: bool = False):
+        prep_sentences, _ = Preprocesser.annotate_tokens_list(texts, lan_model)
+
+        comp_sentences = []
+        for doc in prep_sentences:
+            if len(doc) == 0:
+                comp_sentences.append([])
+            else:
+                doc_sentences = []
+                for sent in doc:
+                    sent_repr = sent.representation(lemma=lemma, lower=lower)
+                    doc_sentences.extend(sent_repr)
+                comp_sentences.append(doc_sentences)
+
+        return comp_sentences
+
+    @staticmethod
+    def annotate_tokens_list(texts, lan_model=None) -> Tuple[List[List[Sentence]], List[Dict]]:
+        def token_representation(token):
+            return Token(text=token.text,
+                         lemma=token.lemma_,
+                         pos=token.pos_,
+                         ne=token.ent_type,
+                         punctuation=token.is_punct,
+                         alpha=token.is_alpha,
+                         stop=token.is_stop)
+
+        nlp = spacy.load("en_core_web_sm") if lan_model is None else lan_model
+        # preprocessed_documents = []
+        disable_list = ['parser']
+        if not nlp.has_pipe('sentencizer'):
+            nlp.add_pipe(nlp.create_pipe('sentencizer'))
+        entities_of_documents = []
+        nested_sentences = []
+        # chunked_texts, chunk_list = Preprocesser.chunk_text(texts, 5000)
+
+        for doc in tqdm(nlp.pipe(texts, disable=disable_list), desc="Annotation", total=len(texts)):
+            ents = {e.text: e.label_ for e in doc.ents}
+
+            entities_of_documents.append(ents)
+            preprocessed_sentences = []
+            # all_document_sentences = []
+            for sent in doc.sents:
+                sentence_tokens = Sentence([token_representation(token)
+                                            for token in sent if token.text != ' '])
+                preprocessed_sentences.append(sentence_tokens)
+                # all_document_sentences.extend(sentence_tokens)
+
+            # preprocessed_documents.append(all_document_sentences)
+            nested_sentences.append(preprocessed_sentences)
+
+        return nested_sentences, entities_of_documents
+
+    @staticmethod
+    def annotate_tokens(texts, doc_ids, lan_model=None):
+        nested_sentences, entities_of_documents = Preprocesser.annotate_tokens_list(texts, lan_model)
+        nested_sentences_dict = {doc_id: doc_sents for doc_id, doc_sents in zip(doc_ids, nested_sentences)}
+        entities_of_documents_dict = {doc_id: doc_ents for doc_id, doc_ents in zip(doc_ids, entities_of_documents)}
+        # print(nested_sentences_dict)
+        # print(entities_of_documents_dict)
+
+        # for doc_id, d in nested_sentences_dict.items():
+        #     print(doc_id, d[0])
+
+        return nested_sentences_dict, entities_of_documents_dict
+
+    @staticmethod
+    def simple_preprocess(texts, doc_ids, lemmatize: bool = False, lower: bool = False, remove_punctuation: bool = True,
+                          lan_model=None):
+        def token_representation(token):
+            representation = str(token.lemma_) if lemmatize else str(token)
+            if lower:
+                representation = representation.lower()
+            return representation
+
+        def filter_condition(token):
+            return not remove_punctuation or token.is_alpha
+
+        nlp = spacy.load("en_core_web_sm") if lan_model is None else lan_model
+
+
+        preprocessed_documents = []
+        disable_list = ['parser', 'tagger']
+
+        nlp.add_pipe(nlp.create_pipe('sentencizer'))
+        entities_of_documents = []
+        nested_sentences = []
+        # chunked_texts, chunk_list = Preprocesser.chunk_text(texts, 5000)
+
+        for doc in tqdm(nlp.pipe(texts, disable=disable_list), desc="Preprocessing", total=len(texts)):
+            ents = {e.text: e.label_ for e in doc.ents}
+
+            entities_of_documents.append(ents)
+            preprocessed_sentences = []
+            all_document_sentences = []
+            for sent in doc.sents:
+                sentence_tokens = [token_representation(token)
+                                   for token in sent if filter_condition(token)]
+                preprocessed_sentences.append(sentence_tokens)
+                all_document_sentences.extend(sentence_tokens)
+
+            preprocessed_documents.append(all_document_sentences)
+            nested_sentences.append(preprocessed_sentences)
+
+        nested_sentences_dict = {doc_id: doc_sents for doc_id, doc_sents in zip(doc_ids, nested_sentences)}
+        entities_of_documents_dict = {doc_id: doc_ents for doc_id, doc_ents in zip(doc_ids, entities_of_documents)}
+        # print(nested_sentences_dict)
+        # print(entities_of_documents_dict)
+
+        # for doc_id, d in nested_sentences_dict.items():
+        #     print(doc_id, d[0])
+
+        return nested_sentences_dict, entities_of_documents_dict
+
+    @staticmethod
     def preprocess(texts, lemmatize: bool = False, lower: bool = False,
                    pos_filter: list = None, remove_stopwords: bool = False,
                    remove_punctuation: bool = True, lan_model=None,
@@ -542,3 +773,36 @@ class Preprocesser:
         # print(entities_unchunked)
         # return preprocessed_texts, entities_of_documents, preprocessed_documents
         return preoprocessed_unchunked, entities_unchunked, documents_unchunked
+
+    @staticmethod
+    def filter(corpus: Corpus,
+               pos: list = None,
+               remove_stopwords: bool = False,
+               remove_punctuation: bool = True,
+               remove_ne: bool = False,
+               masking: bool = False):
+
+        def filter_condition(token: Token):
+            return (not remove_stopwords or not token.stop) \
+                   and (not remove_punctuation or token.alpha) \
+                   and (not pos or token.pos in pos) \
+                   and (not remove_ne or not token.ne)
+
+        def mask(token: Token):
+            if not filter_condition(token):
+                token.text = "del"
+                token.lemma = "del"
+            return token
+
+        for doc_id, document in tqdm(corpus.documents.items(), total=len(corpus.documents), desc="Filtering corpus"):
+            if not masking:
+                new_sents = [Sentence([token for token in sentence.tokens if filter_condition(token)])
+                              for sentence in document.sentences]
+            else:
+                new_sents = [Sentence([mask(token) for token in sentence.tokens])
+                              for sentence in document.sentences]
+
+            document.set_sentences(new_sents)
+        return corpus
+
+

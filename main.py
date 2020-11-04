@@ -1,16 +1,20 @@
 from utils import DataHandler, Preprocesser
-from vectorization import Vectorizer
+from vectorization import Vectorizer, DocumentEmbedding
 
-
-class Evaluation:
-    pass
 
 # pip install -e git+git://github.com/maohbao/gensim.git@master#egg=develop
 def main():
     book_summaries = DataHandler.load_book_summaries_as_corpus()
     # german_books = DataHandler.load_german_books_as_corpus()
-
-    # vecs = Vectorizer.avg_wv2doc(german_books[:100])
+    corpus_prep = Preprocesser.annotate_corpus(book_summaries[:100])
+    print(corpus_prep.get_flat_document_tokens()[0])
+    corpus_prep = Preprocesser.filter(corpus_prep)
+    print(corpus_prep.get_flat_document_tokens()[0])
+    print(corpus_prep.name, corpus_prep.document_entities)
+    # vecs = DocumentEmbedding.avg_wv2doc(corpus_prep)
+    # vecs = DocumentEmbedding.doc2vec(corpus_prep)
+    vecs = DocumentEmbedding.book2vec_risch(corpus_prep)
+    # vecs = Vectorizer.avg_wv2doc(book_summaries[:100])
     # vecs = Vectorizer.doc2vec(german_books[:100])
     # vecs = Vectorizer.book2vec_risch(book_summaries[:])
     #
@@ -24,7 +28,7 @@ def main():
 
     # --
     # vecs = Vectorizer.my_load_doc2vec_format(fname="models/my_test.model", binary=False)
-    vecs = Vectorizer.my_load_doc2vec_format(fname="models/syn_pretrained_book2vec_risch.model", binary=False)
+    # vecs = Vectorizer.my_load_doc2vec_format(fname="models/syn_pretrained_book2vec_risch.model", binary=False)
     #
     # print('--')
     # Vectorizer.most_similar_documents_to_documents(book_summaries_model, book_summaries, ['bs_0'])
@@ -57,8 +61,8 @@ def main():
     #                                   negatives= ['Sauron'],
     #                                   feature_to_use="_sum")
 
-    Vectorizer.most_similar_documents(vecs, book_summaries,
-                                      positives=['bs_78_sum', 'bs_534_sum'],
+    Vectorizer.most_similar_documents(vecs, corpus_prep,
+                                      positives=['bs_78'],
                                       feature_to_use="_sum")
 
     # --
