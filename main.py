@@ -1,22 +1,34 @@
+from series_prove_of_concept import Evaluation
 from utils import DataHandler, Preprocesser
-from vectorization import Vectorizer, DocumentEmbedding
+from vectorization import Vectorizer
 
 
 # pip install -e git+git://github.com/maohbao/gensim.git@master#egg=develop
 def main():
-    book_summaries = DataHandler.load_book_summaries_as_corpus()
-    # german_books = DataHandler.load_german_books_as_corpus()
-    corpus_prep = Preprocesser.annotate_corpus(book_summaries[:100])
-    print(corpus_prep.get_flat_document_tokens()[0])
+    corpus = DataHandler.load_book_summaries_as_corpus()
+    # corpus = DataHandler.load_german_books_as_corpus()
+    corpus_prep = Preprocesser.annotate_corpus(corpus[:100])
+    corpus_prep, series_dict = corpus_prep.fake_series(number_of_sub_parts=2)
+    # corpus_prep = Preprocesser.annotate_corpus(corpus_prep)
+    # print(corpus_prep.get_flat_document_tokens()[0])
     corpus_prep = Preprocesser.filter(corpus_prep)
-    print(corpus_prep.get_flat_document_tokens()[0])
-    print(corpus_prep.name, corpus_prep.document_entities)
-    # vecs = DocumentEmbedding.avg_wv2doc(corpus_prep)
-    # vecs = DocumentEmbedding.doc2vec(corpus_prep)
-    vecs = DocumentEmbedding.book2vec_risch(corpus_prep)
+    # print(corpus_prep.get_flat_document_tokens()[0])
+    # corpus_prep = Preprocesser.filter(corpus_prep, remove_stopwords=True)
+    common_words = corpus_prep.get_common_words(series_dict)
+    # corpus_prep = corpus_prep.filter("common_words", common_words=common_words)
+    # print(corpus_prep.get_flat_document_tokens()[0])
+    corpus_prep = corpus_prep.filter("ne", common_words=common_words)
+
+    # print(corpus_prep.get_flat_document_tokens()[0])
+    # print(corpus_prep.name, corpus_prep.document_entities)
+    # vecs = Vectorizer.avg_wv2doc(corpus_prep)
+    vecs = Vectorizer.doc2vec(corpus_prep)
+    # vecs = Vectorizer.book2vec_simple(corpus_prep)
+    # Evaluation.series_eval(vecs, series_dict, corpus_prep)
+
     # vecs = Vectorizer.avg_wv2doc(book_summaries[:100])
     # vecs = Vectorizer.doc2vec(german_books[:100])
-    # vecs = Vectorizer.book2vec_risch(book_summaries[:])
+    # vecs = Vectorizer.book2vec_simple(book_summaries[:])
     #
     # # book_summaries_model.save_word2vec_format("test.model", doctag_vec=True)
     # # book_summaries_model.save("test_save")
@@ -61,9 +73,9 @@ def main():
     #                                   negatives= ['Sauron'],
     #                                   feature_to_use="_sum")
 
-    Vectorizer.most_similar_documents(vecs, corpus_prep,
-                                      positives=['bs_78'],
-                                      feature_to_use="_sum")
+    # Vectorizer.most_similar_documents(vecs, corpus_prep,
+    #                                   positives=['78_0'],
+    #                                   feature_to_use="_sum")
 
     # --
 
@@ -98,10 +110,10 @@ def main():
 
 if __name__ == '__main__':
     main()
-    chunked_texts, chunk_list = Preprocesser.chunk_text(["hallo das ist ein mittellanger Text", "das ist kurz",
-                                                         "das ist ein sehr viel längerer text der wirklich nichts von dem enthält, was er verspricht. wirklich gar nichts, überhaupt nichts"],
-                                                        2)
-    print(chunked_texts)
-    print(chunk_list)
 
-    Preprocesser.merge_chunks(chunked_texts, chunk_list)
+    # chunked_texts, chunk_list = Preprocesser.chunk_text(["hallo das ist ein mittellanger Text", "das ist kurz",
+    #                                                      "das ist ein sehr viel längerer text der wirklich nichts von dem enthält, was er verspricht. wirklich gar nichts, überhaupt nichts"],
+    #                                                     2)
+    # print(chunked_texts)
+    # print(chunk_list)
+    # Preprocesser.merge_chunks(chunked_texts, chunk_list)
