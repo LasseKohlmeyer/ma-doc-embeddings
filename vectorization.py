@@ -1,3 +1,5 @@
+import json
+import logging
 from collections import defaultdict
 from typing import Union, List, Dict
 from gensim.models import KeyedVectors, Word2Vec
@@ -9,11 +11,13 @@ from gensim.test.utils import get_tmpfile, datapath
 from numpy import float32 as real
 
 from doc2vec_structures import DocumentKeyedVectors
-from utils import Preprocesser, Corpus
+from utils import Preprocesser, Corpus, ConfigLoader
+
+config = ConfigLoader.get_config()
 
 
 def robust_vec_loading(pretrained_emb_path: str = None, binary: bool = False):
-    print(f'Load pretrained embeddings from {pretrained_emb_path}')
+    logging.info(f'Load pretrained embeddings from {pretrained_emb_path}')
     if pretrained_emb_path is None:
         return None
     try:
@@ -23,8 +27,18 @@ def robust_vec_loading(pretrained_emb_path: str = None, binary: bool = False):
         tmp_file = get_tmpfile("test_word2vec.txt")
         _ = glove2word2vec(glove_file, tmp_file)
         model = KeyedVectors.load_word2vec_format(tmp_file)
-    print('load completed')
+    logging.info('load completed')
     return model
+
+
+def write_aspect_frequency_analyzis(aspects: Dict[str, List[List[str]]], doc_ids: List[str], save_name: str):
+    document_aspect_dict = defaultdict(dict)
+    for aspect_name, aspect_documents in aspects.items():
+        for doc_id, document in zip(doc_ids, aspect_documents):
+            document_aspect_dict[doc_id].update({aspect_name: len(document)})
+    with open(f'aspects/{save_name}.json', 'w', encoding="utf-8") as fp:
+        json.dump(document_aspect_dict, fp, indent=1)
+    return document_aspect_dict
 
 
 class Vectorizer:
@@ -34,22 +48,33 @@ class Vectorizer:
     min_count = 0
     epochs = 20
     dim = 300
-    pretrained_emb_path = None  # "E:/embeddings/glove.6B.300d.txt" # "E:/embeddings/google300.txt"
+    pretrained_emb_path = None  # config["embeddings"]["pretrained"]
+    # "E:/embeddings/glove.6B.300d.txt" # "E:/embeddings/google300.txt"
     pretrained_emb = robust_vec_loading(pretrained_emb_path, binary=False)
 
     @staticmethod
-    def algorithm(input_str: str, corpus: Corpus, save_path: str = "models/my_model"):
+    def algorithm(input_str: str, corpus: Corpus, save_path: str = "models/", filter_mode: str = None):
         if input_str == "avg_wv2doc":
             return Vectorizer.avg_wv2doc(corpus, save_path)
         elif input_str == "doc2vec":
             return Vectorizer.doc2vec(corpus, save_path)
         elif input_str == "book2vec_simple" or input_str == "book2vec":
-            return Vectorizer.book2vec_simple(corpus, save_path)
+            return Vectorizer.book2vec_simple(corpus, save_path, filter_mode)
+        elif input_str == "book2vec_wo_raw":
+            return Vectorizer.book2vec_simple(corpus, save_path, filter_mode, disable_aspects=['raw'])
+        elif input_str == "book2vec_wo_loc":
+            return Vectorizer.book2vec_simple(corpus, save_path, filter_mode, disable_aspects=['loc'])
+        elif input_str == "book2vec_wo_time":
+            return Vectorizer.book2vec_simple(corpus, save_path, filter_mode, disable_aspects=['time'])
+        elif input_str == "book2vec_wo_sty":
+            return Vectorizer.book2vec_simple(corpus, save_path, filter_mode, disable_aspects=['sty'])
+        elif input_str == "book2vec_wo_atm":
+            return Vectorizer.book2vec_simple(corpus, save_path, filter_mode, disable_aspects=['atm'])
         else:
             raise UserWarning(f"fUnknown input string {input_str}!")
 
     @classmethod
-    def avg_wv2doc(cls, corpus: Corpus, save_path: str = "models/my_model"):
+    def avg_wv2doc(cls, corpus: Corpus, save_path: str = "models/"):
         # Preprocesser.preprocess(return_in_sentence_format=True)
         # print('sents', preprocessed_sentences)
         # print(preprocessed_documents)
@@ -64,7 +89,8 @@ class Vectorizer:
             model = cls.pretrained_emb
 
         else:
-            print(f'Vectorize {len(preprocessed_sentences)} sentences and {len(preprocessed_documents)} documents')
+            logging.info(f'Vectorize {len(preprocessed_sentences)} sentences and {len(preprocessed_documents)} '
+                         f'documents of {corpus.name}')
             model = Word2Vec(preprocessed_sentences, size=cls.dim, window=cls.window, min_count=cls.min_count,
                              workers=cls.workers, iter=cls.epochs, seed=cls.seed)
         docs_dict = {}
@@ -76,10 +102,14 @@ class Vectorizer:
                 try:
                     vector.append(model.wv[token])
                 except KeyError:
-                    pass
+                    logging.error(f'KeyError Error for {doc_id} and {token}')
             # print(doc_id, doc, vector)
-            vector = sum(np.array(vector)) / len(vector)
-            docs_dict[doc_id] = vector
+            try:
+                vector = sum(np.array(vector)) / len(vector)
+                docs_dict[doc_id] = vector
+            except ZeroDivisionError:
+                logging.error(f'ZeroDivision Error for {doc_id}')
+                raise UserWarning
 
         path = f"{save_path}_avg_wv2doc.model"
         words_dict = {word: model.wv[word] for word in model.wv.vocab}
@@ -119,9 +149,13 @@ class Vectorizer:
         return vecs
 
     @classmethod
-    def book2vec_simple(cls, corpus: Corpus, save_path: str = "models/my_model"):
+    def book2vec_simple(cls, corpus: Corpus, save_path: str = "models/", filter_mode: str = None,
+                        disable_aspects: List[str] = None):
         lemma = False
         lower = False
+
+        if disable_aspects is None:
+            disable_aspects = []
         # documents = [TaggedDocument(doc, [i])
         #              for i, doc in enumerate(Preprocesser.tokenize(corpus.get_texts_and_doc_ids()))]
         # documents = [TaggedDocument(Preprocesser.tokenize(document.text), [doc_id])
@@ -137,8 +171,13 @@ class Vectorizer:
         times, locations = Vectorizer.resolve_entities(document_entities)
         # print(len(times), times)
 
-        preprocessed_times = Preprocesser.structure_string_texts(times, lan_model, lemma=lemma, lower=lower)
-        preprocessed_locations = Preprocesser.structure_string_texts(locations, lan_model, lemma=lemma, lower=lower)
+        aspects = {}
+
+        if "time" not in disable_aspects:
+            aspects['time'] = Preprocesser.structure_string_texts(times, lan_model, lemma=lemma, lower=lower)
+
+        if "loc" not in disable_aspects:
+            aspects['loc'] = Preprocesser.structure_string_texts(locations, lan_model, lemma=lemma, lower=lower)
 
         # preprocessed_times, _, _ = Preprocesser.preprocess(times, lemmatize=False, lower=False,
         #                                                    pos_filter=None, remove_stopwords=False,
@@ -151,16 +190,24 @@ class Vectorizer:
         #                                                        lan_model=lan_model, ner=False)
 
         # print(preprocessed_times)
-        preprocessed_documents = corpus.get_flat_document_tokens(lemma=lemma, lower=lower)
 
-        documents = [TaggedDocument(preprocessed_document_text, [doc_id])
-                     for preprocessed_document_text, doc_id in zip(preprocessed_documents, doc_ids)]
-        documents.extend([TaggedDocument(preprocessed_time, [f'{doc_id}_time'])
-                          for preprocessed_time, doc_id in zip(preprocessed_times, doc_ids)])
-        documents.extend([TaggedDocument(preprocessed_location, [f'{doc_id}_loc'])
-                          for preprocessed_location, doc_id in zip(preprocessed_locations, doc_ids)])
+        if "raw" not in disable_aspects:
+            aspects['raw'] = corpus.get_flat_document_tokens(lemma=lemma, lower=lower)
+            preprocessed_documents = corpus.get_flat_document_tokens(lemma=lemma, lower=lower)
+            assert aspects['raw'] == preprocessed_documents
+        if "atm" not in disable_aspects:
+            aspects['atm'] = corpus.get_flat_and_filtered_document_tokens(lemma=lemma, lower=lower, pos=["ADJ", "ADV"])
+        if "sty" not in disable_aspects:
+            aspects['sty'] = corpus.get_flat_and_filtered_document_tokens(lemma=lemma, lower=lower, focus_stopwords=True)
 
-        print("Start training")
+        write_aspect_frequency_analyzis(aspects=aspects, doc_ids=doc_ids, save_name=f'{corpus.name}_{filter_mode}')
+
+        documents = []
+        for aspect_name, aspect_documents in aspects.items():
+            documents.extend([TaggedDocument(preprocessed_document_text, [f'{doc_id}_{aspect_name}'])
+                              for preprocessed_document_text, doc_id in zip(aspect_documents, doc_ids)])
+
+        logging.info("Start training")
         model = Doc2Vec(documents, vector_size=cls.dim, window=cls.window, min_count=cls.min_count,
                         workers=cls.workers, epochs=cls.epochs, pretrained_emb=cls.pretrained_emb_path, seed=cls.seed)
 
@@ -171,8 +218,8 @@ class Vectorizer:
         #         print(model.docvecs[tag])
         #         print(new_vec)
         #     # print(model.docvecs[tag])
-
-        path = f"{save_path}_{corpus.name}_book2vec_risch.model"
+        aspect_string = ''.join(disable_aspects)
+        path = f"{save_path}_{corpus.name}_book2vec_risch_wo{aspect_string}.model"
         # print(model.docvecs.doctags)
         words_dict, docs_dict = Vectorizer.model2dict(model)
         # print(docs_dict.keys())
@@ -188,14 +235,36 @@ class Vectorizer:
     @staticmethod
     def combine_vectors(document_dictionary: Dict[str, np.array]):
         summed_vecs = {}
+        base_ending = '_raw'
         for tag in document_dictionary.keys():
-            if not (tag.endswith('_time') or tag.endswith('_loc')):
-                new_vec = document_dictionary[tag] + document_dictionary[f'{tag}_time'] + document_dictionary[
-                    f'{tag}_loc']
-                summed_vecs[f'{tag}_sum'] = new_vec
+            base_ending = f'_{(tag.split("_")[-1])}'
+            break
+
+        id_groups = set([tag.split('_')[-1] for tag in document_dictionary.keys() if not tag.endswith(base_ending)])
+
+        for tag in document_dictionary.keys():
+            if tag.endswith(base_ending):
+                new_vec = document_dictionary[tag]
+                base_tag = tag.replace(base_ending, '')
+                for group in id_groups:
+                    new_vec += document_dictionary[f'{base_tag}_{group}']
+                summed_vecs[f'{base_tag}'] = new_vec
             # print(model.docvecs[tag])
         summed_vecs.update(document_dictionary)
         return summed_vecs
+
+    # @staticmethod
+    # def combine_vectors(document_dictionary: Dict[str, np.array]):
+    #     summed_vecs = {}
+    #     for tag in document_dictionary.keys():
+    #         if tag.endswith('_raw'):
+    #             base_tag = tag.replace('_raw', '')
+    #             new_vec = document_dictionary[tag] + document_dictionary[f'{base_tag}_time'] + document_dictionary[
+    #                 f'{base_tag}_loc']
+    #             summed_vecs[f'{base_tag}'] = new_vec
+    #         # print(model.docvecs[tag])
+    #     summed_vecs.update(document_dictionary)
+    #     return summed_vecs
 
     @staticmethod
     def resolve_entities(entities_of_documents):
@@ -386,54 +455,54 @@ class Vectorizer:
     def my_load_doc2vec_format(fname: str, binary: bool = False):
         return DocumentKeyedVectors(KeyedVectors.load_word2vec_format(fname=fname, binary=binary))
 
-    @staticmethod
-    def show_results(model: Union[Doc2Vec, DocumentKeyedVectors], corpus: Corpus):
-
-        # print(model.docvecs[0])
-        # print(model.docvecs.doctags)
-        # print(model.docvecs.distance())
-
-        # print(model.wv.most_similar('God'))
-        # print(model.wv.most_similar([model['God']]))
-        # print('------')
-        # print(model.wv.most_similar([model.docvecs['bs_0']]))
-        # print('--')
-        Vectorizer.most_similar_words_to_documents(model, positives=['bs_0'])
-
-        # finish = 100
-        # c = 0
-        # for doc_id, document in corpus.documents.items():
-        #     print(doc_id, corpus.id2desc(doc_id), model.wv.most_similar([model.docvecs[doc_id]]))
-        #     if c > finish:
-        #         break
-        #     c += 1
-        # print('------')
-        # print(model.wv.most_similar(positive=[model.docvecs['bs_0'], model.docvecs['bs_1']],
-        #                             negative=[model.docvecs['bs_2']]))
-        # print('--')
-        Vectorizer.most_similar_words_to_documents(model, positives=['bs_0', 'bs_1'], negatives=['bs_2'])
-        # print('------')
-        # for result in model.docvecs.most_similar(positive=[model.docvecs['bs_0'], model.docvecs['bs_1']],
-        #                                          negative=[model.docvecs['bs_2']]):
-        #     index, sim = result
-        #     print(index, corpus.id2desc(index), sim)
-        # print('--')
-        Vectorizer.most_similar_documents_to_documents(model, corpus, positives=['bs_0', 'bs_1'], negatives=['bs_2'])
-
-        # print('------')
-        # for result in model.docvecs.most_similar([model['God']]):
-        #     index, sim = result
-        #     print(index, corpus.id2desc(index), sim)
-        # print('--')
-        Vectorizer.most_similar_documents_to_words(model, corpus, positives=['God'])
-
-        # print('------')
-        # for result in model.docvecs.most_similar(positive=[model['woman'], model['king']], negative=[model['man']]):
-        #     index, sim = result
-        #     print(index, corpus.id2desc(index), sim)
-        # print('--')
-        Vectorizer.most_similar_documents_to_words(model, corpus, positives=['woman', 'god'], negatives=['man'])
-        # Vectorizer.most_similar_documents_to_words(model, corpus, positives=['queen'])
+    # @staticmethod
+    # def show_results(model: Union[Doc2Vec, DocumentKeyedVectors], corpus: Corpus):
+    #
+    #     # print(model.docvecs[0])
+    #     # print(model.docvecs.doctags)
+    #     # print(model.docvecs.distance())
+    #
+    #     # print(model.wv.most_similar('God'))
+    #     # print(model.wv.most_similar([model['God']]))
+    #     # print('------')
+    #     # print(model.wv.most_similar([model.docvecs['bs_0']]))
+    #     # print('--')
+    #     Vectorizer.most_similar_words_to_documents(model, positives=['bs_0'])
+    #
+    #     # finish = 100
+    #     # c = 0
+    #     # for doc_id, document in corpus.documents.items():
+    #     #     print(doc_id, corpus.id2desc(doc_id), model.wv.most_similar([model.docvecs[doc_id]]))
+    #     #     if c > finish:
+    #     #         break
+    #     #     c += 1
+    #     # print('------')
+    #     # print(model.wv.most_similar(positive=[model.docvecs['bs_0'], model.docvecs['bs_1']],
+    #     #                             negative=[model.docvecs['bs_2']]))
+    #     # print('--')
+    #     Vectorizer.most_similar_words_to_documents(model, positives=['bs_0', 'bs_1'], negatives=['bs_2'])
+    #     # print('------')
+    #     # for result in model.docvecs.most_similar(positive=[model.docvecs['bs_0'], model.docvecs['bs_1']],
+    #     #                                          negative=[model.docvecs['bs_2']]):
+    #     #     index, sim = result
+    #     #     print(index, corpus.id2desc(index), sim)
+    #     # print('--')
+    #     Vectorizer.most_similar_documents_to_documents(model, corpus, positives=['bs_0', 'bs_1'], negatives=['bs_2'])
+    #
+    #     # print('------')
+    #     # for result in model.docvecs.most_similar([model['God']]):
+    #     #     index, sim = result
+    #     #     print(index, corpus.id2desc(index), sim)
+    #     # print('--')
+    #     Vectorizer.most_similar_documents_to_words(model, corpus, positives=['God'])
+    #
+    #     # print('------')
+    #     # for result in model.docvecs.most_similar(positive=[model['woman'], model['king']], negative=[model['man']]):
+    #     #     index, sim = result
+    #     #     print(index, corpus.id2desc(index), sim)
+    #     # print('--')
+    #     Vectorizer.most_similar_documents_to_words(model, corpus, positives=['woman', 'god'], negatives=['man'])
+    #     # Vectorizer.most_similar_documents_to_words(model, corpus, positives=['queen'])
 
     @staticmethod
     def get_topn_of_same_type(model: Union[Doc2Vec, DocumentKeyedVectors],
@@ -444,110 +513,112 @@ class Vectorizer:
 
         def extract_feature(tag_list):
             tag = tag_list[0]
-            if not (tag.endswith('_sum') or tag.endswith('_loc') or tag.endswith('_time')):
+            if tag[-1].isdigit():
                 return 'NF'
             splitt = tag.split('_')
             # print(splitt[-1])
             return f"_{splitt[-1]}"
 
         high_topn = topn * 10
+        # print(feature_to_use)
         if feature_to_use:
             feature = feature_to_use
         else:
             feature = extract_feature(positive_tags)
         results = model.docvecs.most_similar(positive=positive_list, negative=negative_list, topn=high_topn)
+
         if feature == 'NF':
-            results = [result for result in results if not (result[0].endswith('_sum')
-                                                            or result[0].endswith('_loc')
-                                                            or result[0].endswith('_time'))]
+            results = [result for result in results if result[0][-1].isdigit()]
         else:
             results = [result for result in results if result[0].endswith(feature)]
+
+        # print(results)
         if len(results) >= topn:
             return results[:topn]
         else:
             return Vectorizer.get_topn_of_same_type(model, positive_tags, positive_list, negative_list, high_topn)[
                    :topn]
 
-    @staticmethod
-    def most_similar_words_to_documents(model: Union[Doc2Vec, DocumentKeyedVectors],
-                                        positives: List[str],
-                                        negatives: List[str] = None,
-                                        topn: int = 10):
-        if negatives is None:
-            negatives = []
-        positive_list = []
-        for word in positives:
-            positive_list.append(model.docvecs[word])
-
-        negative_list = []
-        for word in negatives:
-            negative_list.append(model.docvecs[word])
-        results = model.wv.most_similar(positive=positive_list, negative=negative_list, topn=topn)
-        for result in results:
-            word, sim = result
-            print(word, sim)
-
-    @staticmethod
-    def most_similar_documents_to_words(model: Union[Doc2Vec, DocumentKeyedVectors],
-                                        corpus: Corpus, positives: List[str],
-                                        negatives=None,
-                                        topn: int = 10,
-                                        restrict_to_same: bool = True,
-                                        feature_to_use: str = None):
-        if feature_to_use is None:
-            feature_to_use = "_sum"
-        if negatives is None:
-            negatives = []
-        positive_list = []
-        for word in positives:
-            positive_list.append(model.wv[word])
-
-        negative_list = []
-        for word in negatives:
-            negative_list.append(model.wv[word])
-
-        if restrict_to_same:
-            results = Vectorizer.get_topn_of_same_type(model, positives, positive_list, negative_list, topn,
-                                                       feature_to_use=feature_to_use)
-        else:
-            results = model.docvecs.most_similar(positive=positive_list, negative=negative_list, topn=topn)
-        for result in results:
-            index, sim = result
-            print(index, corpus.id2desc(index), sim)
-
-    @staticmethod
-    def most_similar_documents_to_documents(model: Union[Doc2Vec, DocumentKeyedVectors],
-                                            corpus: Corpus, positives: Union[List[str], str],
-                                            negatives: Union[List[str], str] = None,
-                                            topn: int = 10,
-                                            restrict_to_same: bool = True,
-                                            feature_to_use: str = None):
-        positive_list = []
-        if isinstance(positives, str):
-            positives = [positives]
-
-        for doc_id in positives:
-            positive_list.append(model.docvecs[doc_id])
-
-        if negatives is None:
-            negatives = []
-        elif isinstance(negatives, str):
-            negatives = [negatives]
-        else:
-            pass
-
-        negative_list = []
-        for doc_id in negatives:
-            negative_list.append(model.docvecs[doc_id])
-
-        if restrict_to_same:
-            results = Vectorizer.get_topn_of_same_type(model, positives, positive_list, negative_list, topn,
-                                                       feature_to_use)
-        else:
-            results = model.docvecs.most_similar(positive=positive_list, negative=negative_list, topn=topn)
-        for result in results:
-            index, sim = result
-            print(index, corpus.id2desc(index), sim)
+    # @staticmethod
+    # def most_similar_words_to_documents(model: Union[Doc2Vec, DocumentKeyedVectors],
+    #                                     positives: List[str],
+    #                                     negatives: List[str] = None,
+    #                                     topn: int = 10):
+    #     if negatives is None:
+    #         negatives = []
+    #     positive_list = []
+    #     for word in positives:
+    #         positive_list.append(model.docvecs[word])
+    #
+    #     negative_list = []
+    #     for word in negatives:
+    #         negative_list.append(model.docvecs[word])
+    #     results = model.wv.most_similar(positive=positive_list, negative=negative_list, topn=topn)
+    #     for result in results:
+    #         word, sim = result
+    #         print(word, sim)
+    #
+    # @staticmethod
+    # def most_similar_documents_to_words(model: Union[Doc2Vec, DocumentKeyedVectors],
+    #                                     corpus: Corpus, positives: List[str],
+    #                                     negatives=None,
+    #                                     topn: int = 10,
+    #                                     restrict_to_same: bool = True,
+    #                                     feature_to_use: str = None):
+    #     if feature_to_use is None:
+    #         feature_to_use = "NF"
+    #     if negatives is None:
+    #         negatives = []
+    #     positive_list = []
+    #     for word in positives:
+    #         positive_list.append(model.wv[word])
+    #
+    #     negative_list = []
+    #     for word in negatives:
+    #         negative_list.append(model.wv[word])
+    #
+    #     if restrict_to_same:
+    #         results = Vectorizer.get_topn_of_same_type(model, positives, positive_list, negative_list, topn,
+    #                                                    feature_to_use=feature_to_use)
+    #     else:
+    #         results = model.docvecs.most_similar(positive=positive_list, negative=negative_list, topn=topn)
+    #     for result in results:
+    #         index, sim = result
+    #         print(index, corpus.id2desc(index), sim)
+    #
+    # @staticmethod
+    # def most_similar_documents_to_documents(model: Union[Doc2Vec, DocumentKeyedVectors],
+    #                                         corpus: Corpus, positives: Union[List[str], str],
+    #                                         negatives: Union[List[str], str] = None,
+    #                                         topn: int = 10,
+    #                                         restrict_to_same: bool = True,
+    #                                         feature_to_use: str = None):
+    #     positive_list = []
+    #     if isinstance(positives, str):
+    #         positives = [positives]
+    #
+    #     for doc_id in positives:
+    #         positive_list.append(model.docvecs[doc_id])
+    #
+    #     if negatives is None:
+    #         negatives = []
+    #     elif isinstance(negatives, str):
+    #         negatives = [negatives]
+    #     else:
+    #         pass
+    #
+    #     negative_list = []
+    #     for doc_id in negatives:
+    #         negative_list.append(model.docvecs[doc_id])
+    #
+    #     if restrict_to_same:
+    #         results = Vectorizer.get_topn_of_same_type(model, positives, positive_list, negative_list, topn,
+    #                                                    feature_to_use)
+    #     else:
+    #         results = model.docvecs.most_similar(positive=positive_list, negative=negative_list, topn=topn)
+    #     for result in results:
+    #         index, sim = result
+    #         print(index, corpus.id2desc(index), sim)
 
     @staticmethod
     def most_similar_documents(model: Union[Doc2Vec, DocumentKeyedVectors],
@@ -584,34 +655,7 @@ class Vectorizer:
             return out_list
 
         positive_list = get_list(positives, model)
-        # positive_list = []
-        # if isinstance(positives, str):
-        #     positives = [positives]
-        # for doc_id in positives:
-        #     try:
-        #         positive_list.append(model.docvecs[doc_id])
-        #     except KeyError:
-        #         try:
-        #             positive_list.append(model.wv[doc_id])
-        #         except KeyError:
-        #             nr = '_'.join(doc_id.split('_')[1:])
-        #             prefix = list(model.docvecs.doctags.keys())[0].split('_')[0]
-        #             new_id = f'{prefix}_{nr}'
-        #             print(new_id)
-        #             positive_list.append(model.docvecs[new_id])
         negative_list = get_list(negatives, model)
-        # if negatives is None:
-        #     negatives = []
-        # elif isinstance(negatives, str):
-        #     negatives = [negatives]
-        # else:
-        #     pass
-        # negative_list = []
-        # for doc_id in negatives:
-        #     try:
-        #         negative_list.append(model.docvecs[doc_id])
-        #     except KeyError:
-        #         negative_list.append(model.wv[doc_id])
 
         if restrict_to_same:
             results = Vectorizer.get_topn_of_same_type(model, positives, positive_list, negative_list, topn,
