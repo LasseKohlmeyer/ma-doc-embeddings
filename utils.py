@@ -753,7 +753,7 @@ class Corpus:
         for doc_id, document in self.documents.items():
             # print(len(document.sentences), number_of_sub_parts)
             if len(document.sentences) < number_of_sub_parts:
-                continue
+                raise UserWarning("Nr of document sentences too small!")
             sentence_counter = 0
             # avg_doc_length = math.ceil(len(document.sentences) / number_of_sub_parts)
             avg_doc_length = len(document.sentences) // number_of_sub_parts
@@ -775,6 +775,9 @@ class Corpus:
                 sub_sentences = document.sentences[i * avg_doc_length:end]
                 fake_series_doc.set_sentences(sub_sentences)
                 fake_series_doc.reset_text_based_on_sentences()
+                # if len(fake_series_doc.sentences) == 0:
+                #     print(document.date, document.doc_id, document.title, fake_series_doc.text, document.text)
+                #     print(sentence_counter, len(document.sentences), avg_doc_length)
                 fake_series_corpus.append(fake_series_doc)
                 sentence_counter += len(fake_series_doc.sentences)
 
@@ -1106,3 +1109,13 @@ class Preprocesser:
 
             document.set_sentences(new_sents)
         return corpus
+
+    @staticmethod
+    def filter_too_small_docs_from_corpus(corpus: Corpus, smaller_as: int =20):
+        documents = {doc_id: document
+                     for doc_id, document in corpus.documents.items()
+                     if len(document.sentences) >= smaller_as}
+        new_corpus = Corpus(documents, name=f'{corpus.name}_fil{smaller_as}', language=corpus.language)
+        new_corpus.set_document_entities()
+
+        return new_corpus
