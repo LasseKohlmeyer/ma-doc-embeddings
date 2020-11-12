@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 from collections import defaultdict
 from enum import Enum
 import random
@@ -9,6 +10,30 @@ from tqdm import tqdm
 import spacy
 from os import listdir
 from os.path import isfile, join
+import logging
+
+
+class ConfigLoader:
+    @staticmethod
+    def get_config(relative_path=""):
+
+        path = os.path.join(relative_path, "configs", "config.json")
+        if os.path.exists(path):
+            logging.info('importing config from configs/config.json ...')
+            with open(path) as json_file:
+                return json.load(json_file)
+
+        path = os.path.join(relative_path, "default.config.json")
+        if os.path.exists(path):
+            path = os.path.join(relative_path, "configs", "default.config.json")
+            logging.info('importing config from configs/default.config.json ...')
+            with open(path) as json_file:
+                return json.load(json_file)
+
+        raise Exception("config file missing!")
+
+
+config = ConfigLoader.get_config()
 
 
 class Utils:
@@ -58,6 +83,8 @@ class DataHandler:
     def load_corpus(input_str: str):
         if input_str == "german_books":
             return DataHandler.load_german_books_as_corpus()
+        elif input_str == "tagged_german_books":
+            return DataHandler.load_tagged_german_books_as_corpus()
         elif input_str == "litrec":
             return DataHandler.load_litrec_books_as_corpus()
         elif input_str == "summaries":
@@ -68,12 +95,12 @@ class DataHandler:
     @staticmethod
     def load_book_summaries_as_corpus(path: str = None) -> "Corpus":
         if path is None:
-            path = 'E:/Corpora/JRBookSummaries/booksummaries.txt'
+            path = config["data_set_path"]["summaries"]
 
         book_summary_df = pd.read_csv(path, delimiter='\t')
 
         # book_summary_df.columns = [['ID_A', 'ID_B', 'TITLE', 'AUTHORS', 'DATE', 'GENRES', 'TEXT']]
-        print(book_summary_df[['GENRES']].head())
+        # print(book_summary_df[['GENRES']].head())
 
         documents = {}
         for i, row in tqdm(book_summary_df.iterrows(), total=len(book_summary_df.index), desc="Parse Documents"):
@@ -114,7 +141,7 @@ class DataHandler:
             return d
 
         if path is None:
-            path = 'E:/Corpora/Corpus of German-Language Fiction'
+            path = config["data_set_path"]["german_books"]
 
         path_a = join(path, 'corpus-of-german-fiction-txt')
         path_b = join(path, 'corpus-of-translated-foreign-language-fiction-txt')
@@ -129,6 +156,57 @@ class DataHandler:
         for i, translated_fiction_path in enumerate(tanslated_fiction):
             doc_id = f'gft_{i}'
             documents[doc_id] = load_textfile_book(path_b, translated_fiction_path, doc_id)
+
+        return Corpus(source=documents, name="german_fiction", language=Language.DE)
+
+    @staticmethod
+    def load_tagged_german_books_as_corpus(path: str = None) -> "Corpus":
+        def load_textfile_book(prefix_path, suffix_path, document_id):
+            with open(join(prefix_path, suffix_path), "r", encoding="utf-8") as file:
+                lines = file.read().split('\n')
+                sentences = []
+                tokens = []
+                for line in lines:
+                    try:
+                        token, pos, lemma = line.split('\t')
+                        tokens.append(Token(text=token, lemma=lemma, pos=pos))
+                    except ValueError:
+                        if line == '<SENT>':
+                            sentences.append(Sentence(tokens))
+                            tokens = []
+                        elif line == '' or line is None:
+                            # skip line
+                            pass
+                        else:
+                            logging.error(f'Error at {suffix_path}')
+
+                content = ' '.join([' '.join(sentence.representation()) for sentence in sentences])
+                # print(content)
+                meta = suffix_path.replace('.tagged.corr.tsv', '').split('_-_')
+                year_author = meta[0].split('_')
+                year = int(year_author[0])
+                author = ' '.join(year_author[1:])
+                title = ' '.join(meta[1:]).replace('_', ' ')
+                # print(author, '|', title, '|', year)
+                d = Document(doc_id=document_id,
+                             text=content,
+                             title=title,
+                             language=Language.DE,
+                             authors=author,
+                             date=str(year),
+                             genres=None)
+                # d.set_sentences(sentences)
+            return d
+
+        if path is None:
+            path = config["data_set_path"]["tagged_german_books"]
+
+        german_fiction = [f for f in listdir(path) if isfile(join(path, f)) and f.endswith('.tsv')]
+
+        documents = {}
+        for i, german_fiction_path in tqdm(enumerate(german_fiction), total=len(german_fiction)):
+            doc_id = f'tgfo_{i}'
+            documents[doc_id] = load_textfile_book(path, german_fiction_path, doc_id)
 
         return Corpus(source=documents, name="german_fiction", language=Language.DE)
 
@@ -156,14 +234,14 @@ class DataHandler:
             return d
 
         if corpus_dir is None:
-            corpus_dir = 'E:/Corpora/LitRec-v1/'
+            corpus_dir = config["data_set_path"]["litrec"]
         df = pd.read_csv(join(corpus_dir, 'user-ratings-v1.txt'), delimiter='@')
 
         documents = {}
         not_found = []
 
         filenames = df[['filename', 'title']].drop_duplicates()
-        for i, row in tqdm(filenames.iterrows(), total=len(filenames.index)):
+        for i, row in tqdm(filenames.iterrows(), total=len(filenames.index), disable=True):
             doc_id = f'lr_{i}'
             try:
                 documents[doc_id] = load_textfile_book(prefix_path=join(corpus_dir, 'books-v11'),
@@ -172,7 +250,7 @@ class DataHandler:
                                                        title=row['title'])
             except FileNotFoundError:
                 not_found.append((row['title'], row['filename']))
-        print(len(not_found))
+        # print(len(not_found))
         return Corpus(source=documents, name="litrec", language=Language.EN)
     # E:/Corpora/LitRec-v1/books-v11\\Basil+King-14393-14393-8.txt.clean.pos
     # E:/Corpora/LitRec-v1/books-v11\\Basil+King-14394-14394-8.txt.clean.pos
@@ -313,6 +391,10 @@ class Token:
     def __repr__(self):
         return f'|{self.text}|'
 
+    @classmethod
+    def empty_token(cls):
+        return Token(text="del", lemma="del", pos=None, ne=None, punctuation=None, alpha=None, stop=None)
+
     # __repr__ = __str__
 
 
@@ -358,7 +440,11 @@ class Document:
     def get_flat_document_tokens(self, lemma: bool = False, lower: bool = False):
         # for doc_id, document in self.documents.items():
         #     print(document.sentences[1].tokens)
-        return [token.representation(lemma, lower) for sentence in self.sentences for token in sentence.tokens]
+        # print('>', self.sentences)
+        tokens = [token.representation(lemma, lower) for sentence in self.sentences for token in sentence.tokens]
+        if len(tokens) == 0:
+            raise UserWarning("No sentences set")
+        return tokens
 
     def __str__(self):
         return f'{self.authors} ({self.date}): {self.title[:50]}'
@@ -379,7 +465,7 @@ class Corpus:
         self.series_dict = None
         if isinstance(source, str):
             # documents = self.load_corpus_documents(path=source)
-            print(f'try to load serialized corpus file {source}')
+            logging.info(f'try to load serialized corpus file {source}')
             documents, name, language, document_entities, series_dict = self.load_corpus(path=source)
             self.name = name
             self.language = language
@@ -498,7 +584,10 @@ class Corpus:
                                                         for en, tokens in doc_data.items()})
                              for doc_id, doc_data in data["document_entities"].items()}
 
-        series_dict = defaultdict(list, data["series_dict"])
+        if data["series_dict"] is None:
+            series_dict = defaultdict(list)
+        else:
+            series_dict = defaultdict(list, data["series_dict"])
 
         logging.info(f"{path} loaded")
 
@@ -550,10 +639,10 @@ class Corpus:
 
     def give_spacy_lan_model(self):
         if self.language == Language.EN:
-            print(f"Language {Language.EN} detected.")
+            logging.info(f"Language {Language.EN} detected.")
             return spacy.load("en_core_web_sm")
         else:
-            print(f"Language {Language.DE} detected.")
+            logging.info(f"Language {Language.DE} detected.")
             return spacy.load("de_core_news_sm")
 
     def set_document_entities(self):
@@ -584,19 +673,78 @@ class Corpus:
     #     self.document_entities = entities_dict
 
     def set_sentences(self, sentences: Dict[str, List[Sentence]]):
-        for doc_id, document in self.documents.items():
-            document.set_sentences(sentences[doc_id])
+        # for doc_id, document in self.documents.items():
+        #     document.set_sentences(sentences[doc_id])
+        [document.set_sentences(sentences[doc_id]) for doc_id, document in self.documents.items()]
 
     def get_flat_document_tokens(self, lemma: bool = False, lower: bool = False):
         # for doc_id, document in self.documents.items():
         #     print(document.sentences[1].tokens)
-        return [[token.representation(lemma, lower) for sentence in document.sentences for token in sentence.tokens]
-                for doc_id, document in self.documents.items()]
+
+        tokens = [[token.representation(lemma, lower) for sentence in document.sentences for token in sentence.tokens]
+                  for doc_id, document in self.documents.items()]
+        if len(tokens) == 0:
+            raise UserWarning("No sentences set")
+
+        return tokens
+
+    def get_flat_and_filtered_document_tokens(self, lemma: bool = False, lower: bool = False, pos: list = None,
+                                              focus_stopwords: bool = False,
+                                              focus_punctuation: bool = False,
+                                              focus_ne: bool = False,
+                                              masking: bool = False,
+                                              revert: bool = False):
+        def filter_condition(token: Token):
+            if revert:
+                return (not focus_stopwords or not token.stop) \
+                       and (not focus_punctuation or not token.alpha) \
+                       and (not pos or not token.pos in pos) \
+                       and (not focus_ne or not token.ne)
+            else:
+                return (not focus_stopwords or token.stop) \
+                       and (not focus_punctuation or token.alpha) \
+                       and (not pos or token.pos in pos) \
+                       and (not focus_ne or token.ne)
+
+        def mask(input_token: Token):
+            output_token = Token(text=input_token.text,
+                                 lemma=input_token.lemma,
+                                 pos=input_token.pos,
+                                 ne=input_token.ne,
+                                 punctuation=input_token.punctuation,
+                                 alpha=input_token.alpha,
+                                 stop=input_token.stop)
+            if not filter_condition(output_token):
+                output_token.text = "del"
+                output_token.lemma = "del"
+            return output_token
+
+        # for doc_id, document in self.documents.items():
+        #     print(document.sentences[1].tokens)
+        if not masking:
+            tokens = [[token.representation(lemma, lower)
+                       for sentence in document.sentences
+                       for token in sentence.tokens
+                       if filter_condition(token)]
+                      for doc_id, document in self.documents.items()]
+        else:
+            tokens = [[mask(token).representation(lemma, lower)
+                       for sentence in document.sentences
+                       for token in sentence.tokens]
+                      for doc_id, document in self.documents.items()]
+
+        if len(tokens) == 0:
+            raise UserWarning("No sentences set")
+
+        return tokens
 
     def get_flat_corpus_sentences(self, lemma: bool = False, lower: bool = False):
-        return [sentence.representation(lemma, lower)
+        sentences = [sentence.representation(lemma, lower)
                 for doc_id, document in self.documents.items()
                 for sentence in document.sentences]
+        if len(sentences) == 0:
+            raise UserWarning("No sentences set")
+        return sentences
 
     def fake_series(self, number_of_sub_parts=2) -> Tuple["Corpus", Dict[str, List[str]]]:
         fake_series_corpus = []
@@ -667,10 +815,14 @@ class Corpus:
             return self
         elif mode.lower() == "common_words" or mode.lower() == "cw":
             # print('>>', common_words["bs_0"])
-            for doc_id, document in tqdm(self.documents.items(), total=len(self.documents), desc="Filtering corpus"):
+            for doc_id, document in tqdm(self.documents.items(), total=len(self.documents), desc="Filtering corpus",
+                                         disable=True):
                 if not masking:
                     new_sents = [Sentence([token for token in sentence.tokens if filter_condition(token, doc_id)])
                                  for sentence in document.sentences]
+                    for sent in new_sents:
+                        if len(sent.tokens) == 0:
+                            sent.tokens.append(Token.empty_token())
                     # for new_s in new_sents:
                     #     print(new_s.representation())
                 else:
@@ -881,8 +1033,8 @@ class Preprocesser:
         # entities_of_documents = []
         nested_sentences = []
         chunked_texts, chunk_list = Preprocesser.chunk_text(texts, 5000)
-
-        for doc in tqdm(nlp.pipe(chunked_texts, disable=disable_list), desc="Annotation", total=len(chunked_texts)):
+        logging.info(f'Start annotation of {len(chunked_texts)} chunked texts')
+        for doc in nlp.pipe(chunked_texts, disable=disable_list):
             # ents = {e.text: e.label_ for e in doc.ents}
 
             # entities_of_documents.append(ents)
@@ -922,7 +1074,7 @@ class Preprocesser:
                remove_punctuation: bool = True,
                remove_ne: bool = False,
                masking: bool = False,
-               revert: bool = False):
+               revert: bool = False) -> Corpus:
 
         def filter_condition(token: Token):
             if revert:
@@ -942,7 +1094,7 @@ class Preprocesser:
                 token.lemma = "del"
             return token
 
-        for doc_id, document in tqdm(corpus.documents.items(), total=len(corpus.documents), desc="Filtering corpus"):
+        for doc_id, document in corpus.documents.items():
             if not masking:
                 new_sents = [Sentence([token for token in sentence.tokens if filter_condition(token)])
                              for sentence in document.sentences]
