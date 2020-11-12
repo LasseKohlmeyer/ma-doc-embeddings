@@ -109,6 +109,7 @@ class Vectorizer:
                 docs_dict[doc_id] = vector
             except ZeroDivisionError:
                 logging.error(f'ZeroDivision Error for {doc_id}')
+                # fixme
                 raise UserWarning
 
         path = f"{save_path}_avg_wv2doc.model"
@@ -509,7 +510,8 @@ class Vectorizer:
                               positive_tags: List[str],
                               positive_list: List[str], negative_list: List[str],
                               topn: int,
-                              feature_to_use: str = None):
+                              feature_to_use: str = None,
+                              origin_topn: int = None):
 
         def extract_feature(tag_list):
             tag = tag_list[0]
@@ -533,10 +535,15 @@ class Vectorizer:
             results = [result for result in results if result[0].endswith(feature)]
 
         # print(results)
-        if len(results) >= topn:
-            return results[:topn]
+        if origin_topn is None:
+            origin_topn = topn
+
+        if len(results) >= origin_topn:
+            return results[:origin_topn]
         else:
-            return Vectorizer.get_topn_of_same_type(model, positive_tags, positive_list, negative_list, high_topn)[
+            # fixme maybe RecursionError: maximum recursion depth exceeded in comparison
+            return Vectorizer.get_topn_of_same_type(model, positive_tags, positive_list, negative_list, high_topn,
+                                                    feature_to_use, origin_topn)[
                    :topn]
 
     # @staticmethod
