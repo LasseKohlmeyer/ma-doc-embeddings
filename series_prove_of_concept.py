@@ -81,9 +81,6 @@ class Evaluation:
                 soft_correct = 0
                 # print(reverted)
                 for sim_doc_id, sim in sim_documents:
-                    # doc_id.replace("_sum", "")
-                    # replaced_doc_id = doc_id.replace("_sum", "")
-                    # replaced_sim_doc_id = sim_doc_id.replace("_sum", "")
                     if reverted[doc_id] == reverted[sim_doc_id]:
                         hard_correct += 1
 
@@ -93,9 +90,10 @@ class Evaluation:
                 soft_correct = soft_correct / len(sim_documents)
                 hard_it_results.append(hard_correct)
                 soft_it_results.append(soft_correct)
+            # print(doc_id, hard_it_results)
             results.append(Evaluation.mean(hard_it_results, std=False))
             soft_results.append(Evaluation.mean(soft_it_results, std=False))
-
+        # print('>', len(results))
         return results, soft_results
 
     @staticmethod
@@ -105,15 +103,17 @@ class Evaluation:
                     sample_size: int = 50,
                     seed: int = 42,
                     topn: int = 10):
+        series_sample = True
         reverted = Utils.revert_dictionaried_list(series_dictionary)
         doctags = vectors.docvecs.doctags.keys()
         doctags = set([doctag for doctag in doctags if doctag[-1].isdigit() or doctag.endswith('_sum')])
         # print(doctags)
 
-        sample = Evaluation.sample_fun(doctags, sample_size=sample_size, series_dict=series_dictionary, seed=seed)
+        sample = Evaluation.sample_fun(doctags, sample_size=sample_size, series_dict=series_dictionary, seed=seed,
+                                       series_sample=series_sample)
 
         results, _ = Evaluation.similar_docs_sample_results(vectors, corpus, reverted, sample, topn)
-        results2, _ = Evaluation.similar_docs_avg(vectors, corpus, reverted, sample, topn)
+        # results2, _ = Evaluation.similar_docs_avg(vectors, corpus, reverted, sample, topn)
 
         # print(results)
         # print(results2)
@@ -129,7 +129,9 @@ class Evaluation:
                               corpus: Corpus,
                               sample_size: int = 50,
                               nr_bootstraps: int = 10,
-                              topn: int = 10):
+                              topn: int = 10,
+                              series_sample: bool = True
+                              ):
         random.seed(42)
         seeds = random.sample([i for i in range(0, nr_bootstraps*10)], nr_bootstraps)
 
@@ -137,24 +139,24 @@ class Evaluation:
             return Evaluation.series_eval(vectors, series_dictionary, corpus, sample_size, seeds[0], topn)
 
         reverted = Utils.revert_dictionaried_list(series_dictionary)
-        doctags = vectors.docvecs.doctags.keys()
-        doctags = set([doctag for doctag in doctags if doctag[-1].isdigit() or doctag.endswith('_sum')])
+        doctags = set([doctag for doctag in vectors.docvecs.doctags.keys() if doctag[-1].isdigit()])
         # print(doctags)
 
         # print(seeds)
-        series_sample = False
+
         bootstrap_results = []
         for seed in seeds:
             sample = Evaluation.sample_fun(doctags, sample_size=sample_size, series_dict=series_dictionary, seed=seed,
                                            series_sample=series_sample)
 
-            # results_fast, _ = Evaluation.similar_docs_sample_results(vectors, corpus, reverted, sample, topn)
-            results_avg, _ = Evaluation.similar_docs_avg(vectors, corpus, reverted, sample, topn)
+            results_fast, _ = Evaluation.similar_docs_sample_results(vectors, corpus, reverted, sample, topn)
+            # results_avg, _ = Evaluation.similar_docs_avg(vectors, corpus, reverted, sample, topn)
             # print(seed, Evaluation.mean(results_avg))
             if not series_sample:
-                assert len(results_avg) == sample_size == len(sample)
-
-            bootstrap_results.append(Evaluation.mean(results_avg, std=False))
+                assert len(results_fast) == sample_size == len(sample)
+            print('>>', len(results_fast))
+            # fix for results_avg?
+            bootstrap_results.append(Evaluation.mean(results_fast, std=False))
             # print(results_avg)
             # print(bootstrap_results)
             # print(results2)
@@ -176,11 +178,11 @@ class Evaluation:
         doctags = [doctag for doctag in doctags if doctag[-1].isdigit()]
         logging.info(f'{len(doctags)} document ids found')
 
-        # results_fast, _ = Evaluation.similar_docs_sample_results(vectors, corpus, reverted, doctags, topn)
-        results_avg, _ = Evaluation.similar_docs_avg(vectors, corpus, reverted, doctags, topn)
+        results_fast, _ = Evaluation.similar_docs_sample_results(vectors, corpus, reverted, doctags, topn)
+        # results_avg, _ = Evaluation.similar_docs_avg(vectors, corpus, reverted, doctags, topn)
         # print(seed, Evaluation.mean(results_avg))
 
-        return np.array(results_avg)
+        return np.array(results_fast)
 
     @staticmethod
     def mean(results: Union[np.ndarray, List[Union[float, int]]], std: bool = True):
@@ -298,11 +300,12 @@ def prove_of_concept():
     logger.info('StartedS')
     # logging.basicConfig(filename='logs/prove_of_concept.logs', level=logging.DEBUG)
     # logging.info('Test')
-    min_number_of_subparts = 2
-    max_number_of_subparts = 2
+    min_number_of_subparts = 10
+    max_number_of_subparts = 10
     nr_bootstraps = 2
-    sample_size = 200
-    ensure_no_sample = False
+    sample_size = 10
+    series_sample = True
+    ensure_no_sample = True
 
     data_sets = [
         "summaries",
@@ -313,10 +316,10 @@ def prove_of_concept():
     ]
     filters = [
         "no_filter",
-        # "named_entities",
+        "named_entities",
         "common_words",
         # "stopwords"
-        "nouns",
+        # "nouns",
         # "verbs",
         # "adjectives",
         # "avn"
@@ -361,6 +364,7 @@ def prove_of_concept():
                 try:
                     # check if general corpus exists
                     corpus = Corpus(annotated_corpus_path)
+                    corpus = Preprocesser.filter_too_small_docs_from_corpus(corpus)
                     corpus, _ = corpus.fake_series(number_of_sub_parts=number_of_subparts)
                     corpus.save_corpus(annotated_series_corpus_path)
                 except FileNotFoundError:
@@ -368,6 +372,7 @@ def prove_of_concept():
                     corpus = DataHandler.load_corpus(data_set)
                     corpus = Preprocesser.annotate_corpus(corpus[:100])
                     corpus.save_corpus(annotated_corpus_path)
+                    corpus = Preprocesser.filter_too_small_docs_from_corpus(corpus)
                     corpus, _ = corpus.fake_series(number_of_sub_parts=number_of_subparts)
                     corpus.save_corpus(annotated_series_corpus_path)
             # Series:
@@ -403,7 +408,8 @@ def prove_of_concept():
                         results = Evaluation.series_eval_bootstrap(vecs, corpus.series_dict, corpus,
                                                                    topn=number_of_subparts,
                                                                    sample_size=sample_size,
-                                                                   nr_bootstraps=nr_bootstraps)
+                                                                   nr_bootstraps=nr_bootstraps,
+                                                                   series_sample=series_sample)
                     else:
                         if not ensure_no_sample:
                             logging.info(f'{nr_bootstraps} bootstraps and {sample_size} samples more work '
