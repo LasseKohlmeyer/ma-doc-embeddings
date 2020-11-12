@@ -42,9 +42,6 @@ Keras-Preprocessing==1.1.2
 kiwisolver==1.2.0
 Markdown==3.3.2
 matplotlib==3.3.2
-mkl-fft==1.2.0
-mkl-random==1.1.1
-mkl-service==2.3.0
 munch==2.5.0
 murmurhash==1.0.2
 nltk==3.5
