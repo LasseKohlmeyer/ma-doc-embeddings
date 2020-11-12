@@ -351,8 +351,8 @@ def prove_of_concept():
             data_set_bar.set_description(f'2 Operate on dataset >{data_set}<')
             data_set_bar.refresh()
 
-            annotated_corpus_path = f'corpora/{data_set}.json'
-            annotated_series_corpus_path = f'corpora/{data_set}_{number_of_subparts}_series.json'
+            annotated_corpus_path = os.path.join('corpora', f'{data_set}.json')
+            annotated_series_corpus_path = os.path.join('corpora', f'{data_set}_{number_of_subparts}_series.json')
             # Corpus +Document
             try:
                 # check if series corpus exists
