@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 from collections import defaultdict
 from typing import Union, List, Dict
 from gensim.models import KeyedVectors, Word2Vec
@@ -11,7 +12,7 @@ from gensim.test.utils import get_tmpfile, datapath
 from numpy import float32 as real
 
 from doc2vec_structures import DocumentKeyedVectors
-from utils import Preprocesser, Corpus, ConfigLoader
+from utils import Preprocesser, Corpus, ConfigLoader, DataHandler
 
 config = ConfigLoader.get_config()
 
@@ -51,6 +52,14 @@ class Vectorizer:
     pretrained_emb_path = None  # config["embeddings"]["pretrained"]
     # "E:/embeddings/glove.6B.300d.txt" # "E:/embeddings/google300.txt"
     pretrained_emb = robust_vec_loading(pretrained_emb_path, binary=False)
+
+    @staticmethod
+    def build_vec_file_name(number_of_subparts: int, size: int, dataset: str, filter_mode: str,
+                            vectorization_algorithm: str, fake_series: str) \
+            -> str:
+        sub_path = DataHandler.build_config_str(number_of_subparts, size, dataset, filter_mode,
+                                                vectorization_algorithm, fake_series)
+        return os.path.join('models', f'{sub_path}.model')
 
     @staticmethod
     def algorithm(input_str: str, corpus: Corpus, save_path: str = "models/", filter_mode: str = None):
@@ -112,7 +121,8 @@ class Vectorizer:
                 # fixme
                 raise UserWarning
 
-        path = f"{save_path}_avg_wv2doc.model"
+        # path = f"{save_path}_avg_wv2doc.model"
+        path = save_path
         words_dict = {word: model.wv[word] for word in model.wv.vocab}
         Vectorizer.my_save_doc2vec_format(fname=path, doctag_vec=docs_dict, word_vec=words_dict,
                                           prefix='*dt_',
@@ -140,7 +150,8 @@ class Vectorizer:
 
         model.train(documents, total_examples=model.corpus_count, epochs=model.epochs)
 
-        path = f"{save_path}{corpus.name}_doc2vec.model"
+        # path = f"{save_path}{corpus.name}_doc2vec.model"
+        path = save_path
         words_dict, docs_dict = Vectorizer.model2dict(model)
         Vectorizer.my_save_doc2vec_format(fname=path, doctag_vec=docs_dict, word_vec=words_dict,
                                           prefix='*dt_',
@@ -220,7 +231,7 @@ class Vectorizer:
         #         print(new_vec)
         #     # print(model.docvecs[tag])
         aspect_string = ''.join(disable_aspects)
-        path = f"{save_path}_{corpus.name}_book2vec_risch_wo{aspect_string}.model"
+        path = save_path
         # print(model.docvecs.doctags)
         words_dict, docs_dict = Vectorizer.model2dict(model)
         # print(docs_dict.keys())

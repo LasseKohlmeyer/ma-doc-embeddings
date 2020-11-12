@@ -80,6 +80,12 @@ class Utils:
 
 class DataHandler:
     @staticmethod
+    def build_config_str(number_of_subparts: int, size: int, dataset: str, filter_mode: str,
+                         vectorization_algorithm: str, fake_series: str):
+        return f'{number_of_subparts}_{size}_{dataset}_{filter_mode}_{fake_series}_{vectorization_algorithm}'
+
+
+    @staticmethod
     def load_corpus(input_str: str):
         if input_str == "german_books":
             return DataHandler.load_german_books_as_corpus()
@@ -515,6 +521,13 @@ class Corpus:
             if d.date:
                 years.add(d.date)
         return sorted(list(years))
+
+    @staticmethod
+    def build_corpus_file_name(number_of_subparts: int, size: int, dataset: str, filter_mode: str, fake_series: str) \
+            -> str:
+        sub_path = DataHandler.build_config_str(number_of_subparts, size, dataset, filter_mode,
+                                                '', fake_series)
+        return os.path.join('corpora', f'{sub_path}.json')
 
     @staticmethod
     def load_corpus_documents(path: str) -> List[Document]:
@@ -1111,11 +1124,11 @@ class Preprocesser:
         return corpus
 
     @staticmethod
-    def filter_too_small_docs_from_corpus(corpus: Corpus, smaller_as: int =20):
+    def filter_too_small_docs_from_corpus(corpus: Corpus, smaller_as: int = 20):
         documents = {doc_id: document
                      for doc_id, document in corpus.documents.items()
                      if len(document.sentences) >= smaller_as}
-        new_corpus = Corpus(documents, name=f'{corpus.name}_fil{smaller_as}', language=corpus.language)
+        new_corpus = Corpus(documents, name=corpus.name, language=corpus.language)
         new_corpus.set_document_entities()
 
         return new_corpus

@@ -154,7 +154,7 @@ class Evaluation:
             # print(seed, Evaluation.mean(results_avg))
             if not series_sample:
                 assert len(results_fast) == sample_size == len(sample)
-            print('>>', len(results_fast))
+            # print('>>', len(results_fast))
             # fix for results_avg?
             bootstrap_results.append(Evaluation.mean(results_fast, std=False))
             # print(results_avg)
@@ -281,12 +281,217 @@ class EvaluationUtils:
         return df_table
 
 
-# class ComplexEncoder(json.JSONEncoder):
-#     def default(self, obj):
-#         if hasattr(obj, 'json_representation'):
-#             return obj.json_representation()
-#         else:
-#             return json.JSONEncoder.default(self, obj)
+def prove_of_concept_splitted():
+    # logger = logging.getLogger(__name__)
+    # logger.setLevel(logging.INFO)
+    # formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    logging.config.fileConfig('configs/logging.conf')
+
+    # create logger
+    logger = logging.getLogger("simple_example")
+    logger.info('StartedS')
+    # logging.basicConfig(filename='logs/prove_of_concept.logs', level=logging.DEBUG)
+    # logging.info('Test')
+    min_number_of_subparts = 10
+    max_number_of_subparts = 10
+    corpus_size = 100
+    nr_bootstraps = 2
+    sample_size = 10
+    series_sample = True
+    ensure_no_sample = True
+
+    data_sets = [
+        "summaries",
+        # "tagged_german_books"
+        # "german_books",
+        # "litrec",
+
+    ]
+    filters = [
+        "no_filter",
+        "named_entities",
+        "common_words",
+        # "stopwords"
+        # "nouns",
+        # "verbs",
+        # "adjectives",
+        # "avn"
+    ]
+    vectorization_algorithms = [
+        "avg_wv2doc",
+        "doc2vec",
+        "book2vec",
+        # "book2vec_wo_raw",
+        # "book2vec_wo_loc",
+        # "book2vec_wo_time",
+        # "book2vec_wo_sty",
+        # "book2vec_wo_atm",
+    ]
+    result_dir = "results"
+    experiment_table_name = "series_experiment_table"
+    final_path = os.path.join(result_dir, f"simple_{experiment_table_name}.csv")
+    cache_path = os.path.join(result_dir, f"cache_{experiment_table_name}.csv")
+    paper_path = os.path.join(result_dir, f"{experiment_table_name}.csv")
+
+    # dataset_results = {}
+    # mean = 0
+
+
+    subparts_bar = tqdm(range(min_number_of_subparts, max_number_of_subparts+1), desc='1 Iterating through subpart')
+    for number_of_subparts in subparts_bar:
+        subparts_bar.set_description(f'1 Iterating through subpart >{number_of_subparts}<')
+        subparts_bar.refresh()
+
+        data_set_bar = tqdm(data_sets, total=len(data_sets), desc="2 Operate on dataset")
+        for data_set in data_set_bar:
+            data_set_bar.set_description(f'2 Operate on dataset >{data_set}<')
+            data_set_bar.refresh()
+
+            annotated_corpus_path = os.path.join('corpora', f'{data_set}.json')
+            annotated_series_corpus_path = os.path.join('corpora', f'{data_set}_{number_of_subparts}_series.json')
+            # Corpus +Document
+            try:
+                # check if series corpus exists
+                corpus = Corpus(annotated_series_corpus_path)
+            except FileNotFoundError:
+                try:
+                    # check if general corpus exists
+                    corpus = Corpus(annotated_corpus_path)
+                    corpus = Preprocesser.filter_too_small_docs_from_corpus(corpus)
+                    corpus, _ = corpus.fake_series(number_of_sub_parts=number_of_subparts)
+                    corpus.save_corpus(annotated_series_corpus_path)
+                except FileNotFoundError:
+                    # load from raw data
+                    corpus = DataHandler.load_corpus(data_set)
+                    corpus = Preprocesser.annotate_corpus(corpus[:corpus_size])
+                    corpus.save_corpus(annotated_corpus_path)
+                    corpus = Preprocesser.filter_too_small_docs_from_corpus(corpus)
+                    corpus, _ = corpus.fake_series(number_of_sub_parts=number_of_subparts)
+                    corpus.save_corpus(annotated_series_corpus_path)
+            # Series:
+            # actual:
+            # series_dict = manual_dict
+            # corpus = corpus
+            # fake:
+            # series_dict: {doc_id} -> {series_id}, series_reverse_dict: {series_id} -> [doc_id]
+            # filter_results = {}
+            filter_bar = tqdm(filters, total=len(filters), desc="3 Calculate filter results")
+            for filter_mode in filter_bar:
+                filter_bar.set_description(f'3 Calculate filter results >{filter_mode}<')
+                filter_bar.refresh()
+                # Document-Filter: No, Common Words Del., NER Del., Nouns Del., Verbs Del., ADJ Del., Stopwords Del.
+                # common_words: {doc_id} -> [common_words]
+                del corpus
+                corpus = Corpus(annotated_series_corpus_path)
+                common_words_dict = corpus.get_common_words(corpus.series_dict)
+                corpus = corpus.filter(mode=filter_mode, common_words=common_words_dict)
+                corpus.save_corpus(Corpus.build_corpus_file_name(number_of_subparts,
+                                                                 corpus_size,
+                                                                 data_set,
+                                                                 filter_mode,
+                                                                 "fake"))
+                # vectorization_results = {}
+                # list_results = {}
+                # results
+                vec_bar = tqdm(vectorization_algorithms, total=len(vectorization_algorithms),
+                               desc="4a C Embedding ")
+                for vectorization_algorithm in vec_bar:
+                    vec_bar.set_description(f'4a Apply Embeddings >{vectorization_algorithm}<')
+                    vec_bar.refresh()
+                    vecs = Vectorizer.algorithm(input_str=vectorization_algorithm,
+                                                corpus=corpus,
+                                                save_path=Vectorizer.build_vec_file_name(number_of_subparts,
+                                                                                         corpus_size,
+                                                                                         data_set,
+                                                                                         filter_mode,
+                                                                                         vectorization_algorithm,
+                                                                                         "fake"),
+                                                filter_mode=filter_mode)
+
+    del vecs
+    del corpus
+    tuples = []
+    subparts_bar = tqdm(range(min_number_of_subparts, max_number_of_subparts + 1),
+                        desc='1 Iterating through subpart')
+    for number_of_subparts in subparts_bar:
+        subparts_bar.set_description(f'1 Iterating through subpart >{number_of_subparts}<')
+        subparts_bar.refresh()
+        data_set_bar = tqdm(data_sets, total=len(data_sets), desc="2 Operate on dataset")
+        for data_set in data_set_bar:
+            data_set_bar.set_description(f'2 Operate on dataset >{data_set}<')
+            data_set_bar.refresh()
+
+            filter_bar = tqdm(filters, total=len(filters), desc="3 Calculate filter results")
+            for filter_mode in filter_bar:
+                filter_bar.set_description(f'3 Calculate filter results >{filter_mode}<')
+                filter_bar.refresh()
+
+                vec_bar = tqdm(vectorization_algorithms, total=len(vectorization_algorithms),
+                               desc="4a Apply Embedding ")
+                # vectorization_results = {}
+                list_results = {}
+                # results
+                for vectorization_algorithm in vec_bar:
+                    vec_bar.set_description(f'4a Apply Embeddings >{vectorization_algorithm}<')
+                    vec_bar.refresh()
+                    vecs = Vectorizer.my_load_doc2vec_format(Vectorizer.build_vec_file_name(number_of_subparts,
+                                                                                            corpus_size,
+                                                                                            data_set,
+                                                                                            filter_mode,
+                                                                                            vectorization_algorithm,
+                                                                                            "fake"))
+                    corpus = Corpus(Corpus.build_corpus_file_name(number_of_subparts,
+                                                                  corpus_size,
+                                                                  data_set,
+                                                                  filter_mode,
+                                                                  "fake"))
+                    # Scoring:
+                    if nr_bootstraps * sample_size < len(vecs.docvecs.doctags) and not ensure_no_sample:
+                        results = Evaluation.series_eval_bootstrap(vecs, corpus.series_dict, corpus,
+                                                                   topn=number_of_subparts,
+                                                                   sample_size=sample_size,
+                                                                   nr_bootstraps=nr_bootstraps,
+                                                                   series_sample=series_sample)
+                    else:
+                        if not ensure_no_sample:
+                            logging.info(f'{nr_bootstraps} bootstraps and {sample_size} samples more work '
+                                         f'as actual data {len(vecs.docvecs.doctags)} < {nr_bootstraps * sample_size}')
+                        results = Evaluation.series_eval_full_data(vecs, corpus.series_dict, corpus,
+                                                                   topn=number_of_subparts)
+                    # print('vec results', len(results))
+                    list_results[vectorization_algorithm] = results
+
+                # Evaluation.t_test(list_results)
+                significance_dict = Evaluation.one_way_anova(list_results)
+
+                # Scoring
+                vec_eval_bar = tqdm(vectorization_algorithms, total=len(vectorization_algorithms),
+                                    desc="4b Evaluate Embeddings", disable=False)
+                for vectorization_algorithm in vec_eval_bar:
+                    vec_eval_bar.set_description(f'4b Evaluate Embeddings >{vectorization_algorithm}<')
+                    vec_eval_bar.refresh()
+                    results = list_results[vectorization_algorithm]
+                    sig = significance_dict[vectorization_algorithm]
+                    score, deviation = Evaluation.mean(results)
+                    # vectorization_results[vectorization_algorithm] = score, deviation
+                    observation = (number_of_subparts, data_set, vectorization_algorithm, filter_mode,
+                                   f'{score:.4f} ± {deviation:.4f} [{sig}]',
+                                   Evaluation.median(results))
+                    tuples.append(observation)
+
+                    df_obs = pd.DataFrame([observation],
+                                          columns=['Series_length', 'Dataset', 'Algorithm',
+                                                   'Filter', 'Score', 'Median'])
+                    df_obs.to_csv(cache_path, mode='a', header=(not os.path.exists(cache_path)), index=False)
+
+        #         filter_results[filter_mode] = vectorization_results
+        #     dataset_results[data_set] = filter_results
+        # print(dataset_results)
+
+    df = pd.DataFrame(tuples, columns=['Series_length', 'Dataset', 'Algorithm', 'Filter', 'Score', 'Median'])
+    print(df)
+    df.to_csv(final_path, index=False)
+    print(EvaluationUtils.build_paper_table(df, paper_path))
 
 
 def prove_of_concept():
@@ -303,6 +508,7 @@ def prove_of_concept():
     min_number_of_subparts = 10
     max_number_of_subparts = 10
     nr_bootstraps = 2
+    corpus_size = 100
     sample_size = 10
     series_sample = True
     ensure_no_sample = True
@@ -370,7 +576,7 @@ def prove_of_concept():
                 except FileNotFoundError:
                     # load from raw data
                     corpus = DataHandler.load_corpus(data_set)
-                    corpus = Preprocesser.annotate_corpus(corpus[:100])
+                    corpus = Preprocesser.annotate_corpus(corpus[:corpus_size])
                     corpus.save_corpus(annotated_corpus_path)
                     corpus = Preprocesser.filter_too_small_docs_from_corpus(corpus)
                     corpus, _ = corpus.fake_series(number_of_sub_parts=number_of_subparts)
@@ -402,6 +608,12 @@ def prove_of_concept():
                     vec_bar.refresh()
                     vecs = Vectorizer.algorithm(input_str=vectorization_algorithm,
                                                 corpus=corpus,
+                                                save_path=Vectorizer.build_vec_file_name(number_of_subparts,
+                                                                                         corpus_size,
+                                                                                         data_set,
+                                                                                         filter_mode,
+                                                                                         vectorization_algorithm,
+                                                                                         "fake"),
                                                 filter_mode=filter_mode)
                     # Scoring:
                     if nr_bootstraps * sample_size < len(vecs.docvecs.doctags) and not ensure_no_sample:
@@ -471,4 +683,4 @@ def prove_of_concept():
 # x = Number of correctly identified serial book clusters compared to ...
 
 if __name__ == '__main__':
-    prove_of_concept()
+    prove_of_concept_splitted()
