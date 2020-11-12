@@ -208,7 +208,7 @@ class DataHandler:
             doc_id = f'tgfo_{i}'
             documents[doc_id] = load_textfile_book(path, german_fiction_path, doc_id)
 
-        return Corpus(source=documents, name="german_fiction", language=Language.DE)
+        return Corpus(source=documents, name="german_fiction_tagged", language=Language.DE)
 
     @staticmethod
     def load_litrec_books_as_corpus(corpus_dir: str = None) -> "Corpus":
@@ -751,6 +751,9 @@ class Corpus:
         fake_series_dict = defaultdict(list)
 
         for doc_id, document in self.documents.items():
+            # print(len(document.sentences), number_of_sub_parts)
+            if len(document.sentences) < number_of_sub_parts:
+                continue
             sentence_counter = 0
             # avg_doc_length = math.ceil(len(document.sentences) / number_of_sub_parts)
             avg_doc_length = len(document.sentences) // number_of_sub_parts
@@ -774,8 +777,7 @@ class Corpus:
                 fake_series_doc.reset_text_based_on_sentences()
                 fake_series_corpus.append(fake_series_doc)
                 sentence_counter += len(fake_series_doc.sentences)
-                # if len(fake_series_doc.sentences) == 0:
-                #     print(sentence_counter, len(document.sentences), avg_doc_length)
+
                 assert len(fake_series_doc.sentences) > 0
             assert sentence_counter == len(document.sentences)
         fake_series_corpus = Corpus(fake_series_corpus, name=f'{self.name}_fake', language=self.language)
