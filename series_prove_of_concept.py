@@ -299,21 +299,21 @@ class EvaluationRun:
         "no_filter",
         "named_entities",
         "common_words",
-        # "stopwords"
-        # "nouns",
-        # "verbs",
-        # "adjectives",
-        # "avn"
+        "stopwords",
+        "nouns",
+        "verbs",
+        "adjectives",
+        "avn"
     ]
     vectorization_algorithms = [
         "avg_wv2doc",
         "doc2vec",
         "book2vec",
-        # "book2vec_wo_raw",
-        # "book2vec_wo_loc",
-        # "book2vec_wo_time",
-        # "book2vec_wo_sty",
-        # "book2vec_wo_atm",
+        "book2vec_wo_raw",
+        "book2vec_wo_loc",
+        "book2vec_wo_time",
+        "book2vec_wo_sty",
+        "book2vec_wo_atm",
     ]
 
     @staticmethod
