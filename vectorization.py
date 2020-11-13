@@ -62,28 +62,35 @@ class Vectorizer:
         return os.path.join('models', f'{sub_path}.model')
 
     @staticmethod
-    def algorithm(input_str: str, corpus: Corpus, save_path: str = "models/", filter_mode: str = None):
+    def algorithm(input_str: str, corpus: Corpus, save_path: str = "models/", filter_mode: str = None,
+                  return_vecs: bool = False):
         if input_str == "avg_wv2doc":
-            return Vectorizer.avg_wv2doc(corpus, save_path)
+            return Vectorizer.avg_wv2doc(corpus, save_path, return_vecs=return_vecs)
         elif input_str == "doc2vec":
-            return Vectorizer.doc2vec(corpus, save_path)
+            return Vectorizer.doc2vec(corpus, save_path, return_vecs=return_vecs)
         elif input_str == "book2vec_simple" or input_str == "book2vec":
-            return Vectorizer.book2vec_simple(corpus, save_path, filter_mode)
+            return Vectorizer.book2vec_simple(corpus, save_path, filter_mode, return_vecs=return_vecs)
         elif input_str == "book2vec_wo_raw":
-            return Vectorizer.book2vec_simple(corpus, save_path, filter_mode, disable_aspects=['raw'])
+            return Vectorizer.book2vec_simple(corpus, save_path, filter_mode,
+                                              disable_aspects=['raw'], return_vecs=return_vecs)
         elif input_str == "book2vec_wo_loc":
-            return Vectorizer.book2vec_simple(corpus, save_path, filter_mode, disable_aspects=['loc'])
+            return Vectorizer.book2vec_simple(corpus, save_path, filter_mode,
+                                              disable_aspects=['loc'], return_vecs=return_vecs)
         elif input_str == "book2vec_wo_time":
-            return Vectorizer.book2vec_simple(corpus, save_path, filter_mode, disable_aspects=['time'])
+            return Vectorizer.book2vec_simple(corpus, save_path, filter_mode,
+                                              disable_aspects=['time'], return_vecs=return_vecs)
         elif input_str == "book2vec_wo_sty":
-            return Vectorizer.book2vec_simple(corpus, save_path, filter_mode, disable_aspects=['sty'])
+            return Vectorizer.book2vec_simple(corpus, save_path, filter_mode,
+
+                                              disable_aspects=['sty'], return_vecs=return_vecs)
         elif input_str == "book2vec_wo_atm":
-            return Vectorizer.book2vec_simple(corpus, save_path, filter_mode, disable_aspects=['atm'])
+            return Vectorizer.book2vec_simple(corpus, save_path,
+                                              filter_mode, disable_aspects=['atm'], return_vecs=return_vecs)
         else:
             raise UserWarning(f"fUnknown input string {input_str}!")
 
     @classmethod
-    def avg_wv2doc(cls, corpus: Corpus, save_path: str = "models/"):
+    def avg_wv2doc(cls, corpus: Corpus, save_path: str = "models/", return_vecs: bool = True):
         # Preprocesser.preprocess(return_in_sentence_format=True)
         # print('sents', preprocessed_sentences)
         # print(preprocessed_documents)
@@ -127,12 +134,14 @@ class Vectorizer:
         Vectorizer.my_save_doc2vec_format(fname=path, doctag_vec=docs_dict, word_vec=words_dict,
                                           prefix='*dt_',
                                           fvocab=None, binary=False)
-
-        vecs = Vectorizer.my_load_doc2vec_format(fname=path, binary=False)
-        return vecs
+        if return_vecs:
+            vecs = Vectorizer.my_load_doc2vec_format(fname=path, binary=False)
+            return vecs
+        else:
+            return True
 
     @classmethod
-    def doc2vec(cls, corpus: Corpus, save_path: str = "models/"):
+    def doc2vec(cls, corpus: Corpus, save_path: str = "models/", return_vecs: bool = True):
         # documents = [TaggedDocument(doc, [i])
         #              for i, doc in enumerate(Preprocesser.tokenize(corpus.get_texts_and_doc_ids()))]
         # documents = [TaggedDocument(Preprocesser.tokenize(document.text), [doc_id])
@@ -157,12 +166,15 @@ class Vectorizer:
                                           prefix='*dt_',
                                           fvocab=None, binary=False)
 
-        vecs = Vectorizer.my_load_doc2vec_format(fname=path, binary=False)
-        return vecs
+        if return_vecs:
+            vecs = Vectorizer.my_load_doc2vec_format(fname=path, binary=False)
+            return vecs
+        else:
+            return True
 
     @classmethod
     def book2vec_simple(cls, corpus: Corpus, save_path: str = "models/", filter_mode: str = None,
-                        disable_aspects: List[str] = None):
+                        disable_aspects: List[str] = None, return_vecs: bool = True):
         lemma = False
         lower = False
 
@@ -239,10 +251,11 @@ class Vectorizer:
         Vectorizer.my_save_doc2vec_format(fname=path, doctag_vec=docs_dict, word_vec=words_dict,
                                           prefix='*dt_',
                                           fvocab=None, binary=False)
-
-        vecs = Vectorizer.my_load_doc2vec_format(fname=path, binary=False)
-
-        return vecs
+        if return_vecs:
+            vecs = Vectorizer.my_load_doc2vec_format(fname=path, binary=False)
+            return vecs
+        else:
+            return True
 
     @staticmethod
     def combine_vectors(document_dictionary: Dict[str, np.array]):
