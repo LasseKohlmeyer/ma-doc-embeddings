@@ -5,6 +5,11 @@
     "german_books": "/path/to/dir",
     "litrec": "/path/to/dir"
   },
+  "system_storage": {
+    "corpora" : "corpora",
+    "models" : "models"
+
+  },
   "embeddings": {
     "pretrained": "/path/to/file"
   }

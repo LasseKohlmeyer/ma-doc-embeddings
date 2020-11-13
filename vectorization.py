@@ -59,7 +59,7 @@ class Vectorizer:
             -> str:
         sub_path = DataHandler.build_config_str(number_of_subparts, size, dataset, filter_mode,
                                                 vectorization_algorithm, fake_series)
-        return os.path.join('models', f'{sub_path}.model')
+        return os.path.join(config["system_storage"]["models"], f'{sub_path}.model')
 
     @staticmethod
     def algorithm(input_str: str, corpus: Corpus, save_path: str = "models/", filter_mode: str = None,

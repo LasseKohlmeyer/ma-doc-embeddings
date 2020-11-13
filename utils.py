@@ -527,7 +527,7 @@ class Corpus:
             -> str:
         sub_path = DataHandler.build_config_str(number_of_subparts, size, dataset, filter_mode,
                                                 '', fake_series)
-        return os.path.join('corpora', f'{sub_path}.json')
+        return os.path.join(config["system_storage"]["corpora"], f'{sub_path}.json')
 
     @staticmethod
     def load_corpus_documents(path: str) -> List[Document]:
