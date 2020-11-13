@@ -82,7 +82,7 @@ class DataHandler:
     @staticmethod
     def build_config_str(number_of_subparts: int, size: int, dataset: str, filter_mode: str,
                          vectorization_algorithm: str, fake_series: str):
-        return f'{number_of_subparts}_{size}_{dataset}_{filter_mode}_{fake_series}_{vectorization_algorithm}'
+        return f'{dataset}_{number_of_subparts}_{size}_{filter_mode}_{fake_series}_{vectorization_algorithm}'
 
 
     @staticmethod
