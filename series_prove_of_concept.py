@@ -872,7 +872,7 @@ class EvaluationRun:
     #     print(EvaluationUtils.build_paper_table(df, paper_path))
 
     @classmethod
-    def build_corpora_eff(cls, parallel: bool = False):
+    def build_corpora(cls, parallel: bool = False):
         subparts_bar = tqdm(range(cls.min_number_of_subparts, cls.max_number_of_subparts + 1),
                             desc='1 Iterating through subpart')
         for number_of_subparts in subparts_bar:
@@ -939,7 +939,7 @@ class EvaluationRun:
                      for filter_mode in filter_bar]
 
     @classmethod
-    def train_vecs_sep_eff(cls, parallel: bool = False):
+    def train_vecs(cls, parallel: bool = False):
         subparts_bar = tqdm(range(cls.min_number_of_subparts, cls.max_number_of_subparts + 1),
                             desc='1 Iterating through subpart')
         for number_of_subparts in subparts_bar:
@@ -1010,7 +1010,7 @@ class EvaluationRun:
         return number_of_subparts, data_set, filter_mode, vectorization_algorithm, results
 
     @classmethod
-    def run_evaluation_eff(cls, parallel: bool = True):
+    def run_evaluation(cls, parallel: bool = True):
         nr_bootstraps = 2
         sample_size = 10
         series_sample = True
@@ -1575,9 +1575,9 @@ if __name__ == '__main__':
     # formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     # logging.confi
 
-    # EvaluationRun.build_corpora_eff()
-    # EvaluationRun.train_vecs_sep_eff()
-    # EvaluationRun.run_evaluation_eff()
+    # EvaluationRun.build_corpora()
+    # EvaluationRun.train_vecs()
+    # EvaluationRun.run_evaluation()
 
     RealSeriesEvaluationRun.build_real_series_corpora()
     RealSeriesEvaluationRun.train_real_series_vecs()
