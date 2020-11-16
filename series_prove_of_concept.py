@@ -385,29 +385,7 @@ class EvaluationRun:
         "book2vec_wo_atm",
     ]
 
-    # @staticmethod
-    # def seperated_vec_calculation(number_of_subparts, corpus_size, data_set, filter_mode,
-    #                               vectorization_algorithm, fake):
-    #     filtered_corpus_file_name = Corpus.build_corpus_file_name(number_of_subparts,
-    #                                                               corpus_size,
-    #                                                               data_set,
-    #                                                               filter_mode,
-    #                                                               fake)
-    #     vec_file_name = Vectorizer.build_vec_file_name(number_of_subparts,
-    #                                                    corpus_size,
-    #                                                    data_set,
-    #                                                    filter_mode,
-    #                                                    vectorization_algorithm,
-    #                                                    fake)
-    #     if not os.path.isfile(vec_file_name):
-    #         corpus = Corpus(filtered_corpus_file_name)
-    #         EvaluationRun.store_vectors_to_parameters(corpus,
-    #                                                   number_of_subparts,
-    #                                                   corpus_size,
-    #                                                   data_set,
-    #                                                   filter_mode,
-    #                                                   vectorization_algorithm,
-    #                                                   fake)
+
 
     @staticmethod
     def seperated_vec_calculation_eff(corpus, number_of_subparts, corpus_size, data_set, filter_mode,
@@ -426,20 +404,6 @@ class EvaluationRun:
                                                       filter_mode,
                                                       vectorization_algorithm,
                                                       fake)
-
-    # @staticmethod
-    # def store_corpus_to_parameters(annotated_series_corpus_path, number_of_subparts, corpus_size, data_set,
-    #                                filter_mode, fake):
-    #     filtered_corpus_file_name = Corpus.build_corpus_file_name(number_of_subparts,
-    #                                                               corpus_size,
-    #                                                               data_set,
-    #                                                               filter_mode,
-    #                                                               fake)
-    #     if not os.path.isfile(filtered_corpus_file_name):
-    #         corpus = Corpus(annotated_series_corpus_path)
-    #         common_words_dict = corpus.get_common_words(corpus.series_dict)
-    #         corpus.filter(mode=filter_mode, common_words=common_words_dict)
-    #         corpus.save_corpus(filtered_corpus_file_name)
 
     @staticmethod
     def store_corpus_to_parameters_eff(corpus, number_of_subparts, corpus_size, data_set,
@@ -472,6 +436,42 @@ class EvaluationRun:
         # else:
         #     logging.info(f'{vec_file_name} already exists, skip')
 
+    # @staticmethod
+    # def seperated_vec_calculation(number_of_subparts, corpus_size, data_set, filter_mode,
+    #                               vectorization_algorithm, fake):
+    #     filtered_corpus_file_name = Corpus.build_corpus_file_name(number_of_subparts,
+    #                                                               corpus_size,
+    #                                                               data_set,
+    #                                                               filter_mode,
+    #                                                               fake)
+    #     vec_file_name = Vectorizer.build_vec_file_name(number_of_subparts,
+    #                                                    corpus_size,
+    #                                                    data_set,
+    #                                                    filter_mode,
+    #                                                    vectorization_algorithm,
+    #                                                    fake)
+    #     if not os.path.isfile(vec_file_name):
+    #         corpus = Corpus(filtered_corpus_file_name)
+    #         EvaluationRun.store_vectors_to_parameters(corpus,
+    #                                                   number_of_subparts,
+    #                                                   corpus_size,
+    #                                                   data_set,
+    #                                                   filter_mode,
+    #                                                   vectorization_algorithm,
+    #                                                   fake)
+    # @staticmethod
+    # def store_corpus_to_parameters(annotated_series_corpus_path, number_of_subparts, corpus_size, data_set,
+    #                                filter_mode, fake):
+    #     filtered_corpus_file_name = Corpus.build_corpus_file_name(number_of_subparts,
+    #                                                               corpus_size,
+    #                                                               data_set,
+    #                                                               filter_mode,
+    #                                                               fake)
+    #     if not os.path.isfile(filtered_corpus_file_name):
+    #         corpus = Corpus(annotated_series_corpus_path)
+    #         common_words_dict = corpus.get_common_words(corpus.series_dict)
+    #         corpus.filter(mode=filter_mode, common_words=common_words_dict)
+    #         corpus.save_corpus(filtered_corpus_file_name)
     # @classmethod
     # def build_corpora(cls, parallel: bool = False):
     #     subparts_bar = tqdm(range(cls.min_number_of_subparts, cls.max_number_of_subparts + 1),
