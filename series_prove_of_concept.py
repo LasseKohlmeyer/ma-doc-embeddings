@@ -102,23 +102,57 @@ class EvaluationMath:
 
         return outer_dict
 
+
+class EvaluationMetric:
     @staticmethod
     def precision_scores(sim_documents, doc_id: str, corpus: Corpus, reverted):
         hard_correct = 0
-        soft_correct = 0
+        # soft_correct = 0
         # print(reverted)
-        for sim_doc_id, sim in sim_documents:
-            # doc_id.replace("_sum", "")
-            replaced_doc_id = doc_id.replace("_sum", "")
-            replaced_sim_doc_id = sim_doc_id.replace("_sum", "")
-            if reverted[replaced_doc_id] == reverted[replaced_sim_doc_id]:
+        for sim_doc_id, _ in sim_documents:
+            if reverted[doc_id] == reverted[sim_doc_id]:
                 hard_correct += 1
-            if corpus.documents[replaced_doc_id].authors == corpus.documents[replaced_sim_doc_id].authors:
-                soft_correct += 1
+            # if corpus.documents[doc_id].authors == corpus.documents[sim_doc_id].authors:
+            #     soft_correct += 1
 
         hard_correct = hard_correct / len(sim_documents)
-        soft_correct = soft_correct / len(sim_documents)
-        return hard_correct, soft_correct
+        # soft_correct = soft_correct / len(sim_documents)
+        return hard_correct
+
+    @staticmethod
+    def ap(sim_documents, doc_id: str, corpus: Corpus, reverted):
+        # print(reverted)
+        k = 1
+        prec_values_at_k = []
+        correct_ones = []
+        for sim_doc_id, _ in sim_documents:
+            if reverted[doc_id] == reverted[sim_doc_id]:
+                correct_ones.append(k)
+                prec_values_at_k.append(len(correct_ones)/k)
+
+            k += 1
+        if len(prec_values_at_k) > 0:
+            ap = sum(prec_values_at_k)/len(prec_values_at_k)
+        else:
+            ap = 0
+        return ap
+
+    @staticmethod
+    def ndcg_c(sim_documents, doc_id: str, corpus: Corpus, reverted):
+        # print(reverted)
+        ground_truth_values = []
+        predicted_values = []
+        for sim_doc_id, sim in sim_documents:
+            predicted_values.append(sim)
+
+            if reverted[doc_id] == reverted[sim_doc_id]:
+                ground_truth_values.append(1)
+            else:
+                ground_truth_values.append(0)
+
+        ndcg = metrics.ndcg_score(np.array([ground_truth_values]),
+                                  np.array([predicted_values]))
+        return ndcg
 
     @staticmethod
     def ndcg_b(sim_documents, doc_id: str, corpus: Corpus, reverted):
@@ -126,11 +160,8 @@ class EvaluationMath:
         ground_truth_values = []
         predicted_values = []
         c = 0
-        for sim_doc_id, sim in sim_documents:
-            # doc_id.replace("_sum", "")
-            replaced_doc_id = doc_id.replace("_sum", "")
-            replaced_sim_doc_id = sim_doc_id.replace("_sum", "")
-            if reverted[replaced_doc_id] == reverted[replaced_sim_doc_id]:
+        for sim_doc_id, _ in sim_documents:
+            if reverted[doc_id] == reverted[sim_doc_id]:
                 predicted_values.append(1)
             else:
                 predicted_values.append(0)
@@ -151,12 +182,9 @@ class EvaluationMath:
         ground_truth_values = []
         predicted_values = []
 
-        for sim_doc_id, sim in sim_documents:
-            # doc_id.replace("_sum", "")
-            replaced_doc_id = doc_id.replace("_sum", "")
-            replaced_sim_doc_id = sim_doc_id.replace("_sum", "")
+        for sim_doc_id, _ in sim_documents:
             predicted_values.append(1)
-            if reverted[replaced_doc_id] == reverted[replaced_sim_doc_id]:
+            if reverted[doc_id] == reverted[sim_doc_id]:
                 ground_truth_values.append(1)
             else:
                 ground_truth_values.append(0)
@@ -167,6 +195,8 @@ class EvaluationMath:
 
 
 class Evaluation:
+    evaluation_metric = EvaluationMetric.precision_scores
+
     @staticmethod
     def sample_fun(doc_ids: Set[str], sample_size: int, series_dict: Dict[str, List[str]] = None,
                    series_sample: bool = False, seed: int = None):
@@ -182,68 +212,55 @@ class Evaluation:
         else:
             return random.sample(doc_ids, sample_size)
 
-    @staticmethod
-    def similar_docs_sample_results(vectors, corpus: Corpus, reverted: Dict[str, str],
+    @classmethod
+    def similar_docs_sample_results(cls, vectors, corpus: Corpus, reverted: Dict[str, str],
                                     sample: List[str], topn: int):
         results = []
-        soft_results = []
+        ap_values = []
         for doc_id in sample:
             sim_documents = Vectorizer.most_similar_documents(vectors, corpus,
                                                               positives=[doc_id],
                                                               feature_to_use="NF",
                                                               topn=topn,
                                                               print_results=False)
-            hard_correct = 0
-            soft_correct = 0
-            # print(reverted)
-            for sim_doc_id, sim in sim_documents:
-                # doc_id.replace("_sum", "")
-                replaced_doc_id = doc_id.replace("_sum", "")
-                replaced_sim_doc_id = sim_doc_id.replace("_sum", "")
-                if reverted[replaced_doc_id] == reverted[replaced_sim_doc_id]:
-                    hard_correct += 1
-
-                if corpus.documents[replaced_doc_id].authors == corpus.documents[replaced_sim_doc_id].authors:
-                    soft_correct += 1
-            hard_correct = hard_correct / len(sim_documents)
-            soft_correct = soft_correct / len(sim_documents)
+            hard_correct = cls.evaluation_metric(sim_documents, doc_id, corpus, reverted)
             results.append(hard_correct)
-            soft_results.append(soft_correct)
+            ap_values.append(EvaluationMetric.ap(sim_documents, doc_id, corpus, reverted))
 
-        return results, soft_results
+        return results
 
-    @staticmethod
-    def similar_docs_avg(vectors, corpus: Corpus, reverted: Dict[str, str],
-                         sample: List[str], topn: int):
-        results = []
-        soft_results = []
-        for doc_id in sample:
-            hard_it_results = []
-            soft_it_results = []
-            for i in range(1, topn+1):
-                sim_documents = Vectorizer.most_similar_documents(vectors, corpus,
-                                                                  positives=[doc_id],
-                                                                  feature_to_use="NF",
-                                                                  topn=topn,
-                                                                  print_results=False)
-                hard_correct = 0
-                soft_correct = 0
-                # print(reverted)
-                for sim_doc_id, sim in sim_documents:
-                    if reverted[doc_id] == reverted[sim_doc_id]:
-                        hard_correct += 1
-
-                    if corpus.documents[doc_id].authors == corpus.documents[sim_doc_id].authors:
-                        soft_correct += 1
-                hard_correct = hard_correct / len(sim_documents)
-                soft_correct = soft_correct / len(sim_documents)
-                hard_it_results.append(hard_correct)
-                soft_it_results.append(soft_correct)
-            # print(doc_id, hard_it_results)
-            results.append(EvaluationMath.mean(hard_it_results, std=False))
-            soft_results.append(EvaluationMath.mean(soft_it_results, std=False))
-        # print('>', len(results))
-        return results, soft_results
+    # @staticmethod
+    # def similar_docs_avg(vectors, corpus: Corpus, reverted: Dict[str, str],
+    #                      sample: List[str], topn: int):
+    #     results = []
+    #     soft_results = []
+    #     for doc_id in sample:
+    #         hard_it_results = []
+    #         soft_it_results = []
+    #         for i in range(1, topn+1):
+    #             sim_documents = Vectorizer.most_similar_documents(vectors, corpus,
+    #                                                               positives=[doc_id],
+    #                                                               feature_to_use="NF",
+    #                                                               topn=topn,
+    #                                                               print_results=False)
+    #             hard_correct = 0
+    #             soft_correct = 0
+    #             # print(reverted)
+    #             for sim_doc_id, sim in sim_documents:
+    #                 if reverted[doc_id] == reverted[sim_doc_id]:
+    #                     hard_correct += 1
+    #
+    #                 if corpus.documents[doc_id].authors == corpus.documents[sim_doc_id].authors:
+    #                     soft_correct += 1
+    #             hard_correct = hard_correct / len(sim_documents)
+    #             soft_correct = soft_correct / len(sim_documents)
+    #             hard_it_results.append(hard_correct)
+    #             soft_it_results.append(soft_correct)
+    #         # print(doc_id, hard_it_results)
+    #         results.append(EvaluationMath.mean(hard_it_results, std=False))
+    #         soft_results.append(EvaluationMath.mean(soft_it_results, std=False))
+    #     # print('>', len(results))
+    #     return results, soft_results
 
     @staticmethod
     def series_eval(vectors: Union[Doc2Vec, DocumentKeyedVectors],
@@ -261,7 +278,7 @@ class Evaluation:
         sample = Evaluation.sample_fun(doctags, sample_size=sample_size, series_dict=series_dictionary, seed=seed,
                                        series_sample=series_sample)
 
-        results, _ = Evaluation.similar_docs_sample_results(vectors, corpus, reverted, sample, topn)
+        results = Evaluation.similar_docs_sample_results(vectors, corpus, reverted, sample, topn)
         # results2, _ = Evaluation.similar_docs_avg(vectors, corpus, reverted, sample, topn)
 
         # print(results)
@@ -298,7 +315,7 @@ class Evaluation:
             sample = Evaluation.sample_fun(doctags, sample_size=sample_size, series_dict=series_dictionary, seed=seed,
                                            series_sample=series_sample)
 
-            results_fast, _ = Evaluation.similar_docs_sample_results(vectors, corpus, reverted, sample, topn)
+            results_fast = Evaluation.similar_docs_sample_results(vectors, corpus, reverted, sample, topn)
             # results_avg, _ = Evaluation.similar_docs_avg(vectors, corpus, reverted, sample, topn)
             # print(seed, Evaluation.mean(results_avg))
             if not series_sample:
@@ -327,7 +344,7 @@ class Evaluation:
         doctags = [doctag for doctag in doctags if doctag[-1].isdigit()]
         logging.info(f'{len(doctags)} document ids found')
 
-        results_fast, _ = Evaluation.similar_docs_sample_results(vectors, corpus, reverted, doctags, topn)
+        results_fast = Evaluation.similar_docs_sample_results(vectors, corpus, reverted, doctags, topn)
         # results_avg, _ = Evaluation.similar_docs_avg(vectors, corpus, reverted, doctags, topn)
         # print(seed, Evaluation.mean(results_avg))
 
@@ -385,11 +402,9 @@ class EvaluationRun:
         "book2vec_wo_atm",
     ]
 
-
-
     @staticmethod
-    def seperated_vec_calculation_eff(corpus, number_of_subparts, corpus_size, data_set, filter_mode,
-                                      vectorization_algorithm, fake):
+    def sep_vec_calc_eff(corpus, number_of_subparts, corpus_size, data_set, filter_mode,
+                         vectorization_algorithm, fake):
         vec_file_name = Vectorizer.build_vec_file_name(number_of_subparts,
                                                        corpus_size,
                                                        data_set,
@@ -530,27 +545,27 @@ class EvaluationRun:
                     vec_bar = tqdm(cls.vectorization_algorithms, total=len(cls.vectorization_algorithms),
                                    desc="3 Apply Filter")
                     if parallel:
-                        Parallel(n_jobs=cls.num_cores)(delayed(EvaluationRun.seperated_vec_calculation_eff)(corpus,
-                                                                                                            number_of_subparts,
-                                                                                                            cls.corpus_size,
-                                                                                                            data_set,
-                                                                                                            filter_mode,
-                                                                                                            vectorization_algorithm,
-                                                                                                            "fake")
+                        Parallel(n_jobs=cls.num_cores)(delayed(EvaluationRun.sep_vec_calc_eff)(corpus,
+                                                                                               number_of_subparts,
+                                                                                               cls.corpus_size,
+                                                                                               data_set,
+                                                                                               filter_mode,
+                                                                                               vectorization_algorithm,
+                                                                                               "fake")
                                                        for vectorization_algorithm in vec_bar)
                     else:
-                        [EvaluationRun.seperated_vec_calculation_eff(corpus,
-                                                                     number_of_subparts,
-                                                                     cls.corpus_size,
-                                                                     data_set,
-                                                                     filter_mode,
-                                                                     vectorization_algorithm,
-                                                                     "fake")
+                        [EvaluationRun.sep_vec_calc_eff(corpus,
+                                                        number_of_subparts,
+                                                        cls.corpus_size,
+                                                        data_set,
+                                                        filter_mode,
+                                                        vectorization_algorithm,
+                                                        "fake")
                          for vectorization_algorithm in vec_bar]
 
     @staticmethod
     def eval_vec_loop_eff(corpus, number_of_subparts, corpus_size, data_set, filter_mode, vectorization_algorithm,
-                      nr_bootstraps, sample_size, series_sample, ensure_no_sample):
+                          nr_bootstraps, sample_size, series_sample, ensure_no_sample):
         vec_path = Vectorizer.build_vec_file_name(number_of_subparts,
                                                   corpus_size,
                                                   data_set,
@@ -655,7 +670,6 @@ class EvaluationRun:
         print(df)
         df.to_csv(final_path, index=False)
         print(EvaluationUtils.build_paper_table(df, paper_path))
-
 
     # @classmethod
     # def prove_of_concept(cls):
@@ -801,6 +815,7 @@ class RealSeriesEvaluationRun:
     config = ConfigLoader.get_config()
     num_cores = int(0.75*multiprocessing.cpu_count())
 
+    evaluation_metric = EvaluationMetric.precision_scores
     data_sets = [
         "german_series"
     ]
@@ -809,21 +824,22 @@ class RealSeriesEvaluationRun:
         "named_entities",
         "common_words",
         "stopwords",
-        # "nouns",
-        # "verbs",
-        # "adjectives",
+        "nouns",
+        "verbs",
+        "adjectives",
         "avn"
     ]
     vectorization_algorithms = [
         "avg_wv2doc",
         "doc2vec",
         "book2vec",
-        # "book2vec_wo_raw",
-        # "book2vec_wo_loc",
-        # "book2vec_wo_time",
-        # "book2vec_wo_sty",
-        # "book2vec_wo_atm",
+        "book2vec_wo_raw",
+        "book2vec_wo_loc",
+        "book2vec_wo_time",
+        "book2vec_wo_sty",
+        "book2vec_wo_atm",
     ]
+
     @classmethod
     def build_real_series_corpora(cls, parallel: bool = False):
         data_set_bar = tqdm(cls.data_sets, total=len(cls.data_sets), desc="2 Operate on dataset")
@@ -880,22 +896,22 @@ class RealSeriesEvaluationRun:
                 vec_bar = tqdm(cls.vectorization_algorithms, total=len(cls.vectorization_algorithms),
                                desc="4 Vectorize")
                 if parallel:
-                    Parallel(n_jobs=cls.num_cores)(delayed(EvaluationRun.seperated_vec_calculation_eff)(corpus,
-                                                                                                        "all",
-                                                                                                        "no_limit",
-                                                                                                        data_set,
-                                                                                                        filter_mode,
-                                                                                                        vec_algorithm,
-                                                                                                        "real")
+                    Parallel(n_jobs=cls.num_cores)(delayed(EvaluationRun.sep_vec_calc_eff)(corpus,
+                                                                                           "all",
+                                                                                           "no_limit",
+                                                                                           data_set,
+                                                                                           filter_mode,
+                                                                                           vec_algorithm,
+                                                                                           "real")
                                                    for vec_algorithm in vec_bar)
                 else:
-                    [EvaluationRun.seperated_vec_calculation_eff(corpus,
-                                                                 "all",
-                                                                 "no_limit",
-                                                                 data_set,
-                                                                 filter_mode,
-                                                                 vectorization_algorithm,
-                                                                 "real")
+                    [EvaluationRun.sep_vec_calc_eff(corpus,
+                                                    "all",
+                                                    "no_limit",
+                                                    data_set,
+                                                    filter_mode,
+                                                    vectorization_algorithm,
+                                                    "real")
                      for vectorization_algorithm in vec_bar]
 
     @classmethod
@@ -922,14 +938,16 @@ class RealSeriesEvaluationRun:
                                                                "no_limit",
                                                                params.data_set,
                                                                params.filter_mode,
-                                                               params.vectorization_algorithm)
+                                                               params.vectorization_algorithm,
+                                                               "real")
                 for params in parameter_tuples_bar)
         else:
             tuple_list_results = [RealSeriesEvaluationRun.eval_vec_loop(params.number_of_subparts,
                                                                         "no_limit",
                                                                         params.data_set,
                                                                         params.filter_mode,
-                                                                        params.vectorization_algorithm)
+                                                                        params.vectorization_algorithm,
+                                                                        "real")
                                   for params in parameter_tuples_bar]
 
         res = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: dict())))
@@ -968,7 +986,7 @@ class RealSeriesEvaluationRun:
         print(EvaluationUtils.build_paper_table(df, paper_path))
 
     @classmethod
-    def run_evaluation_eff(cls, parallel: bool = False):
+    def run_evaluation_eff(cls, parallel: bool = True):
         tuples = []
         result_dir = "results"
         experiment_table_name = "series_experiment_table"
@@ -977,14 +995,17 @@ class RealSeriesEvaluationRun:
         paper_path = os.path.join(result_dir, f"{experiment_table_name}.csv")
 
         res = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: dict())))
-        for data_set in cls.data_sets:
-            for filter_mode in cls.filters:
+        for data_set in tqdm(cls.data_sets, total=len(cls.data_sets), desc=f"Evaluate datasets"):
+            for filter_mode in tqdm(cls.filters, total=len(cls.filters), desc=f"Evaluate filters"):
                 corpus_path = Corpus.build_corpus_file_name("all",
                                                             "no_limit",
                                                             data_set,
                                                             filter_mode,
-                                                            "fake")
+                                                            "real")
                 corpus = Corpus(corpus_path)
+                vec_bar = tqdm(cls.vectorization_algorithms,
+                               total=len(cls.vectorization_algorithms),
+                               desc=f"Evaluate algorithm")
                 if parallel:
                     tuple_list_results = Parallel(n_jobs=cls.num_cores)(
                         delayed(RealSeriesEvaluationRun.eval_vec_loop_eff)(corpus,
@@ -993,7 +1014,7 @@ class RealSeriesEvaluationRun:
                                                                            data_set,
                                                                            filter_mode,
                                                                            vectorization_algorithm)
-                        for vectorization_algorithm in cls.vectorization_algorithms)
+                        for vectorization_algorithm in vec_bar)
                 else:
                     tuple_list_results = [RealSeriesEvaluationRun.eval_vec_loop_eff(corpus,
                                                                                     "all",
@@ -1001,20 +1022,21 @@ class RealSeriesEvaluationRun:
                                                                                     data_set,
                                                                                     filter_mode,
                                                                                     vectorization_algorithm)
-                                          for vectorization_algorithm in cls.vectorization_algorithms]
+                                          for vectorization_algorithm in vec_bar]
 
                 for subpart_nr, data, filt_mod, vec_algo, results in tuple_list_results:
                     res[subpart_nr][data][filt_mod][vec_algo] = results
 
-        for data_set in cls.data_sets:
-            for filter_mode in cls.filters:
+        for data_set in tqdm(cls.data_sets, total=len(cls.data_sets), desc="Store final results for dataset"):
+            for filter_mode in tqdm(cls.filters, total=len(cls.filters), desc="Store final results for filter"):
                 list_results = res["all"][data_set][filter_mode]
 
                 # Evaluation.t_test(list_results)
                 significance_dict = EvaluationMath.one_way_anova(list_results)
-
+                vec_bar = tqdm(cls.vectorization_algorithms, total=len(cls.vectorization_algorithms),
+                               desc="Store final results afor lgorithm")
                 # Scoring
-                for vectorization_algorithm in cls.vectorization_algorithms:
+                for vectorization_algorithm in vec_bar:
                     results = list_results[vectorization_algorithm]
                     sig = significance_dict[vectorization_algorithm]
                     score, deviation = EvaluationMath.mean(results)
@@ -1034,19 +1056,19 @@ class RealSeriesEvaluationRun:
         df.to_csv(final_path, index=False)
         print(EvaluationUtils.build_paper_table(df, paper_path))
 
-    @staticmethod
-    def eval_vec_loop(number_of_subparts, corpus_size, data_set, filter_mode, vectorization_algorithm):
+    @classmethod
+    def eval_vec_loop(cls, number_of_subparts, corpus_size, data_set, filter_mode, vectorization_algorithm, fake):
         corpus_path = Corpus.build_corpus_file_name(number_of_subparts,
                                                     corpus_size,
                                                     data_set,
                                                     filter_mode,
-                                                    "fake")
+                                                    fake)
         vec_path = Vectorizer.build_vec_file_name(number_of_subparts,
                                                   corpus_size,
                                                   data_set,
                                                   filter_mode,
                                                   vectorization_algorithm,
-                                                  "fake")
+                                                  fake)
 
         vectors = Vectorizer.my_load_doc2vec_format(vec_path)
         corpus = Corpus(corpus_path)
@@ -1056,8 +1078,7 @@ class RealSeriesEvaluationRun:
         doctags = [doctag for doctag in doctags if doctag[-1].isdigit()]
 
         results = []
-        soft_results = []
-
+        ap_values = []
         for doc_id in doctags:
             topn = len(corpus.series_dict[reverted[doc_id]])
             sim_documents = Vectorizer.most_similar_documents(vectors, corpus,
@@ -1065,9 +1086,9 @@ class RealSeriesEvaluationRun:
                                                               feature_to_use="NF",
                                                               topn=topn,
                                                               print_results=False)
-            hard_correct, soft_correct = EvaluationMath.precision_scores(sim_documents, doc_id, corpus, reverted)
+            hard_correct = cls.evaluation_metric(sim_documents, doc_id, corpus, reverted)
+            ap_values.append(EvaluationMetric.ap(sim_documents, doc_id, corpus, reverted))
             results.append(hard_correct)
-            soft_results.append(soft_correct)
 
         # results_avg, _ = Evaluation.similar_docs_avg(vectors, corpus, reverted, doctags, topn)
         # print(seed, Evaluation.mean(results_avg))
@@ -1076,14 +1097,14 @@ class RealSeriesEvaluationRun:
 
         return number_of_subparts, data_set, filter_mode, vectorization_algorithm, results
 
-    @staticmethod
-    def eval_vec_loop_eff(corpus, number_of_subparts, corpus_size, data_set, filter_mode, vectorization_algorithm):
+    @classmethod
+    def eval_vec_loop_eff(cls, corpus, number_of_subparts, corpus_size, data_set, filter_mode, vectorization_algorithm):
         vec_path = Vectorizer.build_vec_file_name(number_of_subparts,
                                                   corpus_size,
                                                   data_set,
                                                   filter_mode,
                                                   vectorization_algorithm,
-                                                  "fake")
+                                                  "real")
 
         vectors = Vectorizer.my_load_doc2vec_format(vec_path)
         reverted = Utils.revert_dictionaried_list(corpus.series_dict)
@@ -1091,8 +1112,7 @@ class RealSeriesEvaluationRun:
         doctags = [doctag for doctag in doctags if doctag[-1].isdigit()]
 
         results = []
-        soft_results = []
-
+        ap_values = []
         for doc_id in doctags:
             topn = len(corpus.series_dict[reverted[doc_id]])
             sim_documents = Vectorizer.most_similar_documents(vectors, corpus,
@@ -1100,9 +1120,10 @@ class RealSeriesEvaluationRun:
                                                               feature_to_use="NF",
                                                               topn=topn,
                                                               print_results=False)
-            hard_correct, soft_correct = EvaluationMath.precision_scores(sim_documents, doc_id, corpus, reverted)
+            # hard_correct = EvaluationMetric.precision_scores(sim_documents, doc_id, corpus, reverted)
+            hard_correct = cls.evaluation_metric(sim_documents, doc_id, corpus, reverted)
+            ap_values.append(EvaluationMetric.ap(sim_documents, doc_id, corpus, reverted))
             results.append(hard_correct)
-            soft_results.append(soft_correct)
 
         # results_avg, _ = Evaluation.similar_docs_avg(vectors, corpus, reverted, doctags, topn)
         # print(seed, Evaluation.mean(results_avg))
@@ -1142,8 +1163,8 @@ if __name__ == '__main__':
 
     # EvaluationRun.build_corpora()
     # EvaluationRun.train_vecs()
-    # EvaluationRun.run_evaluation()
+    EvaluationRun.run_evaluation()
 
-    RealSeriesEvaluationRun.build_real_series_corpora()
-    RealSeriesEvaluationRun.train_real_series_vecs()
-    RealSeriesEvaluationRun.run_evaluation()
+    # RealSeriesEvaluationRun.build_real_series_corpora()
+    # RealSeriesEvaluationRun.train_real_series_vecs()
+    RealSeriesEvaluationRun.run_evaluation_eff()
