@@ -1,9 +1,7 @@
 from collections import defaultdict, Counter
-from typing import List
-
-from series_prove_of_concept import Evaluation
-from utils import Corpus, DataHandler, Preprocesser
-import os, json
+from series_prove_of_concept import EvaluationMath
+import os
+import json
 import pandas as pd
 import matplotlib.pyplot as plt
 
@@ -139,22 +137,22 @@ def analyze_word_distribution(all_dict, absoulte: bool = True):
         # print dicts
         for segment_id, aspects in segment_dict.items():
             for aspect, values in aspects.items():
-                print(segment_id, aspect, Evaluation.median(values), Evaluation.mean(values))
+                print(segment_id, aspect, EvaluationMath.median(values), EvaluationMath.mean(values))
 
         for aspect, segments in aspect_dict.items():
             for segment_id, values in segments.items():
-                print(aspect, segment_id, Evaluation.median(values), Evaluation.mean(values))
+                print(aspect, segment_id, EvaluationMath.median(values), EvaluationMath.mean(values))
         group_medians_plot(doc_df, group="aspect", pivot_col="segment_id")
         group_medians_plot(doc_df, group="segment_id", pivot_col="aspect")
 
-        agg_segments = aggregating(doc_df, pivot_col="segment_id", group="aspect", value_col="value")
-        parallel_coords(agg_segments, group="aspect", base_index=None)
+        # agg_segments = aggregating(doc_df, pivot_col="segment_id", group="aspect", value_col="value")
+        # parallel_coords(agg_segments, group="aspect", base_index=None)
 
         segment_df = pivot(doc_df, pivot_col='segment_id', base_index='doc_id', group='aspect', value_col='value')
         parallel_coords(segment_df, group="aspect", base_index='doc_id')
 
-        agg_aspects = aggregating(doc_df, pivot_col="aspect", group="segment_id",  value_col="value")
-        parallel_coords(agg_aspects, group="segment_id", base_index=None)
+        # agg_aspects = aggregating(doc_df, pivot_col="aspect", group="segment_id",  value_col="value")
+        # parallel_coords(agg_aspects, group="segment_id", base_index=None)
 
         aspect_df = pivot(doc_df, pivot_col='aspect', base_index='doc_id', group='segment_id', value_col='value')
         parallel_coords(aspect_df,  group="segment_id", base_index='doc_id')
@@ -162,13 +160,14 @@ def analyze_word_distribution(all_dict, absoulte: bool = True):
         group_distribution(aspect_dict)
         group_distribution(segment_dict)
 
-    all_df = pd.DataFrame.from_records(all_tuples, columns=["file_name", "doc_id", "segment_id", "value", "aspect"])
+    # all_df = pd.DataFrame.from_records(all_tuples, columns=["file_name", "doc_id", "segment_id", "value", "aspect"])
     # print(all_df.head())
-    agg_segments = aggregating(all_df, pivot_col="segment_id", group="aspect", value_col="value", meta_col="file_name")
-    parallel_coords(agg_segments, group="aspect", base_index="file_name")
+    # agg_segments = aggregating(all_df, pivot_col="segment_id", group="aspect", value_col="value",
+    #                            meta_col="file_name")
+    # parallel_coords(agg_segments, group="aspect", base_index="file_name")
 
-    agg_aspects = aggregating(all_df, pivot_col="aspect", group="segment_id", value_col="value", meta_col="file_name")
-    parallel_coords(agg_aspects, group="segment_id", base_index="file_name")
+    # agg_aspects = aggregating(all_df, pivot_col="aspect", group="segment_id", value_col="value", meta_col="file_name")
+    # parallel_coords(agg_aspects, group="segment_id", base_index="file_name")
     #
     # segment_df = pivot(all_df, pivot_col='segment_id', base_index='doc_id', group='aspect', value_col='value')
     # parallel_coords(segment_df, group="aspect", base_index='doc_id')
@@ -177,15 +176,13 @@ def analyze_word_distribution(all_dict, absoulte: bool = True):
 
 if __name__ == '__main__':
     path_to_json = 'aspects/'
-    corpus_select = 'litrec'
+    corpus_select = 'german_series'
     json_files = [pos_json for pos_json in os.listdir(path_to_json) if pos_json.endswith('_no_filter.json')
                   and pos_json.startswith(corpus_select)]
-    all = {}
+    all_d = {}
     for file_name in json_files:
         full_path = os.path.join(path_to_json, file_name)
         with open(full_path) as json_file:
-            all[file_name.replace('.json', '')] = json.load(json_file)
-    analyze_word_distribution(all, absoulte=False)
-    analyze_word_distribution(all)
-
-
+            all_d[file_name.replace('.json', '')] = json.load(json_file)
+    analyze_word_distribution(all_d, absoulte=False)
+    # analyze_word_distribution(all)

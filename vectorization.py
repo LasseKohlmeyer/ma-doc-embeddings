@@ -37,6 +37,7 @@ def write_aspect_frequency_analyzis(aspects: Dict[str, List[List[str]]], doc_ids
     for aspect_name, aspect_documents in aspects.items():
         for doc_id, document in zip(doc_ids, aspect_documents):
             document_aspect_dict[doc_id].update({aspect_name: len(document)})
+
     with open(f'aspects/{save_name}.json', 'w', encoding="utf-8") as fp:
         json.dump(document_aspect_dict, fp, indent=1)
     return document_aspect_dict
@@ -84,8 +85,8 @@ class Vectorizer:
 
                                               disable_aspects=['sty'], return_vecs=return_vecs)
         elif input_str == "book2vec_wo_atm":
-            return Vectorizer.book2vec_simple(corpus, save_path,
-                                              filter_mode, disable_aspects=['atm'], return_vecs=return_vecs)
+            return Vectorizer.book2vec_simple(corpus, save_path, filter_mode,
+                                              disable_aspects=['atm'], return_vecs=return_vecs)
         else:
             raise UserWarning(f"fUnknown input string {input_str}!")
 
@@ -220,10 +221,15 @@ class Vectorizer:
             preprocessed_documents = corpus.get_flat_document_tokens(lemma=lemma, lower=lower)
             assert aspects['raw'] == preprocessed_documents
         if "atm" not in disable_aspects:
-            aspects['atm'] = corpus.get_flat_and_filtered_document_tokens(lemma=lemma, lower=lower, pos=["ADJ", "ADV"])
+            aspects['atm'] = corpus.get_flat_and_filtered_document_tokens(lemma=lemma,
+                                                                          lower=lower,
+                                                                          pos=["ADJ", "ADV"])
         if "sty" not in disable_aspects:
-            aspects['sty'] = corpus.get_flat_and_filtered_document_tokens(lemma=lemma, lower=lower, focus_stopwords=True)
+            aspects['sty'] = corpus.get_flat_and_filtered_document_tokens(lemma=lemma,
+                                                                          lower=lower,
+                                                                          focus_stopwords=True)
 
+        print(aspects.keys(), disable_aspects)
         write_aspect_frequency_analyzis(aspects=aspects, doc_ids=doc_ids, save_name=f'{corpus.name}_{filter_mode}')
 
         documents = []
@@ -242,12 +248,13 @@ class Vectorizer:
         #         print(model.docvecs[tag])
         #         print(new_vec)
         #     # print(model.docvecs[tag])
-        aspect_string = ''.join(disable_aspects)
+        # aspect_string = ''.join(disable_aspects)
         path = save_path
         # print(model.docvecs.doctags)
         words_dict, docs_dict = Vectorizer.model2dict(model)
         # print(docs_dict.keys())
         docs_dict = Vectorizer.combine_vectors(docs_dict)
+        print(path)
         Vectorizer.my_save_doc2vec_format(fname=path, doctag_vec=docs_dict, word_vec=words_dict,
                                           prefix='*dt_',
                                           fvocab=None, binary=False)
