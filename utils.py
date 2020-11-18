@@ -11,7 +11,7 @@ import spacy
 from os import listdir
 from os.path import isfile, join
 import logging
-
+import ast
 
 class ConfigLoader:
     @staticmethod
@@ -147,13 +147,17 @@ class DataHandler:
         documents = {}
         for i, row in tqdm(book_summary_df.iterrows(), total=len(book_summary_df.index), desc="Parse Documents"):
             doc_id = f'bs_{i}'
+            try:
+                genres = '--'.join(ast.literal_eval(row["GENRES"]).values())
+            except ValueError:
+                genres = None
             documents[doc_id] = Document(doc_id=doc_id,
                                          text=row["TEXT"],
                                          title=row["TITLE"],
                                          language=Language.EN,
                                          authors=row["AUTHORS"],
                                          date=row["DATE"],
-                                         genres=row["GENRES"])
+                                         genres=genres)
 
         return Corpus(source=documents, name="book_summaries", language=Language.EN)
 
@@ -771,7 +775,7 @@ class Corpus:
                                                  filer_mode,
                                                  fake_real)
             if os.path.exists(corpus_dir):
-                return Corpus.load_corpus_from_dir_format(corpus_dir)
+                corpus = Corpus.load_corpus_from_dir_format(corpus_dir)
             else:
                 corpus_path = Corpus.build_corpus_file_name(number_of_subparts,
                                                             size,
@@ -780,14 +784,14 @@ class Corpus:
                                                             fake_real)
                 corpus = Corpus(corpus_path)
                 corpus.save_corpus_adv(corpus_dir)
-                return corpus
         else:
             if os.path.exists(path):
-                return Corpus.load_corpus_from_dir_format(path)
+                corpus = Corpus.load_corpus_from_dir_format(path)
             else:
                 corpus = Corpus(f'{path}.json')
                 corpus.save_corpus_adv(path)
-                return corpus
+        corpus.set_document_entities()
+        return corpus
 
     def get_years(self) -> [str]:
         years = set()
