@@ -177,8 +177,9 @@ def analyze_word_distribution(all_dict, absoulte: bool = True):
 if __name__ == '__main__':
     path_to_json = 'aspects/'
     corpus_select = 'german_series'
-    json_files = [pos_json for pos_json in os.listdir(path_to_json) if pos_json.endswith('_no_filter.json')
+    json_files = [pos_json for pos_json in os.listdir(path_to_json) if '_no_filter' in pos_json
                   and pos_json.startswith(corpus_select)]
+    print(json_files)
     all_d = {}
     for file_name in json_files:
         full_path = os.path.join(path_to_json, file_name)

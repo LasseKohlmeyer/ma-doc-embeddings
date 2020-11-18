@@ -229,8 +229,10 @@ class Vectorizer:
                                                                           lower=lower,
                                                                           focus_stopwords=True)
 
-        print(aspects.keys(), disable_aspects)
-        write_aspect_frequency_analyzis(aspects=aspects, doc_ids=doc_ids, save_name=f'{corpus.name}_{filter_mode}')
+        # print(aspects.keys(), disable_aspects)
+        assert set(aspects.keys()).union(disable_aspects) == {'time', 'loc', 'raw', 'atm', 'sty'}
+        aspect_path = os.path.basename(save_path)
+        write_aspect_frequency_analyzis(aspects=aspects, doc_ids=doc_ids, save_name=aspect_path)
 
         documents = []
         for aspect_name, aspect_documents in aspects.items():
@@ -254,7 +256,7 @@ class Vectorizer:
         words_dict, docs_dict = Vectorizer.model2dict(model)
         # print(docs_dict.keys())
         docs_dict = Vectorizer.combine_vectors(docs_dict)
-        print(path)
+        # print(path)
         Vectorizer.my_save_doc2vec_format(fname=path, doctag_vec=docs_dict, word_vec=words_dict,
                                           prefix='*dt_',
                                           fvocab=None, binary=False)
