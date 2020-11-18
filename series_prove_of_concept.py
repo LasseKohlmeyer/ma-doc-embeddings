@@ -372,9 +372,9 @@ class EvaluationUtils:
 
 class EvaluationRun:
     config = ConfigLoader.get_config()
-    min_number_of_subparts = 10
+    min_number_of_subparts = 2
     max_number_of_subparts = 10
-    corpus_size = 100
+    corpus_size = 15000
     num_cores = int(0.75*multiprocessing.cpu_count())
 
     data_sets = [
@@ -388,22 +388,22 @@ class EvaluationRun:
     filters = [
         "no_filter",
         "named_entities",
-        # "common_words",
-        # "stopwords",
-        # "nouns",
-        # "verbs",
-        # "adjectives",
-        # "avn"
+        "common_words",
+        "stopwords",
+        "nouns",
+        "verbs",
+        "adjectives",
+        "avn"
     ]
     vectorization_algorithms = [
         "avg_wv2doc",
         "doc2vec",
         "book2vec",
-        # "book2vec_wo_raw",
-        # "book2vec_wo_loc",
-        # "book2vec_wo_time",
-        # "book2vec_wo_sty",
-        # "book2vec_wo_atm",
+        "book2vec_wo_raw",
+        "book2vec_wo_loc",
+        "book2vec_wo_time",
+        "book2vec_wo_sty",
+        "book2vec_wo_atm",
     ]
 
     @staticmethod
