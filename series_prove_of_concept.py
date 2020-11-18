@@ -374,7 +374,7 @@ class EvaluationRun:
     config = ConfigLoader.get_config()
     min_number_of_subparts = 2
     max_number_of_subparts = 10
-    corpus_size = 15000
+    corpus_size = 1000
     num_cores = int(0.75*multiprocessing.cpu_count())
 
     data_sets = [
