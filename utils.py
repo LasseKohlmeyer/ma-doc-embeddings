@@ -631,8 +631,9 @@ class Document:
         return vars(self)
 
     def meta_string_representation(self):
-
-        return f'{self.doc_id}_-_{str(self.authors).replace(" ", "_")}_-_{str(self.title).replace(" ", "_")}_-_' \
+        pattern = re.compile(r'[\W]+', re.UNICODE)
+        return f'{self.doc_id}_-_{str(self.authors).replace(" ", "_")}_-_' \
+               f'{pattern.sub("", str(self.title)).replace(" ", "_")}_-_' \
                f'{self.language}_-_{str(self.genres).replace(" ", "_")}_-_{self.date}'
 
     @staticmethod
