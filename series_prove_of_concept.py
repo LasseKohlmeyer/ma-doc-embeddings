@@ -105,13 +105,14 @@ class EvaluationMath:
 
 class EvaluationMetric:
     @staticmethod
-    def precision_scores(sim_documents, doc_id: str, corpus: Corpus, reverted):
+    def precision_scores(sim_documents, doc_id: str, corpus: Corpus, reverted, ignore_same: bool = False):
         hard_correct = 0
         # soft_correct = 0
         # print(reverted)
         for sim_doc_id, _ in sim_documents:
-            if reverted[doc_id] == reverted[sim_doc_id]:
-                hard_correct += 1
+            if not ignore_same or doc_id != sim_doc_id:
+                if reverted[doc_id] == reverted[sim_doc_id]:
+                    hard_correct += 1
             # if corpus.documents[doc_id].authors == corpus.documents[sim_doc_id].authors:
             #     soft_correct += 1
 
@@ -120,17 +121,18 @@ class EvaluationMetric:
         return hard_correct
 
     @staticmethod
-    def ap(sim_documents, doc_id: str, corpus: Corpus, reverted):
+    def ap(sim_documents, doc_id: str, corpus: Corpus, reverted, ignore_same: bool = False):
         # print(reverted)
         k = 1
         prec_values_at_k = []
         correct_ones = []
         for sim_doc_id, _ in sim_documents:
-            if reverted[doc_id] == reverted[sim_doc_id]:
-                correct_ones.append(k)
-                prec_values_at_k.append(len(correct_ones)/k)
+            if not ignore_same or doc_id != sim_doc_id:
+                if reverted[doc_id] == reverted[sim_doc_id]:
+                    correct_ones.append(k)
+                    prec_values_at_k.append(len(correct_ones)/k)
 
-            k += 1
+                k += 1
         if len(prec_values_at_k) > 0:
             ap = sum(prec_values_at_k)/len(prec_values_at_k)
         else:
@@ -138,56 +140,58 @@ class EvaluationMetric:
         return ap
 
     @staticmethod
-    def ndcg_c(sim_documents, doc_id: str, corpus: Corpus, reverted):
+    def ndcg_c(sim_documents, doc_id: str, corpus: Corpus, reverted, ignore_same: bool = False):
         # print(reverted)
         ground_truth_values = []
         predicted_values = []
         for sim_doc_id, sim in sim_documents:
-            predicted_values.append(sim)
-
-            if reverted[doc_id] == reverted[sim_doc_id]:
-                ground_truth_values.append(1)
-            else:
-                ground_truth_values.append(0)
+            if not ignore_same or doc_id != sim_doc_id:
+                predicted_values.append(sim)
+                if reverted[doc_id] == reverted[sim_doc_id]:
+                    ground_truth_values.append(1)
+                else:
+                    ground_truth_values.append(0)
 
         ndcg = metrics.ndcg_score(np.array([ground_truth_values]),
                                   np.array([predicted_values]))
         return ndcg
 
     @staticmethod
-    def ndcg_b(sim_documents, doc_id: str, corpus: Corpus, reverted):
+    def ndcg_b(sim_documents, doc_id: str, corpus: Corpus, reverted, ignore_same: bool = False):
         # print(reverted)
         ground_truth_values = []
         predicted_values = []
         c = 0
         for sim_doc_id, _ in sim_documents:
-            if reverted[doc_id] == reverted[sim_doc_id]:
-                predicted_values.append(1)
-            else:
-                predicted_values.append(0)
+            if not ignore_same or doc_id != sim_doc_id:
+                if reverted[doc_id] == reverted[sim_doc_id]:
+                    predicted_values.append(1)
+                else:
+                    predicted_values.append(0)
 
-            if c < len(corpus.series_dict[doc_id]):
-                ground_truth_values.append(1)
-            else:
-                ground_truth_values.append(0)
-            c += 1
+                if c < len(corpus.series_dict[reverted[doc_id]]):
+                    ground_truth_values.append(1)
+                else:
+                    ground_truth_values.append(0)
+                c += 1
 
         ndcg = metrics.ndcg_score(np.array([ground_truth_values]),
                                   np.array([predicted_values]))
         return ndcg
 
     @staticmethod
-    def ndcg_a(sim_documents, doc_id: str, corpus: Corpus, reverted):
+    def ndcg_a(sim_documents, doc_id: str, corpus: Corpus, reverted, ignore_same: bool = False):
         # print(reverted)
         ground_truth_values = []
         predicted_values = []
 
         for sim_doc_id, _ in sim_documents:
-            predicted_values.append(1)
-            if reverted[doc_id] == reverted[sim_doc_id]:
-                ground_truth_values.append(1)
-            else:
-                ground_truth_values.append(0)
+            if not ignore_same or doc_id != sim_doc_id:
+                predicted_values.append(1)
+                if reverted[doc_id] == reverted[sim_doc_id]:
+                    ground_truth_values.append(1)
+                else:
+                    ground_truth_values.append(0)
 
         ndcg = metrics.ndcg_score(np.array([ground_truth_values]),
                                   np.array([predicted_values]))
@@ -420,18 +424,30 @@ class EvaluationRun:
                                                       vectorization_algorithm,
                                                       fake)
 
+    # @staticmethod
+    # def store_corpus_to_parameters_eff(corpus, number_of_subparts, corpus_size, data_set,
+    #                                    filter_mode, fake):
+    #     filtered_corpus_file_name = Corpus.build_corpus_file_name(number_of_subparts,
+    #                                                               corpus_size,
+    #                                                               data_set,
+    #                                                               filter_mode,
+    #                                                               fake)
+    #     if not os.path.isfile(filtered_corpus_file_name):
+    #         common_words_dict = corpus.get_common_words(corpus.series_dict)
+    #         corpus = corpus.filter_on_copy(mode=filter_mode, common_words=common_words_dict)
+    #         corpus.save_corpus(filtered_corpus_file_name)
     @staticmethod
     def store_corpus_to_parameters_eff(corpus, number_of_subparts, corpus_size, data_set,
                                        filter_mode, fake):
-        filtered_corpus_file_name = Corpus.build_corpus_file_name(number_of_subparts,
-                                                                  corpus_size,
-                                                                  data_set,
-                                                                  filter_mode,
-                                                                  fake)
-        if not os.path.isfile(filtered_corpus_file_name):
+        filtered_corpus_dir = Corpus.build_corpus_dir(number_of_subparts,
+                                                            corpus_size,
+                                                            data_set,
+                                                            filter_mode,
+                                                            fake)
+        if not os.path.isdir(filtered_corpus_dir):
             common_words_dict = corpus.get_common_words(corpus.series_dict)
             corpus = corpus.filter_on_copy(mode=filter_mode, common_words=common_words_dict)
-            corpus.save_corpus(filtered_corpus_file_name)
+            corpus.save_corpus_adv(filtered_corpus_dir)
 
     @staticmethod
     def store_vectors_to_parameters(corpus, number_of_subparts, corpus_size, data_set, filter_mode,
@@ -464,21 +480,23 @@ class EvaluationRun:
                 data_set_bar.set_description(f'2 Operate on dataset >{data_set}<')
                 data_set_bar.refresh()
                 annotated_corpus_path = os.path.join(cls.config["system_storage"]["corpora"],
-                                                     f'{data_set}_{cls.corpus_size}.json')
+                                                     f'{data_set}_{cls.corpus_size}')
                 annotated_series_corpus_path = os.path.join(cls.config["system_storage"]["corpora"],
                                                             f'{data_set}_{number_of_subparts}_'
-                                                            f'{cls.corpus_size}_series.json')
+                                                            f'{cls.corpus_size}_series')
                 # Corpus +Document
                 try:
                     # check if series corpus exists
-                    corpus = Corpus(annotated_series_corpus_path)
+                    # corpus = Corpus(annotated_series_corpus_path)
+                    corpus = Corpus.fast_load(path=annotated_series_corpus_path)
                 except FileNotFoundError:
                     try:
                         # check if general corpus exists
-                        corpus = Corpus(annotated_corpus_path)
+                        # corpus = Corpus(annotated_corpus_path)
+                        corpus = Corpus.fast_load(path=annotated_corpus_path)
                         corpus = Preprocesser.filter_too_small_docs_from_corpus(corpus)
                         corpus, _ = corpus.fake_series(number_of_sub_parts=number_of_subparts)
-                        corpus.save_corpus(annotated_series_corpus_path)
+                        corpus.save_corpus_adv(annotated_series_corpus_path)
                     except FileNotFoundError:
                         # load from raw data
                         corpus = DataHandler.load_corpus(data_set)
@@ -488,10 +506,10 @@ class EvaluationRun:
                             corpus = corpus.sample(cls.corpus_size, seed=42)
                             corpus = Preprocesser.annotate_corpus(corpus)
                             # corpus = Preprocesser.annotate_corpus(corpus[:cls.corpus_size])
-                        corpus.save_corpus(annotated_corpus_path)
+                        corpus.save_corpus_adv(annotated_corpus_path)
                         corpus = Preprocesser.filter_too_small_docs_from_corpus(corpus)
                         corpus, _ = corpus.fake_series(number_of_sub_parts=number_of_subparts)
-                        corpus.save_corpus(annotated_series_corpus_path)
+                        corpus.save_corpus_adv(annotated_series_corpus_path)
                 # Series:
                 # actual:
                 # series_dict = manual_dict
@@ -535,13 +553,17 @@ class EvaluationRun:
                 for filter_mode in filter_bar:
                     filter_bar.set_description(f'3 Apply Filter >{filter_mode}<')
                     filter_bar.refresh()
-                    filtered_corpus_file_name = Corpus.build_corpus_file_name(number_of_subparts,
-                                                                              cls.corpus_size,
-                                                                              data_set,
-                                                                              filter_mode,
-                                                                              "fake")
-                    corpus = Corpus(filtered_corpus_file_name)
-
+                    # filtered_corpus_file_name = Corpus.build_corpus_file_name(number_of_subparts,
+                    #                                                           cls.corpus_size,
+                    #                                                           data_set,
+                    #                                                           filter_mode,
+                    #                                                           "fake")
+                    # corpus = Corpus(filtered_corpus_file_name)
+                    corpus = Corpus.fast_load(number_of_subparts,
+                                              cls.corpus_size,
+                                              data_set,
+                                              filter_mode,
+                                              "fake")
                     vec_bar = tqdm(cls.vectorization_algorithms, total=len(cls.vectorization_algorithms),
                                    desc="3 Apply Filter")
                     if parallel:
@@ -606,12 +628,17 @@ class EvaluationRun:
         for number_of_subparts in range(cls.min_number_of_subparts, cls.max_number_of_subparts + 1):
             for data_set in cls.data_sets:
                 for filter_mode in cls.filters:
-                    corpus_path = Corpus.build_corpus_file_name(number_of_subparts,
+                    # corpus_path = Corpus.build_corpus_file_name(number_of_subparts,
+                    #                                             cls.corpus_size,
+                    #                                             data_set,
+                    #                                             filter_mode,
+                    #                                             "fake")
+                    # corpus = Corpus(corpus_path)
+                    corpus = Corpus.fast_load(number_of_subparts,
                                                                 cls.corpus_size,
                                                                 data_set,
                                                                 filter_mode,
                                                                 "fake")
-                    corpus = Corpus(corpus_path)
                     if parallel:
                         tuple_list_results = Parallel(n_jobs=cls.num_cores)(
                             delayed(EvaluationRun.eval_vec_loop_eff)(corpus,
@@ -815,6 +842,7 @@ class RealSeriesEvaluationRun:
     config = ConfigLoader.get_config()
     num_cores = int(0.75*multiprocessing.cpu_count())
 
+    # evaluation_metric = EvaluationMetric.ndcg_b
     evaluation_metric = EvaluationMetric.precision_scores
     data_sets = [
         "german_series"
@@ -846,15 +874,17 @@ class RealSeriesEvaluationRun:
         for data_set in data_set_bar:
             data_set_bar.set_description(f'2 Operate on dataset >{data_set}<')
             data_set_bar.refresh()
-            annotated_corpus_path = os.path.join(cls.config["system_storage"]["corpora"], f'{data_set}.json')
+            annotated_corpus_path = os.path.join(cls.config["system_storage"]["corpora"], data_set)
             try:
                 # check if general corpus exists
-                corpus = Corpus(annotated_corpus_path)
+                # corpus = Corpus(annotated_corpus_path)
+                corpus = Corpus.fast_load(path=annotated_corpus_path)
             except FileNotFoundError:
                 # load from raw data
                 corpus = DataHandler.load_corpus(data_set)
                 corpus = Preprocesser.annotate_corpus(corpus)
-                corpus.save_corpus(annotated_corpus_path)
+                # corpus.save_corpus(annotated_corpus_path)
+                corpus.save_corpus_adv(annotated_corpus_path)
 
             filter_bar = tqdm(cls.filters, total=len(cls.filters), desc="3 Calculate filter_mode results")
             if parallel:
@@ -886,12 +916,17 @@ class RealSeriesEvaluationRun:
             for filter_mode in filter_bar:
                 filter_bar.set_description(f'3 Apply Filter >{filter_mode}<')
                 filter_bar.refresh()
-                filtered_corpus_file_name = Corpus.build_corpus_file_name("all",
-                                                                          "no_limit",
-                                                                          data_set,
-                                                                          filter_mode,
-                                                                          "real")
-                corpus = Corpus(filtered_corpus_file_name)
+                # filtered_corpus_file_name = Corpus.build_corpus_file_name("all",
+                #                                                           "no_limit",
+                #                                                           data_set,
+                #                                                           filter_mode,
+                #                                                           "real")
+                # corpus = Corpus(filtered_corpus_file_name)
+                corpus = Corpus.fast_load("all",
+                                          "no_limit",
+                                          data_set,
+                                          filter_mode,
+                                          "real")
 
                 vec_bar = tqdm(cls.vectorization_algorithms, total=len(cls.vectorization_algorithms),
                                desc="4 Vectorize")
@@ -914,79 +949,119 @@ class RealSeriesEvaluationRun:
                                                     "real")
                      for vectorization_algorithm in vec_bar]
 
+    # @classmethod
+    # def run_evaluation(cls, parallel: bool = False):
+    #     tuples = []
+    #     result_dir = "results"
+    #     experiment_table_name = "series_experiment_table"
+    #     final_path = os.path.join(result_dir, f"simple_{experiment_table_name}.csv")
+    #     cache_path = os.path.join(result_dir, f"cache_{experiment_table_name}.csv")
+    #     paper_path = os.path.join(result_dir, f"{experiment_table_name}.csv")
+    #
+    #     ParameterConfig = namedtuple('ParameterConfig', ['number_of_subparts', 'data_set', 'filter_mode',
+    #                                                      'vectorization_algorithm'])
+    #     parameter_tuples = []
+    #     for data_set in cls.data_sets:
+    #         for filter_mode in cls.filters:
+    #             for vectorization_algorithm in cls.vectorization_algorithms:
+    #                 parameter_tuples.append(ParameterConfig("all", data_set, filter_mode,
+    #                                                         vectorization_algorithm))
+    #     parameter_tuples_bar = tqdm(parameter_tuples, desc='Benchmarking vectors')
+    #     if parallel:
+    #         tuple_list_results = Parallel(n_jobs=cls.num_cores)(
+    #             delayed(RealSeriesEvaluationRun.eval_vec_loop)(params.number_of_subparts,
+    #                                                            "no_limit",
+    #                                                            params.data_set,
+    #                                                            params.filter_mode,
+    #                                                            params.vectorization_algorithm,
+    #                                                            "real")
+    #             for params in parameter_tuples_bar)
+    #     else:
+    #         tuple_list_results = [RealSeriesEvaluationRun.eval_vec_loop(params.number_of_subparts,
+    #                                                                     "no_limit",
+    #                                                                     params.data_set,
+    #                                                                     params.filter_mode,
+    #                                                                     params.vectorization_algorithm,
+    #                                                                     "real")
+    #                               for params in parameter_tuples_bar]
+    #
+    #     res = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: dict())))
+    #     for nr_of_subparts, data_set, filter_mode, vectorization_algorithm, results in tuple_list_results:
+    #         res[nr_of_subparts][data_set][filter_mode][vectorization_algorithm] = results
+    #
+    #     # print(res[10]['summaries']['common_words']['book2vec'])
+    #     # print(res)
+    #
+    #     for data_set in cls.data_sets:
+    #         for filter_mode in cls.filters:
+    #             list_results = res["all"][data_set][filter_mode]
+    #
+    #             # Evaluation.t_test(list_results)
+    #             significance_dict = EvaluationMath.one_way_anova(list_results)
+    #
+    #             # Scoring
+    #             for vectorization_algorithm in cls.vectorization_algorithms:
+    #                 results = list_results[vectorization_algorithm]
+    #                 sig = significance_dict[vectorization_algorithm]
+    #                 score, deviation = EvaluationMath.mean(results)
+    #                 # vectorization_results[vectorization_algorithm] = score, deviation
+    #                 observation = ("all", data_set, vectorization_algorithm, filter_mode,
+    #                                f'{score:.4f} ± {deviation:.4f} [{sig}]',
+    #                                EvaluationMath.median(results))
+    #                 tuples.append(observation)
+    #
+    #                 df_obs = pd.DataFrame([observation],
+    #                                       columns=['Series_length', 'Dataset', 'Algorithm',
+    #                                                'Filter', 'Score', 'Median'])
+    #                 df_obs.to_csv(cache_path, mode='a', header=(not os.path.exists(cache_path)), index=False)
+    #
+    #     df = pd.DataFrame(tuples, columns=['Series_length', 'Dataset', 'Algorithm', 'Filter', 'Score', 'Median'])
+    #     print(df)
+    #     df.to_csv(final_path, index=False)
+    #     print(EvaluationUtils.build_paper_table(df, paper_path))
+    # @classmethod
+    # def eval_vec_loop(cls, number_of_subparts, corpus_size, data_set, filter_mode, vectorization_algorithm, fake):
+    #     corpus_path = Corpus.build_corpus_file_name(number_of_subparts,
+    #                                                 corpus_size,
+    #                                                 data_set,
+    #                                                 filter_mode,
+    #                                                 fake)
+    #     vec_path = Vectorizer.build_vec_file_name(number_of_subparts,
+    #                                               corpus_size,
+    #                                               data_set,
+    #                                               filter_mode,
+    #                                               vectorization_algorithm,
+    #                                               fake)
+    #
+    #     vectors = Vectorizer.my_load_doc2vec_format(vec_path)
+    #     corpus = Corpus(corpus_path)
+    #     print(corpus.series_dict)
+    #     reverted = Utils.revert_dictionaried_list(corpus.series_dict)
+    #     doctags = vectors.docvecs.doctags.keys()
+    #     doctags = [doctag for doctag in doctags if doctag[-1].isdigit()]
+    #
+    #     results = []
+    #     ap_values = []
+    #     for doc_id in doctags:
+    #         topn = len(corpus.series_dict[reverted[doc_id]])
+    #         sim_documents = Vectorizer.most_similar_documents(vectors, corpus,
+    #                                                           positives=[doc_id],
+    #                                                           feature_to_use="NF",
+    #                                                           topn=topn,
+    #                                                           print_results=False)
+    #         hard_correct = cls.evaluation_metric(sim_documents, doc_id, corpus, reverted)
+    #         ap_values.append(EvaluationMetric.ap(sim_documents, doc_id, corpus, reverted))
+    #         results.append(hard_correct)
+    #
+    #     # results_avg, _ = Evaluation.similar_docs_avg(vectors, corpus, reverted, doctags, topn)
+    #     # print(seed, Evaluation.mean(results_avg))
+    #
+    #     results = np.array(results)
+    #
+    #     return number_of_subparts, data_set, filter_mode, vectorization_algorithm, results
+
     @classmethod
-    def run_evaluation(cls, parallel: bool = False):
-        tuples = []
-        result_dir = "results"
-        experiment_table_name = "series_experiment_table"
-        final_path = os.path.join(result_dir, f"simple_{experiment_table_name}.csv")
-        cache_path = os.path.join(result_dir, f"cache_{experiment_table_name}.csv")
-        paper_path = os.path.join(result_dir, f"{experiment_table_name}.csv")
-
-        ParameterConfig = namedtuple('ParameterConfig', ['number_of_subparts', 'data_set', 'filter_mode',
-                                                         'vectorization_algorithm'])
-        parameter_tuples = []
-        for data_set in cls.data_sets:
-            for filter_mode in cls.filters:
-                for vectorization_algorithm in cls.vectorization_algorithms:
-                    parameter_tuples.append(ParameterConfig("all", data_set, filter_mode,
-                                                            vectorization_algorithm))
-        parameter_tuples_bar = tqdm(parameter_tuples, desc='Benchmarking vectors')
-        if parallel:
-            tuple_list_results = Parallel(n_jobs=cls.num_cores)(
-                delayed(RealSeriesEvaluationRun.eval_vec_loop)(params.number_of_subparts,
-                                                               "no_limit",
-                                                               params.data_set,
-                                                               params.filter_mode,
-                                                               params.vectorization_algorithm,
-                                                               "real")
-                for params in parameter_tuples_bar)
-        else:
-            tuple_list_results = [RealSeriesEvaluationRun.eval_vec_loop(params.number_of_subparts,
-                                                                        "no_limit",
-                                                                        params.data_set,
-                                                                        params.filter_mode,
-                                                                        params.vectorization_algorithm,
-                                                                        "real")
-                                  for params in parameter_tuples_bar]
-
-        res = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: dict())))
-        for nr_of_subparts, data_set, filter_mode, vectorization_algorithm, results in tuple_list_results:
-            res[nr_of_subparts][data_set][filter_mode][vectorization_algorithm] = results
-
-        # print(res[10]['summaries']['common_words']['book2vec'])
-        # print(res)
-
-        for data_set in cls.data_sets:
-            for filter_mode in cls.filters:
-                list_results = res["all"][data_set][filter_mode]
-
-                # Evaluation.t_test(list_results)
-                significance_dict = EvaluationMath.one_way_anova(list_results)
-
-                # Scoring
-                for vectorization_algorithm in cls.vectorization_algorithms:
-                    results = list_results[vectorization_algorithm]
-                    sig = significance_dict[vectorization_algorithm]
-                    score, deviation = EvaluationMath.mean(results)
-                    # vectorization_results[vectorization_algorithm] = score, deviation
-                    observation = ("all", data_set, vectorization_algorithm, filter_mode,
-                                   f'{score:.4f} ± {deviation:.4f} [{sig}]',
-                                   EvaluationMath.median(results))
-                    tuples.append(observation)
-
-                    df_obs = pd.DataFrame([observation],
-                                          columns=['Series_length', 'Dataset', 'Algorithm',
-                                                   'Filter', 'Score', 'Median'])
-                    df_obs.to_csv(cache_path, mode='a', header=(not os.path.exists(cache_path)), index=False)
-
-        df = pd.DataFrame(tuples, columns=['Series_length', 'Dataset', 'Algorithm', 'Filter', 'Score', 'Median'])
-        print(df)
-        df.to_csv(final_path, index=False)
-        print(EvaluationUtils.build_paper_table(df, paper_path))
-
-    @classmethod
-    def run_evaluation_eff(cls, parallel: bool = True):
+    def run_evaluation_eff(cls, parallel: bool = False):
         tuples = []
         result_dir = "results"
         experiment_table_name = "series_experiment_table"
@@ -997,12 +1072,17 @@ class RealSeriesEvaluationRun:
         res = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: dict())))
         for data_set in tqdm(cls.data_sets, total=len(cls.data_sets), desc=f"Evaluate datasets"):
             for filter_mode in tqdm(cls.filters, total=len(cls.filters), desc=f"Evaluate filters"):
-                corpus_path = Corpus.build_corpus_file_name("all",
-                                                            "no_limit",
-                                                            data_set,
-                                                            filter_mode,
-                                                            "real")
-                corpus = Corpus(corpus_path)
+                # corpus_path = Corpus.build_corpus_file_name("all",
+                #                                             "no_limit",
+                #                                             data_set,
+                #                                             filter_mode,
+                #                                             "real")
+                # corpus = Corpus(corpus_path)
+                corpus = Corpus.fast_load("all",
+                                          "no_limit",
+                                          data_set,
+                                          filter_mode,
+                                          "real")
                 vec_bar = tqdm(cls.vectorization_algorithms,
                                total=len(cls.vectorization_algorithms),
                                desc=f"Evaluate algorithm")
@@ -1056,46 +1136,6 @@ class RealSeriesEvaluationRun:
         df.to_csv(final_path, index=False)
         print(EvaluationUtils.build_paper_table(df, paper_path))
 
-    @classmethod
-    def eval_vec_loop(cls, number_of_subparts, corpus_size, data_set, filter_mode, vectorization_algorithm, fake):
-        corpus_path = Corpus.build_corpus_file_name(number_of_subparts,
-                                                    corpus_size,
-                                                    data_set,
-                                                    filter_mode,
-                                                    fake)
-        vec_path = Vectorizer.build_vec_file_name(number_of_subparts,
-                                                  corpus_size,
-                                                  data_set,
-                                                  filter_mode,
-                                                  vectorization_algorithm,
-                                                  fake)
-
-        vectors = Vectorizer.my_load_doc2vec_format(vec_path)
-        corpus = Corpus(corpus_path)
-        print(corpus.series_dict)
-        reverted = Utils.revert_dictionaried_list(corpus.series_dict)
-        doctags = vectors.docvecs.doctags.keys()
-        doctags = [doctag for doctag in doctags if doctag[-1].isdigit()]
-
-        results = []
-        ap_values = []
-        for doc_id in doctags:
-            topn = len(corpus.series_dict[reverted[doc_id]])
-            sim_documents = Vectorizer.most_similar_documents(vectors, corpus,
-                                                              positives=[doc_id],
-                                                              feature_to_use="NF",
-                                                              topn=topn,
-                                                              print_results=False)
-            hard_correct = cls.evaluation_metric(sim_documents, doc_id, corpus, reverted)
-            ap_values.append(EvaluationMetric.ap(sim_documents, doc_id, corpus, reverted))
-            results.append(hard_correct)
-
-        # results_avg, _ = Evaluation.similar_docs_avg(vectors, corpus, reverted, doctags, topn)
-        # print(seed, Evaluation.mean(results_avg))
-
-        results = np.array(results)
-
-        return number_of_subparts, data_set, filter_mode, vectorization_algorithm, results
 
     @classmethod
     def eval_vec_loop_eff(cls, corpus, number_of_subparts, corpus_size, data_set, filter_mode, vectorization_algorithm):
@@ -1113,17 +1153,36 @@ class RealSeriesEvaluationRun:
 
         results = []
         ap_values = []
+        ndcg_as = []
+        ndcg_cs = []
+        precs = []
+        ap_values_b = []
+        ndcg_as_b = []
+        ndcg_cs_b = []
+        precs_b = []
         for doc_id in doctags:
             topn = len(corpus.series_dict[reverted[doc_id]])
-            sim_documents = Vectorizer.most_similar_documents(vectors, corpus,
-                                                              positives=[doc_id],
-                                                              feature_to_use="NF",
-                                                              topn=topn,
-                                                              print_results=False)
-            # hard_correct = EvaluationMetric.precision_scores(sim_documents, doc_id, corpus, reverted)
-            hard_correct = cls.evaluation_metric(sim_documents, doc_id, corpus, reverted)
-            ap_values.append(EvaluationMetric.ap(sim_documents, doc_id, corpus, reverted))
-            results.append(hard_correct)
+            if topn > 1:
+                sim_documents = Vectorizer.most_similar_documents(vectors, corpus,
+                                                                  positives=[doc_id],
+                                                                  feature_to_use="NF",
+                                                                  topn=topn,
+                                                                  print_results=False)
+                # hard_correct = EvaluationMetric.precision_scores(sim_documents, doc_id, corpus, reverted)
+                hard_correct = cls.evaluation_metric(sim_documents, doc_id, corpus, reverted)
+                results.append(hard_correct)
+
+                # ap_values.append(EvaluationMetric.ap(sim_documents, doc_id, corpus, reverted, ignore_same=False))
+                # precs.append(EvaluationMetric.precision_scores(sim_documents, doc_id, corpus, reverted,
+                #                                                ignore_same=False))
+                # ndcg_as.append(EvaluationMetric.ndcg_a(sim_documents, doc_id, corpus, reverted, ignore_same=False))
+                # ndcg_cs.append(EvaluationMetric.ndcg_c(sim_documents, doc_id, corpus, reverted, ignore_same=False))
+                # if topn > 2:
+                #     ap_values_b.append(EvaluationMetric.ap(sim_documents, doc_id, corpus, reverted, ignore_same=True))
+                #     precs_b.append(EvaluationMetric.precision_scores(sim_documents, doc_id, corpus, reverted,
+                #                                                      ignore_same=True))
+                #     ndcg_as_b.append(EvaluationMetric.ndcg_a(sim_documents, doc_id, corpus, reverted, ignore_same=True))
+                #     ndcg_cs_b.append(EvaluationMetric.ndcg_c(sim_documents, doc_id, corpus, reverted, ignore_same=True))
 
         # results_avg, _ = Evaluation.similar_docs_avg(vectors, corpus, reverted, doctags, topn)
         # print(seed, Evaluation.mean(results_avg))
@@ -1163,7 +1222,7 @@ if __name__ == '__main__':
 
     # EvaluationRun.build_corpora()
     # EvaluationRun.train_vecs()
-    EvaluationRun.run_evaluation()
+    # EvaluationRun.run_evaluation()
 
     # RealSeriesEvaluationRun.build_real_series_corpora()
     # RealSeriesEvaluationRun.train_real_series_vecs()

@@ -121,7 +121,7 @@ class DataHandler:
                       authors="LK",
                       date="2020",
                       genres=None)
-        d2 = Document(doc_id='d_1',
+        d2 = Document(doc_id='d_2',
                       text='Das ist das dritte Dokument.'
                            'Es ist ganz anders als die anderen und enthält nur häusliche Informationen.'
                            'Im Haus ist es am schönsten.'
@@ -163,7 +163,7 @@ class DataHandler:
             with open(join(prefix_path, suffix_path), "r", encoding="utf-8") as file:
                 content = file.read().replace('\n', ' ').replace('  ', ' ').replace('  ', ' ')
                 # print(content)
-                meta = suffix_path.replace('.txt', '').replace('(', '').replace(')', '').split('_-_')
+                meta = suffix_path.replace('a.txt', '').replace('(', '').replace(')', '').split('_-_')
                 author = meta[0].replace('_', ' ')
                 title_year = ''.join(meta[1:]).replace('_', ' ')
                 title = title_year[:-4]
@@ -207,7 +207,7 @@ class DataHandler:
             with open(join(prefix_path, suffix_path), "r", encoding="utf-8") as file:
                 content = file.read().replace('\n', ' ').replace('  ', ' ').replace('  ', ' ')
                 # print(content)
-                meta = suffix_path.replace('.txt', '').replace('(', '').replace(')', '').split('_-_')
+                meta = suffix_path.replace('a.txt', '').replace('(', '').replace(')', '').split('_-_')
                 author = meta[0].replace('_', ' ')
                 title_year = ' '.join(meta[1:]).replace('_', ' ').replace('–', ' ').replace('.', ' ').replace(',', ' ')
                 title_year = re.sub(r"\s+", " ", title_year)
@@ -219,11 +219,11 @@ class DataHandler:
                     title = title_year
                     year = None
 
-                title = title.replace("Erster Band", "Band 1").replace("Zweiter Band", "Band 2")\
-                    .replace("Dritter Band", "Band 3").replace("Vierter Band", "Band 4")\
-                    .replace("Fünfter Band", "Band 5").replace("Sechster Band", "Band 6")\
-                    .replace("Siebter Band", "Band 7").replace("Achter Band", "Band 8")\
-                    .replace("Neunter Band", "Band 9").replace("Zehnter Band", "Band 10")\
+                title = title.replace("Erster Band", "Band 1").replace("Zweiter Band", "Band 2") \
+                    .replace("Dritter Band", "Band 3").replace("Vierter Band", "Band 4") \
+                    .replace("Fünfter Band", "Band 5").replace("Sechster Band", "Band 6") \
+                    .replace("Siebter Band", "Band 7").replace("Achter Band", "Band 8") \
+                    .replace("Neunter Band", "Band 9").replace("Zehnter Band", "Band 10") \
                     .replace("Elfter Band", "Band 11").replace("Zwölfter Band", "Band 12")
                 title = title.replace(" I Band", " Band 1").replace(" II Band", " Band 2") \
                     .replace(" III Band", " Band 3").replace(" IV Band", " Band 4") \
@@ -237,11 +237,11 @@ class DataHandler:
                     .replace("Band VII ", "Band 7 ").replace("Band VIII ", "Band 8 ") \
                     .replace("Band IX ", "Band 9 ").replace("Band X ", "Band 10 ") \
                     .replace("Band XI ", "Band 11 ").replace("Band XII ", "Band 12 ")
-                title = title.replace(" 1 Band", " Band 1").replace(" 2 Band", " Band 2")\
-                    .replace(" 3 Band", " Band 3").replace(" 4 Band", " Band 4")\
-                    .replace(" 5 Band", " Band 5").replace(" 6 Band", " Band 6")\
-                    .replace(" 7 Band", " Band 7").replace(" 8 Band", " Band 8")\
-                    .replace(" 9 Band", " Band 9").replace(" 10 Band", " Band 10")\
+                title = title.replace(" 1 Band", " Band 1").replace(" 2 Band", " Band 2") \
+                    .replace(" 3 Band", " Band 3").replace(" 4 Band", " Band 4") \
+                    .replace(" 5 Band", " Band 5").replace(" 6 Band", " Band 6") \
+                    .replace(" 7 Band", " Band 7").replace(" 8 Band", " Band 8") \
+                    .replace(" 9 Band", " Band 9").replace(" 10 Band", " Band 10") \
                     .replace(" 11 Band", " Band 11").replace(" 12 Band", " Band 12")
 
                 # print(author, '|', title, '|', year)
@@ -288,7 +288,7 @@ class DataHandler:
         for index, (series, doc_ids) in enumerate(series_dict.items()):
             for doc_id in doc_ids:
                 series_doc = documents[doc_id]
-                series_id = int(series_doc.title.split()[-1])-1
+                series_id = int(series_doc.title.split()[-1]) - 1
                 new_doc_id = f'gs_{index}_{series_id}'
                 series_doc.doc_id = new_doc_id
                 series_doc.title = series_doc.title.strip()
@@ -359,7 +359,7 @@ class DataHandler:
                     content = file.read().replace('\n@\n', ' ').replace('\n', ' ').replace('  ', ' ').replace('  ', ' ')
                     content = ' '.join([token.split('/')[0] for token in content.split()])
                     # print(content)
-                    meta = suffix_path.replace('.txt.clean.pos', '').split('-')
+                    meta = suffix_path.replace('a.txt.clean.pos', '').split('-')
                     author = meta[0].replace('+', ' ')
                     year = None
                     # print(author, '|', title, '|', year)
@@ -421,7 +421,7 @@ class DataHandler:
     #         break
     #
     #     for f in files:
-    #         if f.startswith('.') or not f[-4:] == '.txt':
+    #         if f.startswith('.') or not f[-4:] == 'a.txt':
     #             files.remove(f)
     #
     #     docs = []
@@ -461,7 +461,7 @@ class DataHandler:
     #     while True:
     #         if i * lines_per_file > total_lines:
     #             break
-    #         DataHandler.save(f'{new_name}_{i}.txt', "\n".join(lines[i * lines_per_file: (i + 1) * lines_per_file]))
+    #         DataHandler.save(f'{new_name}_{i}a.txt', "\n".join(lines[i * lines_per_file: (i + 1) * lines_per_file]))
     #         i += 1
     #
     # @staticmethod
@@ -532,6 +532,31 @@ class Token:
     def __repr__(self):
         return f'|{self.text}|'
 
+    def get_save_file_representation(self):
+        def bool_converter(input_bool: bool) -> str:
+            if input_bool:
+                return "1"
+            else:
+                return "0"
+
+        return f'{self.text }\t{self.lemma}\t{str(self.pos).strip()}\t{str(self.ne).strip()}' \
+               f'\t{bool_converter(self.punctuation)}' \
+               f'\t{bool_converter(self.alpha)}\t{bool_converter(self.stop)}'
+
+    @staticmethod
+    def parse_text_file_token_representation(input_repr) -> "Token":
+        def bool_unconverter(input_bool: str) -> bool:
+            if input_bool=="1":
+                return True
+            else:
+                return False
+        text, lemma, pos, ne, punctuation, alpha, stop = input_repr.split('\t')
+        punctuation = bool_unconverter(punctuation)
+        alpha = bool_unconverter(alpha)
+        stop = bool_unconverter(stop)
+
+        return Token(text=text, lemma=lemma, pos=pos, ne=ne, punctuation=punctuation, alpha=alpha, stop=stop)
+
     @classmethod
     def empty_token(cls):
         return Token(text="del", lemma="del", pos=None, ne=None, punctuation=None, alpha=None, stop=None)
@@ -600,6 +625,51 @@ class Document:
     def json_representation(self):
         return vars(self)
 
+    def meta_string_representation(self):
+
+        return f'{self.doc_id}_-_{str(self.authors).replace(" ", "_")}_-_{str(self.title).replace(" ", "_")}_-_' \
+               f'{self.language}_-_{str(self.genres).replace(" ", "_")}_-_{self.date}'
+
+    @staticmethod
+    def create_document_from_doc_file(doc_path: str):
+        with open(doc_path, "r", encoding="utf-8") as file:
+            lines = file.read().split('\n')
+            sentences = []
+            tokens = []
+            for line in lines:
+                try:
+                    tokens.append(Token.parse_text_file_token_representation(line))
+                except ValueError:
+                    if line == '<SENT>':
+                        sentences.append(Sentence(tokens))
+                        tokens = []
+                    elif line == '' or line is None:
+                        # skip line
+                        pass
+                    else:
+                        logging.error(f'Error at {doc_path}')
+
+            fn = os.path.basename(doc_path)
+            doc_id, authors, title, language, genres, date = fn.replace('.txt', '').split('_-_')
+            title = title.replace('_', ' ')
+            authors = authors.replace('_', ' ')
+            genres = genres.replace('_', ' ')
+            if doc_id == "None":
+                doc_id=None
+            if authors == "None":
+                authors = None
+            if title == "None":
+                title = None
+            if language == "None":
+                language = None
+            if genres == "None":
+                genres = None
+            if date == "None":
+                date = None
+            text = ' '.join([' '.join(sentence.representation()) for sentence in sentences])
+            return Document(doc_id=doc_id, text=text, title=title, language=Language.get_from_str(language),
+                            authors=authors, date=date, genres=genres, sentences=sentences)
+
 
 class Corpus:
     def __init__(self, source: Union[Dict[Union[str, int], Document], List[Document], str],
@@ -612,11 +682,19 @@ class Corpus:
         if isinstance(source, str):
             # documents = self.load_corpus_documents(path=source)
             logging.info(f'try to load serialized corpus file {source}')
-            documents, name, language, document_entities, series_dict = self.load_corpus(path=source)
-            self.name = name
-            self.language = language
-            self.document_entities = document_entities
-            self.series_dict = series_dict
+            if source.endswith('.json'):
+                documents, name, language, document_entities, series_dict = self.load_corpus(path=source)
+                self.name = name
+                self.language = language
+                self.document_entities = document_entities
+                self.series_dict = series_dict
+            else:
+                other_corpus = self.fast_load(path=source)
+                self.name = other_corpus.name
+                self.language = other_corpus.language
+                self.document_entities = other_corpus.document_entities
+                self.series_dict = other_corpus.series_dict
+                documents = other_corpus.documents
         else:
             if name is None or language is None:
                 raise UserWarning("No name or language set!")
@@ -651,9 +729,65 @@ class Corpus:
                 "series_dict": self.series_dict}
         # data = {doc.doc_id: doc.__dict__ for doc in self.get_documents()}
 
-        with open(path, 'w', encoding='utf-8') as f:
+        with open(f'{path}.json', 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=1, default=lambda o: o.__dict__)
         logging.info(f'saved {path}')
+
+    def save_corpus_adv(self, corpus_dir: str):
+        if not os.path.isdir(corpus_dir):
+            os.mkdir(corpus_dir)
+        for doc_id, document in self.documents.items():
+            document.meta_string_representation()
+            doc_path = os.path.join(corpus_dir, f'{document.meta_string_representation()}.txt')
+            with open(doc_path, 'w', encoding="utf-8") as writer:
+                for sentence in document.sentences:
+                    for token in sentence.tokens:
+                        writer.write(f'{token.get_save_file_representation()}\n')
+                    writer.write("<SENT>\n")
+
+        data = {"name": self.name, "language": self.language, "series_dict": self.series_dict}
+        with open(os.path.join(corpus_dir, "meta_info.json"), 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=1, default=lambda o: o.__dict__)
+
+    @staticmethod
+    def load_corpus_from_dir_format(corpus_dir: str):
+        meta_path = os.path.join(corpus_dir, "meta_info.json")
+        with open(meta_path, 'r', encoding='utf-8') as file:
+            meta_data = json.loads(file.read())
+
+        document_paths = [file_path for file_path in os.listdir(corpus_dir) if file_path.endswith('.txt')]
+        documents = [Document.create_document_from_doc_file(os.path.join(corpus_dir, doc_path))
+                     for doc_path in document_paths]
+        corpus = Corpus(source=documents, name=meta_data["name"], language=meta_data["language"])
+        corpus.set_series_dict(meta_data["series_dict"])
+        return corpus
+
+    @staticmethod
+    def fast_load(number_of_subparts=None, size=None, data_set=None, filer_mode=None, fake_real=None, path=None):
+        if path is None:
+            corpus_dir = Corpus.build_corpus_dir(number_of_subparts,
+                                                 size,
+                                                 data_set,
+                                                 filer_mode,
+                                                 fake_real)
+            if os.path.exists(corpus_dir):
+                return Corpus.load_corpus_from_dir_format(corpus_dir)
+            else:
+                corpus_path = Corpus.build_corpus_file_name(number_of_subparts,
+                                                            size,
+                                                            data_set,
+                                                            filer_mode,
+                                                            fake_real)
+                corpus = Corpus(corpus_path)
+                corpus.save_corpus_adv(corpus_dir)
+                return corpus
+        else:
+            if os.path.exists(path):
+                return Corpus.load_corpus_from_dir_format(path)
+            else:
+                corpus = Corpus(f'{path}.json')
+                corpus.save_corpus_adv(path)
+                return corpus
 
     def get_years(self) -> [str]:
         years = set()
@@ -668,6 +802,18 @@ class Corpus:
         sub_path = DataHandler.build_config_str(number_of_subparts, size, dataset, filter_mode,
                                                 '', fake_series)
         return os.path.join(config["system_storage"]["corpora"], f'{sub_path}.json')
+
+    @staticmethod
+    def build_corpus_name(number_of_subparts: Union[int, str], size: Union[int, str],
+                          dataset: str, filter_mode: str, fake_series: str) -> str:
+        return DataHandler.build_config_str(number_of_subparts, size, dataset, filter_mode,
+                                            '', fake_series)
+    @staticmethod
+    def build_corpus_dir(number_of_subparts: Union[int, str], size: Union[int, str],
+                         dataset: str, filter_mode: str, fake_series: str) -> str:
+        sub_path = DataHandler.build_config_str(number_of_subparts, size, dataset, filter_mode,
+                                                '', fake_series)
+        return os.path.join(config["system_storage"]["corpora"], sub_path)
 
     @staticmethod
     def load_corpus_documents(path: str) -> List[Document]:
