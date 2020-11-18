@@ -374,13 +374,13 @@ class EvaluationRun:
     config = ConfigLoader.get_config()
     min_number_of_subparts = 10
     max_number_of_subparts = 10
-    corpus_size = 201
+    corpus_size = 50
     num_cores = int(0.75*multiprocessing.cpu_count())
 
     data_sets = [
-        # "summaries",
+        "summaries",
         # "tagged_german_books"
-        "german_books",
+        # "german_books",
         # "german_series"
         # "litrec",
 
@@ -388,22 +388,22 @@ class EvaluationRun:
     filters = [
         "no_filter",
         "named_entities",
-        "common_words",
-        "stopwords",
+        # "common_words",
+        # "stopwords",
         # "nouns",
         # "verbs",
         # "adjectives",
-        "avn"
+        # "avn"
     ]
     vectorization_algorithms = [
-        # "avg_wv2doc",
-        # "doc2vec",
-        # "book2vec",
+        "avg_wv2doc",
+        "doc2vec",
+        "book2vec",
         # "book2vec_wo_raw",
-        "book2vec_wo_loc",
-        "book2vec_wo_time",
-        "book2vec_wo_sty",
-        "book2vec_wo_atm",
+        # "book2vec_wo_loc",
+        # "book2vec_wo_time",
+        # "book2vec_wo_sty",
+        # "book2vec_wo_atm",
     ]
 
     @staticmethod
@@ -612,7 +612,7 @@ class EvaluationRun:
         return number_of_subparts, data_set, filter_mode, vectorization_algorithm, results
 
     @classmethod
-    def run_evaluation(cls, parallel: bool = True):
+    def run_evaluation(cls, parallel: bool = False):
         nr_bootstraps = 2
         sample_size = 10
         series_sample = True
@@ -1220,10 +1220,10 @@ if __name__ == '__main__':
     # formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     # logging.confi
 
-    # EvaluationRun.build_corpora()
-    # EvaluationRun.train_vecs()
-    # EvaluationRun.run_evaluation()
+    EvaluationRun.build_corpora()
+    EvaluationRun.train_vecs()
+    EvaluationRun.run_evaluation()
 
     # RealSeriesEvaluationRun.build_real_series_corpora()
     # RealSeriesEvaluationRun.train_real_series_vecs()
-    RealSeriesEvaluationRun.run_evaluation_eff()
+    # RealSeriesEvaluationRun.run_evaluation_eff()
