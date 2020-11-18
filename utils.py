@@ -147,10 +147,11 @@ class DataHandler:
         documents = {}
         for i, row in tqdm(book_summary_df.iterrows(), total=len(book_summary_df.index), desc="Parse Documents"):
             doc_id = f'bs_{i}'
-            try:
-                genres = '--'.join(ast.literal_eval(row["GENRES"]).values())
-            except ValueError:
-                genres = None
+            # try:
+            #     genres = '--'.join(ast.literal_eval(row["GENRES"]).values())
+            # except ValueError:
+            #     genres = None
+            genres = None
             documents[doc_id] = Document(doc_id=doc_id,
                                          text=row["TEXT"],
                                          title=row["TITLE"],
