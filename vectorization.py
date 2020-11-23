@@ -12,6 +12,8 @@ from gensim.test.utils import get_tmpfile, datapath
 from numpy import float32 as real
 
 from doc2vec_structures import DocumentKeyedVectors
+from text_summarisation import Summarizer
+from topic_modelling import TopicModeller
 from utils import Preprocesser, Corpus, ConfigLoader, DataHandler
 
 config = ConfigLoader.get_config()
@@ -126,8 +128,7 @@ class Vectorizer:
                 docs_dict[doc_id] = vector
             except ZeroDivisionError:
                 logging.error(f'ZeroDivision Error for {doc_id}')
-                # fixme
-                raise UserWarning
+                raise UserWarning(f"ZeroDevision Error for {doc_id}")
 
         # path = f"{save_path}_avg_wv2doc.model"
         path = save_path
@@ -159,8 +160,6 @@ class Vectorizer:
         model.build_vocab(documents)
 
         model.train(documents, total_examples=model.corpus_count, epochs=model.epochs)
-
-        # path = f"{save_path}{corpus.name}_doc2vec.model"
         path = save_path
         words_dict, docs_dict = Vectorizer.model2dict(model)
         Vectorizer.my_save_doc2vec_format(fname=path, doctag_vec=docs_dict, word_vec=words_dict,
@@ -228,9 +227,115 @@ class Vectorizer:
             aspects['sty'] = corpus.get_flat_and_filtered_document_tokens(lemma=lemma,
                                                                           lower=lower,
                                                                           focus_stopwords=True)
-
+        # if "cont" not in disable_aspects:
+        #     _, topic_list = TopicModeller.train_lda(corpus)
+        #     aspects["cont"] = topic_list
+        #
+        # if "plot" not in disable_aspects:
+        #     aspects["plot"] = Summarizer.get_corpus_summary_sentence_list(corpus,
+        #                                                                   lemma=lemma,
+        #                                                                   lower=lower)
         # print(aspects.keys(), disable_aspects)
         assert set(aspects.keys()).union(disable_aspects) == {'time', 'loc', 'raw', 'atm', 'sty'}
+        aspect_path = os.path.basename(save_path)
+        write_aspect_frequency_analyzis(aspects=aspects, doc_ids=doc_ids, save_name=aspect_path)
+
+        documents = []
+        for aspect_name, aspect_documents in aspects.items():
+            documents.extend([TaggedDocument(preprocessed_document_text, [f'{doc_id}_{aspect_name}'])
+                              for preprocessed_document_text, doc_id in zip(aspect_documents, doc_ids)])
+
+        logging.info("Start training")
+        model = Doc2Vec(documents, vector_size=cls.dim, window=cls.window, min_count=cls.min_count,
+                        workers=cls.workers, epochs=cls.epochs, pretrained_emb=cls.pretrained_emb_path, seed=cls.seed)
+
+        # for tag in model.docvecs.doctags:
+        #     if not (tag.endswith('_time') or tag.endswith('_loc')):
+        #         new_vec = model.docvecs[tag] + model.docvecs[f'{tag}_time'] + model.docvecs[f'{tag}_loc']
+        #         print(tag)
+        #         print(model.docvecs[tag])
+        #         print(new_vec)
+        #     # print(model.docvecs[tag])
+        # aspect_string = ''.join(disable_aspects)
+        path = save_path
+        # print(model.docvecs.doctags)
+        words_dict, docs_dict = Vectorizer.model2dict(model)
+        # print(docs_dict.keys())
+        docs_dict = Vectorizer.combine_vectors(docs_dict)
+        # print(path)
+        Vectorizer.my_save_doc2vec_format(fname=path, doctag_vec=docs_dict, word_vec=words_dict,
+                                          prefix='*dt_',
+                                          fvocab=None, binary=False)
+        if return_vecs:
+            vecs = Vectorizer.my_load_doc2vec_format(fname=path, binary=False)
+            return vecs
+        else:
+            return True
+
+    def book2vec_adv(cls, corpus: Corpus, save_path: str = "models/", filter_mode: str = None,
+                        disable_aspects: List[str] = None, return_vecs: bool = True):
+        lemma = False
+        lower = False
+
+        if disable_aspects is None:
+            disable_aspects = []
+        # documents = [TaggedDocument(doc, [i])
+        #              for i, doc in enumerate(Preprocesser.tokenize(corpus.get_texts_and_doc_ids()))]
+        # documents = [TaggedDocument(Preprocesser.tokenize(document.text), [doc_id])
+        #              for doc_id, document in corpus.documents.items()]
+        lan_model = corpus.give_spacy_lan_model()
+        # print('>', preprocessed_documents)
+        _, doc_ids = corpus.get_texts_and_doc_ids()
+        if corpus.document_entities is None:
+            raise UserWarning("No Entities set!")
+        document_entities = corpus.get_document_entities_representation()
+        # reverted_entities = Utils.revert_dictionaries(document_entities)
+        # print('>', reverted_entities)
+        times, locations = Vectorizer.resolve_entities(document_entities)
+        # print(len(times), times)
+
+        aspects = {}
+
+        if "time" not in disable_aspects:
+            aspects['time'] = Preprocesser.structure_string_texts(times, lan_model, lemma=lemma, lower=lower)
+
+        if "loc" not in disable_aspects:
+            aspects['loc'] = Preprocesser.structure_string_texts(locations, lan_model, lemma=lemma, lower=lower)
+
+        # preprocessed_times, _, _ = Preprocesser.preprocess(times, lemmatize=False, lower=False,
+        #                                                    pos_filter=None, remove_stopwords=False,
+        #                                                    remove_punctuation=False,
+        #                                                    lan_model=lan_model, ner=False)
+        #
+        # preprocessed_locations, _, _ = Preprocesser.preprocess(locations, lemmatize=False, lower=False,
+        #                                                        pos_filter=None, remove_stopwords=False,
+        #                                                        remove_punctuation=False,
+        #                                                        lan_model=lan_model, ner=False)
+
+        # print(preprocessed_times)
+
+        if "raw" not in disable_aspects:
+            aspects['raw'] = corpus.get_flat_document_tokens(lemma=lemma, lower=lower)
+            preprocessed_documents = corpus.get_flat_document_tokens(lemma=lemma, lower=lower)
+            assert aspects['raw'] == preprocessed_documents
+        if "atm" not in disable_aspects:
+            aspects['atm'] = corpus.get_flat_and_filtered_document_tokens(lemma=lemma,
+                                                                          lower=lower,
+                                                                          pos=["ADJ", "ADV"])
+        if "sty" not in disable_aspects:
+            aspects['sty'] = corpus.get_flat_and_filtered_document_tokens(lemma=lemma,
+                                                                          lower=lower,
+                                                                          focus_stopwords=True)
+        if "cont" not in disable_aspects:
+            _, topic_list = TopicModeller.train_lda(corpus)
+            aspects["cont"] = topic_list
+
+        if "plot" not in disable_aspects:
+            aspects["plot"] = Summarizer.get_corpus_summary_sentence_list(corpus,
+                                                                          lemma=lemma,
+                                                                          lower=lower)
+        # print(aspects.keys(), disable_aspects)
+        assert set(aspects.keys()).union(disable_aspects) == {'time', 'loc', 'raw', 'atm', 'sty', 'cont', 'plot'}
         aspect_path = os.path.basename(save_path)
         write_aspect_frequency_analyzis(aspects=aspects, doc_ids=doc_ids, save_name=aspect_path)
 
@@ -574,10 +679,8 @@ class Vectorizer:
         if len(results) >= origin_topn:
             return results[:origin_topn]
         else:
-            # fixme maybe RecursionError: maximum recursion depth exceeded in comparison
             return Vectorizer.get_topn_of_same_type(model, positive_tags, positive_list, negative_list, high_topn,
-                                                    feature_to_use, origin_topn)[
-                   :topn]
+                                                    feature_to_use, origin_topn)[:topn]
 
     # @staticmethod
     # def most_similar_words_to_documents(model: Union[Doc2Vec, DocumentKeyedVectors],
