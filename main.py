@@ -1,29 +1,30 @@
 from series_prove_of_concept import Evaluation
-from utils import DataHandler, Preprocesser
+from utils import DataHandler, Preprocesser, Corpus
 from vectorization import Vectorizer
 
 
 # pip install -e git+git://github.com/maohbao/gensim.git@master#egg=develop
 def main():
-    # corpus = DataHandler.load_book_summaries_as_corpus()
-    corpus = DataHandler.load_german_books_as_corpus()
-    corpus_prep = Preprocesser.annotate_corpus(corpus[:10])
-    corpus_prep, series_dict = corpus_prep.fake_series(number_of_sub_parts=2)
-    # corpus_prep = Preprocesser.annotate_corpus(corpus_prep)
-    # print(corpus_prep.get_flat_document_tokens()[0])
-    corpus_prep = Preprocesser.filter(corpus_prep)
-    # print(corpus_prep.get_flat_document_tokens()[0])
-    # corpus_prep = Preprocesser.filter(corpus_prep, remove_stopwords=True)
-    common_words = corpus_prep.get_common_words(series_dict)
-    # corpus_prep = corpus_prep.filter("common_words", common_words=common_words)
-    # print(corpus_prep.get_flat_document_tokens()[0])
-    # corpus_prep.filter("ne", common_words=common_words)
+    # # corpus = DataHandler.load_book_summaries_as_corpus()
+    # corpus = DataHandler.load_german_books_as_corpus()
+    # corpus_prep = Preprocesser.annotate_corpus(corpus[:10])
+    # corpus_prep, series_dict = corpus_prep.fake_series(number_of_sub_parts=2)
+    # # corpus_prep = Preprocesser.annotate_corpus(corpus_prep)
+    # # print(corpus_prep.get_flat_document_tokens()[0])
+    # corpus_prep = Preprocesser.filter(corpus_prep)
+    # # print(corpus_prep.get_flat_document_tokens()[0])
+    # # corpus_prep = Preprocesser.filter(corpus_prep, remove_stopwords=True)
+    # common_words = corpus_prep.get_common_words(series_dict)
+    # # corpus_prep = corpus_prep.filter("common_words", common_words=common_words)
+    # # print(corpus_prep.get_flat_document_tokens()[0])
+    # # corpus_prep.filter("ne", common_words=common_words)
 
     # print(corpus_prep.get_flat_document_tokens()[0])
     # print(corpus_prep.name, corpus_prep.document_entities)
     # vecs = Vectorizer.avg_wv2doc(corpus_prep)
     # vecs = Vectorizer.doc2vec(corpus_prep)
-    vecs = Vectorizer.book2vec_simple(corpus_prep, save_path="models/test.model")
+    corpus_prep = Corpus.fast_load(path="corpora/german_series")
+    vecs = Vectorizer.book2vec_simple(corpus_prep, save_path="models/test1.model")
     # Evaluation.series_eval(vecs, series_dict, corpus_prep)
 
     # vecs = Vectorizer.avg_wv2doc(book_summaries[:100])
