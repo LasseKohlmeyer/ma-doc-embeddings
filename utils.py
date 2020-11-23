@@ -11,7 +11,7 @@ import spacy
 from os import listdir
 from os.path import isfile, join
 import logging
-import ast
+
 
 class ConfigLoader:
     @staticmethod
@@ -551,7 +551,7 @@ class Token:
     @staticmethod
     def parse_text_file_token_representation(input_repr) -> "Token":
         def bool_unconverter(input_bool: str) -> bool:
-            if input_bool=="1":
+            if input_bool == "1":
                 return True
             else:
                 return False
@@ -600,6 +600,7 @@ class Document:
         if sentences is None:
             sentences = []
         self.sentences: List[Sentence] = sentences  # None
+        self.absolute_positions = {}
         # self.tokens: List[str] = []  # None
 
     # def set_sentences(self, sentences: List[List[str]]):
@@ -612,6 +613,22 @@ class Document:
 
     def reset_text_based_on_sentences(self):
         self.text = ' '.join([' '.join(sentence.representation()) for sentence in self.sentences])
+
+    def build_position_indices(self):
+        c = 0
+        for i, sentence in enumerate(self.sentences):
+            for j, token in enumerate(sentence.tokens):
+                self.absolute_positions[c] = (i, j)
+                c += 1
+
+    def get_token_at_doc_position(self, position: int):
+        if len(self.absolute_positions) == 0:
+            self.build_position_indices()
+        try:
+            sentence_id, token_id = self.absolute_positions[position]
+        except KeyError:
+            return None
+        return self.sentences[sentence_id].tokens[token_id]
 
     def get_flat_document_tokens(self, lemma: bool = False, lower: bool = False):
         # for doc_id, document in self.documents.items():
@@ -661,7 +678,7 @@ class Document:
             authors = authors.replace('_', ' ')
             genres = genres.replace('_', ' ')
             if doc_id == "None":
-                doc_id=None
+                doc_id = None
             if authors == "None":
                 authors = None
             if title == "None":
@@ -685,6 +702,8 @@ class Corpus:
         self.language = language
         self.document_entities = None
         self.series_dict = None
+        self.root_corpus_path = None
+        # self.corpus_storage_path = None
         if isinstance(source, str):
             # documents = self.load_corpus_documents(path=source)
             logging.info(f'try to load serialized corpus file {source}')
@@ -750,8 +769,10 @@ class Corpus:
                     for token in sentence.tokens:
                         writer.write(f'{token.get_save_file_representation()}\n')
                     writer.write("<SENT>\n")
-
-        data = {"name": self.name, "language": self.language, "series_dict": self.series_dict}
+        if self.root_corpus_path is None:
+            self.root_corpus_path = corpus_dir
+        data = {"name": self.name, "root_corpus_path": self.root_corpus_path,
+                "language": self.language, "series_dict": self.series_dict}
         with open(os.path.join(corpus_dir, "meta_info.json"), 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=1, default=lambda o: o.__dict__)
 
@@ -765,6 +786,7 @@ class Corpus:
         documents = [Document.create_document_from_doc_file(os.path.join(corpus_dir, doc_path))
                      for doc_path in document_paths]
         corpus = Corpus(source=documents, name=meta_data["name"], language=meta_data["language"])
+        corpus.root_corpus_path = meta_data["root_corpus_path"]
         corpus.set_series_dict(meta_data["series_dict"])
         return corpus
 
@@ -814,6 +836,7 @@ class Corpus:
                           dataset: str, filter_mode: str, fake_series: str) -> str:
         return DataHandler.build_config_str(number_of_subparts, size, dataset, filter_mode,
                                             '', fake_series)
+
     @staticmethod
     def build_corpus_dir(number_of_subparts: Union[int, str], size: Union[int, str],
                          dataset: str, filter_mode: str, fake_series: str) -> str:
@@ -964,6 +987,29 @@ class Corpus:
         # print(entities_dict)
         self.document_entities = entities_dict
 
+    def update_time_entities(self, update_dict: Dict[str, List[str]]):
+        def find_sub_list(sub_list, main_list):
+            results = []
+            sll = len(sub_list)
+            for ind in (j for j, e in enumerate(main_list) if e == sub_list[0]):
+                if main_list[ind:ind + sll] == sub_list:
+                    results.append((ind, ind + sll - 1))
+
+            return results
+
+        for doc_id, time_ents in tqdm(update_dict.items(), total=len(update_dict)):
+            time_entities = set(time_ents)
+            if doc_id in self.documents.keys():
+                token_reprs = [token.representation() for sentence in self.documents[doc_id].sentences
+                               for token in sentence.tokens]
+                for time_entity in time_entities:
+                    tm = time_entity.split(' ')
+                    positions = find_sub_list(tm, token_reprs)
+                    for position in positions:
+                        start, end = position
+                        for i in range(start, end+1):
+                            self.documents[doc_id].get_token_at_doc_position(i).ne = "TIME"
+
     def set_series_dict(self, series_dict: Dict[str, List[str]]):
         self.series_dict = series_dict
 
@@ -979,6 +1025,9 @@ class Corpus:
         # for doc_id, document in self.documents.items():
         #     document.set_sentences(sentences[doc_id])
         [document.set_sentences(sentences[doc_id]) for doc_id, document in self.documents.items()]
+
+    # def set_root_path(self, root_path: str):
+    #     self.root_corpus_path = root_path
 
     def get_flat_document_tokens(self, lemma: bool = False, lower: bool = False):
         # for doc_id, document in self.documents.items():
@@ -1167,6 +1216,10 @@ class Corpus:
                     or mode.lower() == "stopword" or mode.lower() == "stop_word" \
                     or mode.lower() == "stop" or mode.lower() == "sw":
                 remove_stopwords = True
+            elif mode.lower() == "punctuation" or mode.lower() == "punct" \
+                    or mode.lower() == "." or mode.lower() == "pun" \
+                    or mode.lower() == "punc" or mode.lower() == "zeichen":
+                remove_punctuation = True
             else:
                 raise UserWarning("Not supported mode")
             Preprocesser.filter(self,
