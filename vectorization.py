@@ -236,6 +236,9 @@ class Vectorizer:
         #                                                                   lemma=lemma,
         #                                                                   lower=lower)
         # print(aspects.keys(), disable_aspects)
+        # for key, values in aspects.items():
+        #     for doc_list, doc_id in zip(values, doc_ids):
+        #         print(key, doc_id, doc_list[:10])
         assert set(aspects.keys()).union(disable_aspects) == {'time', 'loc', 'raw', 'atm', 'sty'}
         aspect_path = os.path.basename(save_path)
         write_aspect_frequency_analyzis(aspects=aspects, doc_ids=doc_ids, save_name=aspect_path)

@@ -1304,8 +1304,12 @@ class Corpus:
                     or mode.lower() == "stopword" or mode.lower() == "stop_word" \
                     or mode.lower() == "stop" or mode.lower() == "sw":
                 remove_stopwords = True
+            elif mode.lower() == "punctuation" or mode.lower() == "punct" \
+                    or mode.lower() == "." or mode.lower() == "pun" \
+                    or mode.lower() == "punc" or mode.lower() == "zeichen":
+                remove_punctuation = True
             else:
-                raise UserWarning("Not supported mode")
+                raise UserWarning(f"Not supported mode: {mode}")
             return Preprocesser.filter_on_copy(self,
                                                pos=pos,
                                                remove_stopwords=remove_stopwords,

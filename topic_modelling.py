@@ -94,8 +94,8 @@ class TopicModeller:
             return [trigram_mod[bigram_mod[doc]] for doc in texts]
         # c.filter("ne")
         # c.filter("V")
-        corpus.filter("stopwords")
-        corpus.filter("punctuation")
+        corpus = corpus.filter_on_copy("stopwords")
+        corpus = corpus.filter_on_copy("punctuation")
         # data_words = [document.get_flat_document_tokens(lemma=True, lower=True)
         #               for doc_id, document in c.documents.items()]
         data_words = corpus.get_flat_document_tokens(lemma=True, lower=True)
