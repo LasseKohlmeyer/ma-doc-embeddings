@@ -842,8 +842,20 @@ class RealSeriesEvaluationRun:
     config = ConfigLoader.get_config()
     num_cores = int(0.75*multiprocessing.cpu_count())
 
+    # ignore_same = False
+    # evaluation_metric = EvaluationMetric.ap
+    # evaluation_metric = EvaluationMetric.precision_scores
+    # evaluation_metric = EvaluationMetric.ndcg_a
     # evaluation_metric = EvaluationMetric.ndcg_b
-    evaluation_metric = EvaluationMetric.precision_scores
+    # evaluation_metric = EvaluationMetric.ndcg_c
+
+    ignore_same = True
+    # evaluation_metric = EvaluationMetric.ap
+    # evaluation_metric = EvaluationMetric.precision_scores
+    # evaluation_metric = EvaluationMetric.ndcg_a
+    evaluation_metric = EvaluationMetric.ndcg_b
+    # evaluation_metric = EvaluationMetric.ndcg_c
+
     data_sets = [
         "german_series"
     ]
@@ -1160,16 +1172,19 @@ class RealSeriesEvaluationRun:
         ndcg_as_b = []
         ndcg_cs_b = []
         precs_b = []
+        topn_value = 1
+        if cls.ignore_same:
+            topn_value = 2
         for doc_id in doctags:
             topn = len(corpus.series_dict[reverted[doc_id]])
-            if topn > 1:
+            if topn > topn_value:
                 sim_documents = Vectorizer.most_similar_documents(vectors, corpus,
                                                                   positives=[doc_id],
                                                                   feature_to_use="NF",
                                                                   topn=topn,
                                                                   print_results=False)
                 # hard_correct = EvaluationMetric.precision_scores(sim_documents, doc_id, corpus, reverted)
-                hard_correct = cls.evaluation_metric(sim_documents, doc_id, corpus, reverted)
+                hard_correct = cls.evaluation_metric(sim_documents, doc_id, corpus, reverted, ignore_same=cls.ignore_same)
                 results.append(hard_correct)
 
                 # ap_values.append(EvaluationMetric.ap(sim_documents, doc_id, corpus, reverted, ignore_same=False))
@@ -1220,10 +1235,10 @@ if __name__ == '__main__':
     # formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     # logging.confi
 
-    EvaluationRun.build_corpora()
-    EvaluationRun.train_vecs()
-    EvaluationRun.run_evaluation()
+    # EvaluationRun.build_corpora()
+    # EvaluationRun.train_vecs()
+    # EvaluationRun.run_evaluation()
 
     # RealSeriesEvaluationRun.build_real_series_corpora()
     # RealSeriesEvaluationRun.train_real_series_vecs()
-    # RealSeriesEvaluationRun.run_evaluation_eff()
+    RealSeriesEvaluationRun.run_evaluation_eff()
