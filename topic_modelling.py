@@ -1,0 +1,162 @@
+import os
+from collections import defaultdict
+
+import gensim
+from gensim import corpora
+from gensim.models import CoherenceModel
+from utils import Corpus
+
+
+class TopicModeller:
+    @staticmethod
+    def compute_coherence_values(dictionary, corpus, texts, limit, start, step, id2word, mallet_path: str = None):
+        """
+        Compute c_v coherence for various number of topics
+
+        Parameters:
+        ----------
+        dictionary : Gensim dictionary
+        corpus : Gensim corpus
+        texts : List of input texts
+        limit : Max num of topics
+
+        Returns:
+        -------
+        model_list : List of LDA topic models
+        coherence_values : Coherence values corresponding to the LDA model with respective number of topics
+        """
+        coherence_values = []
+        model_list = []
+        number_topics = []
+        for num_topics in range(start, limit, step):
+            if mallet_path:
+                model = gensim.models.wrappers.LdaMallet(mallet_path, corpus=corpus, num_topics=num_topics,
+                                                         id2word=id2word)
+            else:
+                model = gensim.models.ldamodel.LdaModel(corpus=corpus,
+                                                        id2word=id2word,
+                                                        num_topics=num_topics,
+                                                        random_state=100,
+                                                        update_every=1,
+                                                        chunksize=100,
+                                                        passes=10,
+                                                        alpha='auto',
+                                                        per_word_topics=True)
+            model_list.append(model)
+            coherencemodel = CoherenceModel(model=model, texts=texts, dictionary=dictionary, coherence='c_v')
+            coherence_values.append(coherencemodel.get_coherence())
+            number_topics.append(number_topics)
+
+        # plt.plot(range(start, limit, step), coherence_values)
+        # plt.xlabel("Num Topics")
+        # plt.ylabel("Coherence score")
+        # plt.legend(("coherence_values"), loc='best')
+        # plt.show()
+        best_model_index = coherence_values.index(max(coherence_values))
+        best_topics = number_topics[best_model_index]
+        return model_list[best_model_index], max(coherence_values), best_topics
+
+    @staticmethod
+    def get_topic_words_for_docs(lda_model, corpus, id2doc_id):
+        word_dist = defaultdict(list)
+        for d_id, doc in enumerate(corpus):
+            # topic_dist = [topic_dist for topic_dist in lda_model[doc][0]]
+            topic_dist = sorted(lda_model[doc][0], key=lambda x: (x[1]), reverse=True)
+            topics = [tup[0] for tup in topic_dist[:1]]
+            # print(topics)
+            for topic_num in topics:
+                words_in_topics = lda_model.show_topic(topic_num, 100)
+                words_in_topics = [word for (word, perc) in words_in_topics]
+                word_dist[id2doc_id[d_id]].extend(words_in_topics)
+
+        # for i, row in enumerate(lda_model[corpus][doc_id][0]):
+        #     row = sorted(row, key=lambda x: (x[1]), reverse=True)
+        #     # Get the Dominant topic, Perc Contribution and Keywords for each document
+        #     for j, (topic_num, prop_topic) in enumerate(row):
+        #         if j == 0:  # => dominant topic
+        #             wp = lda_model.show_topic(topic_num)
+        #             topic_keywords = ", ".join([word for word, prop in wp])
+        #             sent_topics_df = sent_topics_df.append(
+        #                 pd.Series([int(topic_num), round(prop_topic, 4), topic_keywords]), ignore_index=True)
+        #         else:
+        #             break
+        # sent_topics_df.columns = ['Dominant_Topic', 'Perc_Contribution', 'Topic_Keywords']
+        # contents = pd.Series(texts)
+        # sent_topics_df = pd.concat([sent_topics_df, contents], axis=1)
+        return word_dist
+
+    @staticmethod
+    def train_lda(corpus: Corpus):
+        # def make_bigrams(texts):
+        #     return [bigram_mod[doc] for doc in texts]
+
+        def make_trigrams(texts):
+            return [trigram_mod[bigram_mod[doc]] for doc in texts]
+        # c.filter("ne")
+        # c.filter("V")
+        corpus.filter("stopwords")
+        corpus.filter("punctuation")
+        # data_words = [document.get_flat_document_tokens(lemma=True, lower=True)
+        #               for doc_id, document in c.documents.items()]
+        data_words = corpus.get_flat_document_tokens(lemma=True, lower=True)
+        id2doc_id = {i: doc_id for i, doc_id in enumerate(corpus.documents.keys())}
+
+        bigram = gensim.models.Phrases(data_words, min_count=5, threshold=100)  # higher threshold fewer phrases.
+        bigram_mod = gensim.models.phrases.Phraser(bigram)
+
+        trigram = gensim.models.Phrases(bigram[data_words], threshold=150)
+        trigram_mod = gensim.models.phrases.Phraser(trigram)
+
+        data_lemmatized = make_trigrams(data_words)
+
+        id2word = corpora.Dictionary(data_lemmatized)
+        corpus = [id2word.doc2bow(text) for text in data_lemmatized]
+
+        # limit = 40
+        # start = 2
+        # step = 6
+        # lda_model, coherence, num_topics = compute_coherence_values(dictionary=id2word,
+        #                                                             corpus=corpus,
+        #                                                             texts=data_lemmatized,
+        #                                                             start=start,
+        #                                                             limit=limit,
+        #                                                             step=step,
+        #                                                             id2word)
+        # print(coherence, num_topics)
+
+        lda_model = gensim.models.ldamodel.LdaModel(corpus=corpus,
+                                                    id2word=id2word,
+                                                    num_topics=15,
+                                                    random_state=100,
+                                                    update_every=1,
+                                                    iterations=100,
+                                                    chunksize=100,
+                                                    passes=50,
+                                                    alpha='auto',
+                                                    minimum_probability=0.0,
+                                                    per_word_topics=True)
+
+        # os.environ.update({'MALLET_HOME': r'C:/mallet_new/mallet-2.0.8'})
+        # mallet_path = "bin\\mallet"
+        # print(mallet_path)
+        # lda_model = gensim.models.wrappers.LdaMallet(mallet_path, corpus=corpus, num_topics=15, id2word=id2word,
+        #                                              alpha='auto', random_seed=42)
+
+        # print(lda_model.print_topics())
+
+        # Compute Coherence Score
+        coherence_model_lda = CoherenceModel(model=lda_model, texts=data_lemmatized, dictionary=id2word,
+                                             coherence='c_v')
+        coherence_lda = coherence_model_lda.get_coherence()
+        print('\nCoherence Score: ', coherence_lda)
+
+        content_aspect_dict = TopicModeller.get_topic_words_for_docs(lda_model, corpus, id2doc_id)
+        content_aspect_list = [texts for doc_id, texts in content_aspect_dict.items()]
+        # print(content_aspect_list)
+        # print(content_aspect_dict)
+        return content_aspect_dict, content_aspect_list
+
+
+if __name__ == "__main__":
+    c = Corpus.load_corpus_from_dir_format(os.path.join("corpora/german_series"))
+    d = TopicModeller.train_lda(c)
