@@ -219,7 +219,8 @@ class Summarizer:
         for doc_id in doc_ids:
             doc_summary_tokens = []
             for sentence_id in corpus_summary_dict[doc_id]:
-                doc_summary_tokens.extend([token.representation(lemma=lemma, lower=lower,)
+                # print(corpus.documents[doc_id].sentences[sentence_id].representation())
+                doc_summary_tokens.extend([token.representation(lemma=lemma, lower=lower)
                                            for token in corpus.documents[doc_id].sentences[sentence_id].tokens])
             corpus_summary.append(doc_summary_tokens)
         return corpus_summary
