@@ -3,6 +3,8 @@ import logging
 import os
 from collections import defaultdict
 from typing import Union, List, Dict
+
+
 from gensim.models import KeyedVectors, Word2Vec
 from gensim.models.doc2vec import Doc2Vec, TaggedDocument
 from gensim import utils
@@ -10,6 +12,9 @@ import numpy as np
 from gensim.scripts.glove2word2vec import glove2word2vec
 from gensim.test.utils import get_tmpfile, datapath
 from numpy import float32 as real
+from tqdm import tqdm
+# import torch
+# from transformers import TFAutoModel, AutoTokenizer, AdamW, LongformerModel, LongformerTokenizer, AutoModel
 
 from doc2vec_structures import DocumentKeyedVectors
 from text_summarisation import Summarizer
@@ -69,49 +74,121 @@ class Vectorizer:
                   return_vecs: bool = False):
         if input_str == "avg_wv2doc":
             return Vectorizer.avg_wv2doc(corpus, save_path, return_vecs=return_vecs)
+        elif input_str == "avg_wv2doc_untrained":
+            return Vectorizer.avg_wv2doc(corpus, save_path, return_vecs=return_vecs, without_training=True)
         elif input_str == "doc2vec":
             return Vectorizer.doc2vec(corpus, save_path, return_vecs=return_vecs)
+        elif input_str == "doc2vec_untrained":
+            return Vectorizer.doc2vec(corpus, save_path, return_vecs=return_vecs, without_training=True)
+        # elif input_str == "longformer" or "longformer_untuned" or "untuned_longformer":
+        #     return Vectorizer.longformer_untuned(corpus, save_path, return_vecs=return_vecs)
+        # elif input_str == "longformer_tuned" or "tuned_longformer":
+        #     return Vectorizer.longformer_tuned(corpus, save_path, return_vecs=return_vecs)
         elif input_str == "book2vec_simple" or input_str == "book2vec":
-            return Vectorizer.book2vec_simple(corpus, save_path, filter_mode, return_vecs=return_vecs)
+            return Vectorizer.book2vec_simple(corpus, save_path, return_vecs=return_vecs)
         elif input_str == "book2vec_wo_raw":
-            return Vectorizer.book2vec_simple(corpus, save_path, filter_mode,
+            return Vectorizer.book2vec_simple(corpus, save_path,
                                               disable_aspects=['raw'], return_vecs=return_vecs)
         elif input_str == "book2vec_wo_loc":
-            return Vectorizer.book2vec_simple(corpus, save_path, filter_mode,
+            return Vectorizer.book2vec_simple(corpus, save_path,
                                               disable_aspects=['loc'], return_vecs=return_vecs)
         elif input_str == "book2vec_wo_time":
-            return Vectorizer.book2vec_simple(corpus, save_path, filter_mode,
+            return Vectorizer.book2vec_simple(corpus, save_path,
                                               disable_aspects=['time'], return_vecs=return_vecs)
         elif input_str == "book2vec_wo_sty":
-            return Vectorizer.book2vec_simple(corpus, save_path, filter_mode,
-
+            return Vectorizer.book2vec_simple(corpus, save_path,
                                               disable_aspects=['sty'], return_vecs=return_vecs)
         elif input_str == "book2vec_wo_atm":
-            return Vectorizer.book2vec_simple(corpus, save_path, filter_mode,
+            return Vectorizer.book2vec_simple(corpus, save_path,
                                               disable_aspects=['atm'], return_vecs=return_vecs)
+        elif input_str == "book2vec_simple_untrained" or input_str == "book2vec_untrained":
+            return Vectorizer.book2vec_simple(corpus, save_path, return_vecs=return_vecs,
+                                              without_training=True)
+        elif input_str == "book2vec_adv":
+            return Vectorizer.book2vec_adv(corpus, save_path, return_vecs=return_vecs)
+        elif input_str == "book2vec_adv_wo_raw":
+            return Vectorizer.book2vec_adv(corpus, save_path,
+                                           disable_aspects=['raw'], return_vecs=return_vecs)
+        elif input_str == "book2vec_adv_wo_loc":
+            return Vectorizer.book2vec_adv(corpus, save_path,
+                                           disable_aspects=['loc'], return_vecs=return_vecs)
+        elif input_str == "book2vec_adv_wo_time":
+            return Vectorizer.book2vec_adv(corpus, save_path,
+                                           disable_aspects=['time'], return_vecs=return_vecs)
+        elif input_str == "book2vec_adv_wo_sty":
+            return Vectorizer.book2vec_adv(corpus, save_path,
+                                           disable_aspects=['sty'], return_vecs=return_vecs)
+        elif input_str == "book2vec_adv_wo_atm":
+            return Vectorizer.book2vec_adv(corpus, save_path,
+                                           disable_aspects=['atm'], return_vecs=return_vecs)
+        elif input_str == "book2vec_adv_wo_plot":
+            return Vectorizer.book2vec_adv(corpus, save_path,
+                                           disable_aspects=['plot'], return_vecs=return_vecs)
+        elif input_str == "book2vec_adv_wo_cont":
+            return Vectorizer.book2vec_adv(corpus, save_path,
+                                           disable_aspects=['cont'], return_vecs=return_vecs)
+        elif input_str == "book2vec_w2v":
+            return Vectorizer.book2vec_multi_algorithm_base(corpus, save_path,
+                                                            disable_aspects=['cont'],
+                                                            return_vecs=return_vecs,
+                                                            algorithm="avg_w2v")
         else:
             raise UserWarning(f"fUnknown input string {input_str}!")
 
     @classmethod
-    def avg_wv2doc(cls, corpus: Corpus, save_path: str = "models/", return_vecs: bool = True):
-        # Preprocesser.preprocess(return_in_sentence_format=True)
-        # print('sents', preprocessed_sentences)
-        # print(preprocessed_documents)
-        _, doc_ids = corpus.get_texts_and_doc_ids()
-        preprocessed_sentences = corpus.get_flat_corpus_sentences()
-        preprocessed_documents = corpus.get_flat_document_tokens()
-
-        # for d in preprocessed_documents:
-        #     print(d[:10])
-        # print(preprocessed_documents)
+    def word2vec_base(cls, preprocessed_sentences: List[List[str]], preprocessed_documents: List[str], doc_ids,
+                      without_training: bool):
         if cls.pretrained_emb_path:
             model = cls.pretrained_emb
 
         else:
-            logging.info(f'Vectorize {len(preprocessed_sentences)} sentences and {len(preprocessed_documents)} '
-                         f'documents of {corpus.name}')
-            model = Word2Vec(preprocessed_sentences, size=cls.dim, window=cls.window, min_count=cls.min_count,
-                             workers=cls.workers, iter=cls.epochs, seed=cls.seed)
+            # model = Word2Vec(preprocessed_sentences, size=cls.dim, window=cls.window, min_count=cls.min_count,
+            #                  workers=cls.workers, iter=cls.epochs, seed=cls.seed)
+            model = Word2Vec(size=cls.dim, window=cls.window, min_count=cls.min_count,
+                             workers=cls.workers, seed=cls.seed)
+            model.build_vocab(preprocessed_sentences)
+            if not without_training:
+                model.train(preprocessed_sentences, total_examples=model.corpus_count, epochs=cls.epochs)
+        docs_dict = {}
+        for doc_id, doc in zip(doc_ids, preprocessed_documents):
+            vector = []
+            if isinstance(doc, TaggedDocument):
+                doc = doc.words
+                # print(doc_id, doc)
+            if len(doc) == 0:
+                continue
+            for token in doc:
+                # print(token, model.wv.vocab[token])
+                try:
+                    vector.append(model.wv[token])
+                except KeyError:
+                    logging.error(f'KeyError Error for {doc_id} and {token}')
+            # print(doc_id, doc, vector)
+            try:
+                vector = sum(np.array(vector)) / len(vector)
+                docs_dict[doc_id] = vector
+            except ZeroDivisionError:
+                logging.error(f'ZeroDivision Error for {doc_id}')
+                raise UserWarning(f"ZeroDevision Error for {doc_id}")
+
+        words_dict = {word: model.wv[word] for word in model.wv.vocab}
+        return model, words_dict, docs_dict
+
+    @classmethod
+    def word2vec_base_adv(cls, preprocessed_documents: List[str], doc_ids,
+                          without_training: bool):
+        if cls.pretrained_emb_path:
+            model = cls.pretrained_emb
+
+        else:
+            # model = Word2Vec(preprocessed_sentences, size=cls.dim, window=cls.window, min_count=cls.min_count,
+            #                  workers=cls.workers, iter=cls.epochs, seed=cls.seed)
+            model = Word2Vec(size=cls.dim, window=cls.window, min_count=cls.min_count,
+                             workers=cls.workers, seed=cls.seed)
+            print(preprocessed_documents)
+            model.build_vocab(preprocessed_documents)
+            if not without_training:
+                model.train(preprocessed_documents, total_examples=model.corpus_count, epochs=cls.epochs)
         docs_dict = {}
         for doc_id, doc in zip(doc_ids, preprocessed_documents):
             vector = []
@@ -130,20 +207,63 @@ class Vectorizer:
                 logging.error(f'ZeroDivision Error for {doc_id}')
                 raise UserWarning(f"ZeroDevision Error for {doc_id}")
 
-        # path = f"{save_path}_avg_wv2doc.model"
-        path = save_path
         words_dict = {word: model.wv[word] for word in model.wv.vocab}
-        Vectorizer.my_save_doc2vec_format(fname=path, doctag_vec=docs_dict, word_vec=words_dict,
+        return model, words_dict, docs_dict
+
+    @classmethod
+    def doc2vec_base(cls, documents: List[str], without_training: bool):
+        # model = Doc2Vec(documents, vector_size=100, window=10, min_count=2, workers=4, epochs=20)
+        # model = Doc2Vec(documents, vector_size=cls.dim, window=cls.window, min_count=cls.min_count,
+        #                 workers=cls.workers, epochs=cls.epochs, pretrained_emb=cls.pretrained_emb_path, seed=cls.seed)
+        model = Doc2Vec(vector_size=cls.dim, min_count=cls.min_count, epochs=cls.epochs,
+                        pretrained_emb=cls.pretrained_emb_path, seed=cls.seed, workers=cls.workers,
+                        window=cls.window)
+        model.build_vocab(documents)
+        if not without_training:
+            model.train(documents, total_examples=model.corpus_count, epochs=model.epochs)
+        # print(model.docvecs.doctags)
+        # for tag in model.docvecs.doctags:
+        #     if not (tag.endswith('_time') or tag.endswith('_loc')):
+        #         new_vec = model.docvecs[tag] + model.docvecs[f'{tag}_time'] + model.docvecs[f'{tag}_loc']
+        #         print(tag)
+        #         print(model.docvecs[tag])
+        #         print(new_vec)
+        #     # print(model.docvecs[tag])
+        # aspect_string = ''.join(disable_aspects)
+        # print(model.docvecs.doctags)
+        words_dict, docs_dict = Vectorizer.model2dict(model)
+        return model, words_dict, docs_dict
+
+    @classmethod
+    def avg_wv2doc(cls, corpus: Corpus, save_path: str = "models/", return_vecs: bool = True,
+                   without_training: bool = False):
+        # Preprocesser.preprocess(return_in_sentence_format=True)
+        # print('sents', preprocessed_sentences)
+        # print(preprocessed_documents)
+        _, doc_ids = corpus.get_texts_and_doc_ids()
+        preprocessed_sentences = corpus.get_flat_corpus_sentences()
+        preprocessed_documents = corpus.get_flat_document_tokens()
+
+        # for d in preprocessed_documents:
+        #     print(d[:10])
+        # print(preprocessed_documents)
+        model, words_dict, docs_dict = cls.word2vec_base(preprocessed_sentences,
+                                                         preprocessed_documents,
+                                                         doc_ids,
+                                                         without_training)
+
+        Vectorizer.my_save_doc2vec_format(fname=save_path, doctag_vec=docs_dict, word_vec=words_dict,
                                           prefix='*dt_',
                                           fvocab=None, binary=False)
         if return_vecs:
-            vecs = Vectorizer.my_load_doc2vec_format(fname=path, binary=False)
+            vecs = Vectorizer.my_load_doc2vec_format(fname=save_path, binary=False)
             return vecs
         else:
             return True
 
     @classmethod
-    def doc2vec(cls, corpus: Corpus, save_path: str = "models/", return_vecs: bool = True):
+    def doc2vec(cls, corpus: Corpus, save_path: str = "models/", return_vecs: bool = True,
+                without_training: bool = False):
         # documents = [TaggedDocument(doc, [i])
         #              for i, doc in enumerate(Preprocesser.tokenize(corpus.get_texts_and_doc_ids()))]
         # documents = [TaggedDocument(Preprocesser.tokenize(document.text), [doc_id])
@@ -154,27 +274,124 @@ class Vectorizer:
         documents = [TaggedDocument(preprocessed_document_text, [doc_id])
                      for preprocessed_document_text, doc_id in zip(preprocessed_documents, doc_ids)]
         # print(documents[0])
-        # model = Doc2Vec(documents, vector_size=100, window=10, min_count=2, workers=4, epochs=20)
         model = Doc2Vec(vector_size=cls.dim, min_count=cls.min_count, epochs=cls.epochs,
                         pretrained_emb=cls.pretrained_emb_path, seed=cls.seed, workers=cls.workers, window=cls.window)
         model.build_vocab(documents)
+        if not without_training:
+            model.train(documents, total_examples=model.corpus_count, epochs=model.epochs)
 
-        model.train(documents, total_examples=model.corpus_count, epochs=model.epochs)
-        path = save_path
-        words_dict, docs_dict = Vectorizer.model2dict(model)
-        Vectorizer.my_save_doc2vec_format(fname=path, doctag_vec=docs_dict, word_vec=words_dict,
+        model, words_dict, docs_dict = cls.doc2vec_base(documents, without_training)
+        Vectorizer.my_save_doc2vec_format(fname=save_path, doctag_vec=docs_dict, word_vec=words_dict,
                                           prefix='*dt_',
                                           fvocab=None, binary=False)
 
         if return_vecs:
-            vecs = Vectorizer.my_load_doc2vec_format(fname=path, binary=False)
+            vecs = Vectorizer.my_load_doc2vec_format(fname=save_path, binary=False)
             return vecs
         else:
             return True
 
+    # @classmethod
+    # def longformer_untuned(cls, corpus: Corpus, save_path: str = "models/", return_vecs: bool = True,
+    #                        without_training: bool = False):
+    #     _, doc_ids = corpus.get_texts_and_doc_ids()
+    #
+    #     model_name = "allenai/longformer-base-4096"  # "bert-base-uncased"
+    #     model = TFAutoModel.from_pretrained(model_name)
+    #     tokenizer = AutoTokenizer.from_pretrained(model_name)
+    #     documents = corpus.get_flat_documents()
+    #
+    #     tokenized_docs = tokenizer(
+    #         documents,
+    #         padding=True,
+    #         truncation=True,
+    #         return_tensors="tf"
+    #     )
+    #
+    #     predicted_embeddings = model(tokenized_docs)
+    #     # print(tf_outputs)
+    #     docs_dict = {}
+    #     for doc_id, out in zip(doc_ids, predicted_embeddings[1]):
+    #         docs_dict[doc_id] = out.numpy()
+    #
+    #     path = save_path
+    #
+    #     Vectorizer.my_save_doc2vec_format(fname=path, doctag_vec=docs_dict,
+    #                                       prefix='*dt_',
+    #                                       fvocab=None, binary=False)
+    #
+    #     if return_vecs:
+    #         vecs = Vectorizer.my_load_doc2vec_format(fname=path, binary=False)
+    #         return vecs
+    #     else:
+    #         return True
+    # 
+    # @classmethod
+    # def longformer_tuned(cls, corpus: Corpus, save_path: str = "models/", return_vecs: bool = True,
+    #                        without_training: bool = False):
+    #     _, doc_ids = corpus.get_texts_and_doc_ids()
+    #
+    #     model_name = "allenai/longformer-base-4096"  # "bert-base-uncased"
+    #     model = AutoModel.from_pretrained(model_name)
+    #     tokenizer = AutoTokenizer.from_pretrained(model_name)
+    #     documents = corpus.get_flat_documents()
+    #     print(documents)
+    #     tokenized_docs = tokenizer(
+    #         documents,
+    #         padding=True,
+    #         truncation=True,
+    #         return_tensors="pt"
+    #     )
+    #
+    #     # model = LongformerModel.from_pretrained('allenai/longformer-base-4096', return_dict=True)
+    #     # tokenizer = LongformerTokenizer.from_pretrained('allenai/longformer-base-4096')
+    #     # tokenized = tokenizer(tokenized_docs, padding=True, truncation=True, return_tensors="pt")
+    #     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+    #     model.to(device)
+    #     model.train()
+    #
+    #     # train_dataset = TokenizedDataset(tokenized)
+    #     # train_loader = DataLoader(train_dataset, batch_size=2, shuffle=True)
+    #     optim = AdamW(model.parameters(), lr=5e-5)
+    #     tokenized_batch = tokenized_docs
+    #     nr_epochs = 2
+    #     epoch_bar = tqdm(range(nr_epochs), desc=f'Epoch {0} with loss UNKKOWN')
+    #     outputs = None
+    #     for epoch in epoch_bar:
+    #         # for tokenized_batch in train_loader:
+    #         optim.zero_grad()
+    #         tokenized_b = tokenized_batch.to(device)
+    #         # input_ids = tokenized['input_ids'].to(device)
+    #         # attention_mask = tokenized['attention_mask'].to(device)
+    #         # labels = tokenized['input_ids'].to(device)
+    #         # outputs = model(input_ids, labels=input_ids, attention_mask=attention_mask)
+    #         # loss = outputs.pooler_output
+    #         outputs = model(**tokenized_b)
+    #         loss = outputs[0]
+    #         epoch_bar.set_description(desc=f'Epoch {epoch} with loss {loss.sum():.2f}')
+    #         epoch_bar.update()
+    #         loss.sum().backward()
+    #         optim.step()
+    #
+    #     docs_dict = {}
+    #     for doc_id, out in zip(doc_ids, outputs[1]):
+    #         docs_dict[doc_id] = out.detach().numpy()
+    #
+    #     path = save_path
+    #
+    #     Vectorizer.my_save_doc2vec_format(fname=path, doctag_vec=docs_dict,
+    #                                       prefix='*dt_',
+    #                                       fvocab=None, binary=False)
+    #
+    #     if return_vecs:
+    #         vecs = Vectorizer.my_load_doc2vec_format(fname=path, binary=False)
+    #         return vecs
+    #     else:
+    #         return True
+
     @classmethod
-    def book2vec_simple(cls, corpus: Corpus, save_path: str = "models/", filter_mode: str = None,
-                        disable_aspects: List[str] = None, return_vecs: bool = True):
+    def book2vec_simple(cls, corpus: Corpus, save_path: str = "models/",
+                        disable_aspects: List[str] = None, return_vecs: bool = True, without_training: bool = False):
         lemma = False
         lower = False
 
@@ -217,8 +434,7 @@ class Vectorizer:
 
         if "raw" not in disable_aspects:
             aspects['raw'] = corpus.get_flat_document_tokens(lemma=lemma, lower=lower)
-            preprocessed_documents = corpus.get_flat_document_tokens(lemma=lemma, lower=lower)
-            assert aspects['raw'] == preprocessed_documents
+
         if "atm" not in disable_aspects:
             aspects['atm'] = corpus.get_flat_and_filtered_document_tokens(lemma=lemma,
                                                                           lower=lower,
@@ -249,34 +465,23 @@ class Vectorizer:
                               for preprocessed_document_text, doc_id in zip(aspect_documents, doc_ids)])
 
         logging.info("Start training")
-        model = Doc2Vec(documents, vector_size=cls.dim, window=cls.window, min_count=cls.min_count,
-                        workers=cls.workers, epochs=cls.epochs, pretrained_emb=cls.pretrained_emb_path, seed=cls.seed)
 
-        # for tag in model.docvecs.doctags:
-        #     if not (tag.endswith('_time') or tag.endswith('_loc')):
-        #         new_vec = model.docvecs[tag] + model.docvecs[f'{tag}_time'] + model.docvecs[f'{tag}_loc']
-        #         print(tag)
-        #         print(model.docvecs[tag])
-        #         print(new_vec)
-        #     # print(model.docvecs[tag])
-        # aspect_string = ''.join(disable_aspects)
-        path = save_path
-        # print(model.docvecs.doctags)
-        words_dict, docs_dict = Vectorizer.model2dict(model)
+        model, words_dict, docs_dict = cls.doc2vec_base(documents, without_training)
         # print(docs_dict.keys())
-        docs_dict = Vectorizer.combine_vectors(docs_dict)
+        docs_dict = Vectorizer.combine_vectors_by_sum(docs_dict)
         # print(path)
-        Vectorizer.my_save_doc2vec_format(fname=path, doctag_vec=docs_dict, word_vec=words_dict,
+        Vectorizer.my_save_doc2vec_format(fname=save_path, doctag_vec=docs_dict, word_vec=words_dict,
                                           prefix='*dt_',
                                           fvocab=None, binary=False)
         if return_vecs:
-            vecs = Vectorizer.my_load_doc2vec_format(fname=path, binary=False)
+            vecs = Vectorizer.my_load_doc2vec_format(fname=save_path, binary=False)
             return vecs
         else:
             return True
 
-    def book2vec_adv(cls, corpus: Corpus, save_path: str = "models/", filter_mode: str = None,
-                        disable_aspects: List[str] = None, return_vecs: bool = True):
+    @classmethod
+    def book2vec_adv(cls, corpus: Corpus, save_path: str = "models/",
+                     disable_aspects: List[str] = None, return_vecs: bool = True, without_training: bool = False):
         lemma = False
         lower = False
 
@@ -319,8 +524,7 @@ class Vectorizer:
 
         if "raw" not in disable_aspects:
             aspects['raw'] = corpus.get_flat_document_tokens(lemma=lemma, lower=lower)
-            preprocessed_documents = corpus.get_flat_document_tokens(lemma=lemma, lower=lower)
-            assert aspects['raw'] == preprocessed_documents
+
         if "atm" not in disable_aspects:
             aspects['atm'] = corpus.get_flat_and_filtered_document_tokens(lemma=lemma,
                                                                           lower=lower,
@@ -348,65 +552,182 @@ class Vectorizer:
                               for preprocessed_document_text, doc_id in zip(aspect_documents, doc_ids)])
 
         logging.info("Start training")
-        model = Doc2Vec(documents, vector_size=cls.dim, window=cls.window, min_count=cls.min_count,
-                        workers=cls.workers, epochs=cls.epochs, pretrained_emb=cls.pretrained_emb_path, seed=cls.seed)
-
-        # for tag in model.docvecs.doctags:
-        #     if not (tag.endswith('_time') or tag.endswith('_loc')):
-        #         new_vec = model.docvecs[tag] + model.docvecs[f'{tag}_time'] + model.docvecs[f'{tag}_loc']
-        #         print(tag)
-        #         print(model.docvecs[tag])
-        #         print(new_vec)
-        #     # print(model.docvecs[tag])
-        # aspect_string = ''.join(disable_aspects)
-        path = save_path
-        # print(model.docvecs.doctags)
-        words_dict, docs_dict = Vectorizer.model2dict(model)
-        # print(docs_dict.keys())
-        docs_dict = Vectorizer.combine_vectors(docs_dict)
+        model, words_dict, docs_dict = cls.doc2vec_base(documents, without_training)
+        docs_dict = Vectorizer.combine_vectors_by_sum(docs_dict)
         # print(path)
-        Vectorizer.my_save_doc2vec_format(fname=path, doctag_vec=docs_dict, word_vec=words_dict,
+        Vectorizer.my_save_doc2vec_format(fname=save_path, doctag_vec=docs_dict, word_vec=words_dict,
                                           prefix='*dt_',
                                           fvocab=None, binary=False)
         if return_vecs:
-            vecs = Vectorizer.my_load_doc2vec_format(fname=path, binary=False)
+            vecs = Vectorizer.my_load_doc2vec_format(fname=save_path, binary=False)
             return vecs
         else:
             return True
 
     @staticmethod
-    def combine_vectors(document_dictionary: Dict[str, np.array]):
+    def build_simple_sentence_aspects(aspect: List[List[str]], corpus: Corpus):
+        # print(aspect)
+        sentence_aspect = [[[token.representation() for token in sentence.tokens
+                             if token.representation() in aspect[i]]
+                            for sentence in document.sentences]
+                           for i, document in enumerate(corpus.documents.values())]
+        # print(sentence_aspect)
+        return sentence_aspect
+
+    @classmethod
+    def book2vec_multi_algorithm_base(cls, corpus: Corpus, save_path: str = "models/",
+                                      disable_aspects: List[str] = None, return_vecs: bool = True, algorithm="doc2vec",
+                                      without_training: bool = False):
+        lemma = False
+        lower = False
+
+        if disable_aspects is None:
+            disable_aspects = []
+        # documents = [TaggedDocument(doc, [i])
+        #              for i, doc in enumerate(Preprocesser.tokenize(corpus.get_texts_and_doc_ids()))]
+        # documents = [TaggedDocument(Preprocesser.tokenize(document.text), [doc_id])
+        #              for doc_id, document in corpus.documents.items()]
+        lan_model = corpus.give_spacy_lan_model()
+        # print('>', preprocessed_documents)
+        _, doc_ids = corpus.get_texts_and_doc_ids()
+        if corpus.document_entities is None:
+            raise UserWarning("No Entities set!")
+        document_entities = corpus.get_document_entities_representation()
+        # reverted_entities = Utils.revert_dictionaries(document_entities)
+        # print('>', reverted_entities)
+        times, locations = Vectorizer.resolve_entities(document_entities)
+        # print(len(times), times)
+
+        aspects = {}
+        # sentence_aspects = {}
+
+        if "time" not in disable_aspects:
+            aspects['time'] = Preprocesser.structure_string_texts(times, lan_model, lemma=lemma, lower=lower)
+
+        if "loc" not in disable_aspects:
+            aspects['loc'] = Preprocesser.structure_string_texts(locations, lan_model, lemma=lemma, lower=lower)
+
+        if "raw" not in disable_aspects:
+            aspects['raw'] = corpus.get_flat_document_tokens(lemma=lemma, lower=lower)
+
+        if "atm" not in disable_aspects:
+            aspects['atm'] = corpus.get_flat_and_filtered_document_tokens(lemma=lemma,
+                                                                          lower=lower,
+                                                                          pos=["ADJ", "ADV"])
+
+        if "sty" not in disable_aspects:
+            aspects['sty'] = corpus.get_flat_and_filtered_document_tokens(lemma=lemma,
+                                                                          lower=lower,
+                                                                          focus_stopwords=True)
+
+        if "cont" not in disable_aspects:
+            _, topic_list = TopicModeller.train_lda(corpus)
+            aspects["cont"] = topic_list
+
+        if "plot" not in disable_aspects:
+            aspects["plot"] = Summarizer.get_corpus_summary_sentence_list(corpus,
+                                                                          lemma=lemma,
+                                                                          lower=lower)
+
+        # print(aspects.keys(), disable_aspects)
+        assert set(aspects.keys()).union(disable_aspects) == {'time', 'loc', 'raw', 'atm', 'sty', 'cont', 'plot'}
+        aspect_path = os.path.basename(save_path)
+        write_aspect_frequency_analyzis(aspects=aspects, doc_ids=doc_ids, save_name=aspect_path)
+
+        documents = []
+        for aspect_name, aspect_documents in aspects.items():
+            documents.extend([TaggedDocument(preprocessed_document_text, [f'{doc_id}_{aspect_name}'])
+                              for preprocessed_document_text, doc_id in zip(aspect_documents, doc_ids)])
+
+        logging.info("Start training")
+        print("built aspects")
+        if algorithm.lower() == "doc2vec" or algorithm.lower() == "d2v":
+            model, words_dict, docs_dict = cls.doc2vec_base(documents, without_training)
+        elif algorithm.lower() == "avg_w2v" or algorithm.lower() == "w2v" or algorithm.lower() == "word2vec":
+            # documents_aspects = defaultdict(list)
+            # for i, document in enumerate(corpus.documents.values()):
+            #     sentence_aspects = defaultdict(list)
+            #     for sentence in document.sentences:
+            #         aspect_tokens = {}
+            #         for aspect_name, aspect in aspects.items():
+            #             aspect_tokens[aspect_name] = []
+            #         for token in sentence.tokens:
+            #             for aspect_name, aspect in aspects.items():
+            #                 if token.representation() in aspect[i]:
+            #                     aspect_tokens[aspect_name].append(token.representation())
+            #         for aspect_name, tokens in aspect_tokens.items():
+            #             sentence_aspects[aspect_name].append(tokens)
+            #     for aspect_name, tokens in sentence_aspects.items():
+            #         documents_aspects[aspect_name].append(tokens)
+            #
+            # # sentence_aspects = {aspect_name: cls.build_simple_sentence_aspects(aspect, corpus)
+            # #                     for aspect_name, aspect in aspects.items()}
+            # sentence_aspects = dict(documents_aspects)
+            # print("build sentence aspects")
+            # preprocessed_sentences = []
+            # for aspect_name, aspect_documents in sentence_aspects.items():
+            #     [preprocessed_sentences.extend(preprocessed_document_text)
+            #      for preprocessed_document_text in aspect_documents]
+            preprocessed_sentences = corpus.get_flat_corpus_sentences()
+            aspect_doc_ids = [d.tags[0] for d in documents]
+            print("start word2vec_base")
+            model, words_dict, docs_dict = cls.word2vec_base(preprocessed_sentences, documents,
+                                                             aspect_doc_ids, without_training)
+        else:
+            raise UserWarning(f"Not supported vectorization algorithm '{algorithm}'!")
+
+        docs_dict = Vectorizer.combine_vectors_by_sum(docs_dict)
+        Vectorizer.my_save_doc2vec_format(fname=save_path, doctag_vec=docs_dict, word_vec=words_dict,
+                                          prefix='*dt_',
+                                          fvocab=None, binary=False)
+        if return_vecs:
+            vecs = Vectorizer.my_load_doc2vec_format(fname=save_path, binary=False)
+            return vecs
+        else:
+            return True
+
+    @staticmethod
+    def combine_vectors_by_sum(document_dictionary: Dict[str, np.array]):
         summed_vecs = {}
-        base_ending = '_raw'
-        for tag in document_dictionary.keys():
-            base_ending = f'_{(tag.split("_")[-1])}'
-            break
+
+        base_ending_candidates = set([f"_{tag.split('_')[-1]}" for tag in document_dictionary.keys()])
+
+        candidate_counter_dict = defaultdict(int)
+        plain_doc_ids = set()
+        for base_ending_candidate in base_ending_candidates:
+            for doc_id in document_dictionary.keys():
+                splitted_id = doc_id.split('_')
+                prefix = '_'.join(splitted_id[:-1])
+                suffix = f"_{splitted_id[-1]}"
+                plain_doc_ids.add(prefix)
+
+                if base_ending_candidate == suffix:
+                    candidate_counter_dict[base_ending_candidate] += 1
+
+        final_candidates = [candidate for candidate, count in candidate_counter_dict.items()
+                                  if count == len(plain_doc_ids)]
+
+        if len(final_candidates) == 0:
+            raise UserWarning("No aspect found for all documents")
+        base_ending = final_candidates[0]
 
         id_groups = set([tag.split('_')[-1] for tag in document_dictionary.keys() if not tag.endswith(base_ending)])
+        # print(base_ending, id_groups, document_dictionary.keys())
 
         for tag in document_dictionary.keys():
             if tag.endswith(base_ending):
                 new_vec = document_dictionary[tag]
                 base_tag = tag.replace(base_ending, '')
                 for group in id_groups:
-                    new_vec += document_dictionary[f'{base_tag}_{group}']
+                    try:
+                        new_vec += document_dictionary[f'{base_tag}_{group}']
+                    except KeyError:
+                        pass
                 summed_vecs[f'{base_tag}'] = new_vec
             # print(model.docvecs[tag])
         summed_vecs.update(document_dictionary)
         return summed_vecs
 
-    # @staticmethod
-    # def combine_vectors(document_dictionary: Dict[str, np.array]):
-    #     summed_vecs = {}
-    #     for tag in document_dictionary.keys():
-    #         if tag.endswith('_raw'):
-    #             base_tag = tag.replace('_raw', '')
-    #             new_vec = document_dictionary[tag] + document_dictionary[f'{base_tag}_time'] + document_dictionary[
-    #                 f'{base_tag}_loc']
-    #             summed_vecs[f'{base_tag}'] = new_vec
-    #         # print(model.docvecs[tag])
-    #     summed_vecs.update(document_dictionary)
-    #     return summed_vecs
 
     @staticmethod
     def resolve_entities(entities_of_documents):
@@ -570,16 +891,19 @@ class Vectorizer:
             If True, the data will be saved in binary word2vec format, otherwise - will be saved in plain text.
 
         """
+        if os.path.isfile(fname):
+            os.remove(fname)
         docvecs = doctag_vec
         wv_vocab = word_vec  # self.wv.vocab
-        wv_vectors = np.array(list(word_vec.values()))  # self.wv.vectors
 
-        total_vec = len(wv_vocab) + len(docvecs)
         write_first_line = False
         # save word vectors
         if word_vec:
             if not doctag_vec:
                 total_vec = len(wv_vocab)
+            else:
+                total_vec = len(wv_vocab) + len(docvecs)
+            wv_vectors = np.array(list(word_vec.values()))  # self.wv.vectors
             # self.wv.save_word2vec_format(fname, fvocab, binary, total_vec)
             Vectorizer.my_save_word2vec_format(fname, wv_vocab, wv_vectors, binary, total_vec)
         # save document vectors
@@ -587,6 +911,8 @@ class Vectorizer:
             if not word_vec:
                 total_vec = len(docvecs)
                 write_first_line = True
+            else:
+                total_vec = len(wv_vocab) + len(docvecs)
             # self.docvecs.save_word2vec_format(
             #     fname, prefix=prefix, fvocab=fvocab, total_vec=total_vec,
             #     binary=binary, write_first_line=write_first_line)
