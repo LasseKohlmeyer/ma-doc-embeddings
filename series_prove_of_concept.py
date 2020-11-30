@@ -934,26 +934,26 @@ class RealSeriesEvaluationRun:
     ]
     filters = [
         "no_filter",
-        "named_entities",
+        # "named_entities",
         "common_words",
-        "stopwords",
-        "nouns",
-        "verbs",
-        "adjectives",
-        "avn"
+        # "stopwords",
+        # "nouns",
+        # "verbs",
+        # "adjectives",
+        # "avn"
     ]
     vectorization_algorithms = [
         "avg_wv2doc",
         "doc2vec",
         # "longformer_untuned"
         "book2vec",
-        "book2vec_wo_raw",
-        "book2vec_wo_loc",
-        "book2vec_wo_time",
-        "book2vec_wo_sty",
-        "book2vec_wo_atm",
-        "book2vec_w2v",
-        "book2vec_adv",
+        # "book2vec_wo_raw",
+        # "book2vec_wo_loc",
+        # "book2vec_wo_time",
+        # "book2vec_wo_sty",
+        # "book2vec_wo_atm",
+        # "book2vec_w2v",
+        # "book2vec_adv",
         # "book2vec_adv_wo_raw",
         # "book2vec_adv_wo_loc",
         # "book2vec_adv_wo_time",
@@ -961,9 +961,10 @@ class RealSeriesEvaluationRun:
         # "book2vec_adv_wo_atm",
         # "book2vec_adv_wo_plot",
         # "book2vec_adv_wo_cont",
-        "avg_wv2doc_untrained",
-        "doc2vec_untrained",
-        "book2vec_untrained",
+        "random_aspect2vec"
+        # "avg_wv2doc_untrained",
+        # "doc2vec_untrained",
+        # "book2vec_untrained",
     ]
 
     @classmethod

@@ -23,8 +23,13 @@ def main():
     # print(corpus_prep.name, corpus_prep.document_entities)
     # vecs = Vectorizer.avg_wv2doc(corpus_prep)
     # vecs = Vectorizer.doc2vec(corpus_prep)
-    corpus_prep = Corpus.fast_load(path="corpora/german_series")
-    vecs = Vectorizer.book2vec_simple(corpus_prep, save_path="models/test1.model")
+    # corpus_prep = Corpus.fast_load(path="corpora/german_series")
+    corpus = DataHandler.load_test_corpus()
+    corpus_prep = Preprocesser.annotate_corpus(corpus)
+    # vecs = Vectorizer.book2vec_multi_algorithm_base(corpus_prep, save_path="models/test7.model", algorithm="doc2vec",
+    #                                                 disable_aspects=["plot", "cont"])
+    # vecs = Vectorizer.longformer_untuned(corpus_prep, save_path="models/test3.model")
+    vecs = Vectorizer.random_aspect2vec(corpus_prep, save_path="models/test10.model")
     # Evaluation.series_eval(vecs, series_dict, corpus_prep)
 
     # vecs = Vectorizer.avg_wv2doc(book_summaries[:100])
@@ -35,7 +40,7 @@ def main():
     # # book_summaries_model.save("test_save")
     #
     # words_dict, docs_dict = Vectorizer.model2dict(book_summaries_model)
-    # docs_dict = Vectorizer.combine_vectors(docs_dict)
+    # docs_dict = Vectorizer.combine_vectors_by_sum(docs_dict)
     # Vectorizer.my_save_doc2vec_format(fname="my_test.model", doctag_vec=docs_dict, word_vec=words_dict, prefix='*dt_',
     #                                   fvocab=None, binary=False)
 

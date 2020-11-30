@@ -1170,6 +1170,43 @@ class Corpus:
 
         return tokens
 
+    def get_flat_and_random_document_tokens(self,  prop_to_keep: float, seed: int,
+                                            lemma: bool = False, lower: bool = False,
+                                            masking: bool = False):
+        def filter_condition(token: Token):
+            random_number = random.randint(1, 1000)
+            return random_number <= 1000*prop_to_keep
+
+        def mask(input_token: Token):
+            output_token = Token(text=input_token.text,
+                                 lemma=input_token.lemma,
+                                 pos=input_token.pos,
+                                 ne=input_token.ne,
+                                 punctuation=input_token.punctuation,
+                                 alpha=input_token.alpha,
+                                 stop=input_token.stop)
+            if not filter_condition(output_token):
+                output_token.text = "del"
+                output_token.lemma = "del"
+            return output_token
+        random.seed(seed)
+        if not masking:
+            tokens = [[token.representation(lemma, lower)
+                       for sentence in document.sentences
+                       for token in sentence.tokens
+                       if filter_condition(token)]
+                      for doc_id, document in self.documents.items()]
+        else:
+            tokens = [[mask(token).representation(lemma, lower)
+                       for sentence in document.sentences
+                       for token in sentence.tokens]
+                      for doc_id, document in self.documents.items()]
+
+        if len(tokens) == 0:
+            raise UserWarning("No sentences set")
+
+        return tokens
+
     def get_flat_corpus_sentences(self, lemma: bool = False, lower: bool = False):
         sentences = [sentence.representation(lemma, lower)
                      for doc_id, document in self.documents.items()

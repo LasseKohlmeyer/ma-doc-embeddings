@@ -132,6 +132,9 @@ class Vectorizer:
                                                             disable_aspects=['cont'],
                                                             return_vecs=return_vecs,
                                                             algorithm="avg_w2v")
+        elif input_str == "random_aspect2vec" or input_str == "random":
+            return Vectorizer.random_aspect2vec(corpus, save_path, return_vecs=return_vecs,
+                                                algorithm="doc2vec")
         else:
             raise UserWarning(f"fUnknown input string {input_str}!")
 
@@ -640,42 +643,85 @@ class Vectorizer:
                               for preprocessed_document_text, doc_id in zip(aspect_documents, doc_ids)])
 
         logging.info("Start training")
-        print("built aspects")
         if algorithm.lower() == "doc2vec" or algorithm.lower() == "d2v":
             model, words_dict, docs_dict = cls.doc2vec_base(documents, without_training)
         elif algorithm.lower() == "avg_w2v" or algorithm.lower() == "w2v" or algorithm.lower() == "word2vec":
-            # documents_aspects = defaultdict(list)
-            # for i, document in enumerate(corpus.documents.values()):
-            #     sentence_aspects = defaultdict(list)
-            #     for sentence in document.sentences:
-            #         aspect_tokens = {}
-            #         for aspect_name, aspect in aspects.items():
-            #             aspect_tokens[aspect_name] = []
-            #         for token in sentence.tokens:
-            #             for aspect_name, aspect in aspects.items():
-            #                 if token.representation() in aspect[i]:
-            #                     aspect_tokens[aspect_name].append(token.representation())
-            #         for aspect_name, tokens in aspect_tokens.items():
-            #             sentence_aspects[aspect_name].append(tokens)
-            #     for aspect_name, tokens in sentence_aspects.items():
-            #         documents_aspects[aspect_name].append(tokens)
-            #
-            # # sentence_aspects = {aspect_name: cls.build_simple_sentence_aspects(aspect, corpus)
-            # #                     for aspect_name, aspect in aspects.items()}
-            # sentence_aspects = dict(documents_aspects)
-            # print("build sentence aspects")
-            # preprocessed_sentences = []
-            # for aspect_name, aspect_documents in sentence_aspects.items():
-            #     [preprocessed_sentences.extend(preprocessed_document_text)
-            #      for preprocessed_document_text in aspect_documents]
             preprocessed_sentences = corpus.get_flat_corpus_sentences()
             aspect_doc_ids = [d.tags[0] for d in documents]
-            print("start word2vec_base")
             model, words_dict, docs_dict = cls.word2vec_base(preprocessed_sentences, documents,
                                                              aspect_doc_ids, without_training)
         else:
             raise UserWarning(f"Not supported vectorization algorithm '{algorithm}'!")
 
+        docs_dict = Vectorizer.combine_vectors_by_sum(docs_dict)
+        Vectorizer.my_save_doc2vec_format(fname=save_path, doctag_vec=docs_dict, word_vec=words_dict,
+                                          prefix='*dt_',
+                                          fvocab=None, binary=False)
+        if return_vecs:
+            vecs = Vectorizer.my_load_doc2vec_format(fname=save_path, binary=False)
+            return vecs
+        else:
+            return True
+
+    @classmethod
+    def random_aspect2vec(cls, corpus: Corpus, save_path: str = "models/",
+                          return_vecs: bool = True, algorithm="doc2vec",
+                          without_training: bool = False):
+        def nr_to_roman(nr: int):
+            if nr == 0:
+                return 'I'
+            elif nr == 1:
+                return 'II'
+            elif nr == 2:
+                return 'III'
+            elif nr == 3:
+                return 'IV'
+            elif nr == 4:
+                return 'V'
+            elif nr == 5:
+                return 'VI'
+            elif nr == 6:
+                return 'VII'
+            elif nr == 7:
+                return 'VIII'
+            elif nr == 8:
+                return 'IX'
+            elif nr == 9:
+                return 'X'
+            elif nr == 10:
+                return 'XI'
+
+        lemma = False
+        lower = False
+        _, doc_ids = corpus.get_texts_and_doc_ids()
+        if corpus.document_entities is None:
+            raise UserWarning("No Entities set!")
+
+        aspects = {}
+        prob_to_keep = 0.2
+        nr_aspects = 5
+        aspects['raw'] = corpus.get_flat_document_tokens(lemma=lemma, lower=lower)
+
+        for aspect_nr in range(0, nr_aspects):
+            aspects[f'aspect{nr_to_roman(aspect_nr)}'] = corpus.get_flat_and_random_document_tokens(prop_to_keep=prob_to_keep,
+                                                                                       seed=aspect_nr,
+                                                                                       lemma=lemma,
+                                                                                       lower=lower)
+        documents = []
+        for aspect_name, aspect_documents in aspects.items():
+            documents.extend([TaggedDocument(preprocessed_document_text, [f'{doc_id}_{aspect_name}'])
+                              for preprocessed_document_text, doc_id in zip(aspect_documents, doc_ids)])
+
+        logging.info("Start training")
+        if algorithm.lower() == "doc2vec" or algorithm.lower() == "d2v":
+            model, words_dict, docs_dict = cls.doc2vec_base(documents, without_training)
+        elif algorithm.lower() == "avg_w2v" or algorithm.lower() == "w2v" or algorithm.lower() == "word2vec":
+            preprocessed_sentences = corpus.get_flat_corpus_sentences()
+            aspect_doc_ids = [d.tags[0] for d in documents]
+            model, words_dict, docs_dict = cls.word2vec_base(preprocessed_sentences, documents,
+                                                             aspect_doc_ids, without_training)
+        else:
+            raise UserWarning(f"Not supported vectorization algorithm '{algorithm}'!")
         docs_dict = Vectorizer.combine_vectors_by_sum(docs_dict)
         Vectorizer.my_save_doc2vec_format(fname=save_path, doctag_vec=docs_dict, word_vec=words_dict,
                                           prefix='*dt_',
