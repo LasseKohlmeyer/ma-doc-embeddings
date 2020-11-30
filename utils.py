@@ -6,6 +6,7 @@ from enum import Enum
 import random
 from typing import Union, List, Dict, Tuple, Set
 import pandas as pd
+from bs4 import BeautifulSoup
 from tqdm import tqdm
 import spacy
 from os import listdir
@@ -98,6 +99,8 @@ class DataHandler:
             return DataHandler.load_book_summaries_as_corpus()
         elif input_str == "test_corpus":
             return DataHandler.load_test_corpus()
+        elif input_str == "dta_series":
+            return DataHandler.load_real_series_dta_as_corpus()
         else:
             raise UserWarning("Unknown input string!")
 
@@ -303,6 +306,73 @@ class DataHandler:
         corpus = Corpus(source=series_documents, name="german_series", language=Language.DE)
         corpus.set_series_dict(new_series_dict)
 
+        return corpus
+
+    @staticmethod
+    def load_real_series_dta_as_corpus():
+        # input_dir = os.path.join(corpora/plain_text/german_series_plain)
+        input_dir = config["data_set_path"]["dta"]
+        path_names = [text_file for text_file in os.listdir(input_dir) if text_file.endswith('.xml')]
+
+        path_names = [path_name for path_name in path_names if int(path_name.split('.')[0].split('_')[-1]) > 1820]
+        d = defaultdict(list)
+        for path_name in path_names:
+            meta_info = path_name.split('.')[0].split('_')
+            author_name = meta_info[0]
+            title = meta_info[1]
+            d[f'{author_name}_{title[:-2]}'].append(path_name)
+
+        # print(len(d))
+        d = {key: path_names for key, path_names in d.items() if len(path_names) > 1}
+        # print(len(d))
+        series_number = 0
+        documents = {}
+        series_dict = defaultdict(list)
+        for series, paths in d.items():
+            for inner_series_nr, path in enumerate(paths):
+                with open(os.path.join(input_dir, path), 'r', encoding="utf-8") as tei:
+                    tei_content = tei.read()
+
+                    soup = BeautifulSoup(tei_content, 'xml')
+                    doc_title = []
+                    for title in soup.find_all('title'):
+                        parsed_title = title.getText()
+                        if parsed_title not in doc_title:
+                            doc_title.append(parsed_title)
+                    doc_title = ' '.join(list(doc_title))
+
+                    authors = []
+                    for author in soup.find_all('author'):
+
+                        try:
+                            parsed_author = f'{author.forename.getText()} {author.surname.getText()}'
+
+                        except AttributeError:
+                            parsed_author = f'{author.surname.getText()}'
+                        if parsed_author not in authors:
+                            authors.append(parsed_author)
+
+                    doc_authors = ', '.join(authors)
+                    doc_text = soup.select("TEI text body")[0].getText()
+                    doc_text = doc_text.replace("ſ", "s").replace("¬\n", "").replace("\n", " ")
+
+                    doc_date = path.split('.')[0].split('_')[-1]
+                    doc_id = f"dta_{series_number}_{inner_series_nr}"
+                    # print(doc_id, path, doc_date, doc_title, doc_authors)
+                    # print(doc_text[:100], '---', doc_text[-100:])
+                    doc = Document(doc_id=doc_id,
+                                   text=doc_text,
+                                   title=doc_title,
+                                   language=Language.DE,
+                                   authors=doc_authors,
+                                   date=doc_date,
+                                   genres=None,
+                                   sentences=None)
+                    documents[doc_id] = doc
+                    series_dict[f"dta_{series_number}"].append(doc_id)
+            series_number += 1
+        corpus = Corpus(documents, name="deutsches_text_archiv_belletristik_series", language=Language.DE)
+        corpus.set_series_dict(series_dict)
         return corpus
 
     @staticmethod
@@ -1028,6 +1098,16 @@ class Corpus:
 
     # def set_root_path(self, root_path: str):
     #     self.root_corpus_path = root_path
+    def get_flat_documents(self, lemma: bool = False, lower: bool = False, as_sentence: bool = True):
+        if as_sentence:
+            documents = [' '.join(document.get_flat_document_tokens(lemma, lower))
+                         for doc_id, document in self.documents.items()]
+        else:
+            documents = [document.get_flat_document_tokens(lemma, lower) for doc_id, document in self.documents.items()]
+        if len(documents) == 0:
+            raise UserWarning("No sentences set")
+
+        return documents
 
     def get_flat_document_tokens(self, lemma: bool = False, lower: bool = False):
         # for doc_id, document in self.documents.items():
