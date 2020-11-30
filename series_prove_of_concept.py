@@ -139,63 +139,135 @@ class EvaluationMetric:
             ap = 0
         return ap
 
+    # @staticmethod
+    # def ndcg_c(sim_documents, doc_id: str, corpus: Corpus, reverted, ignore_same: bool = False):
+    #     # print(reverted)
+    #     ground_truth_values = []
+    #     predicted_values = []
+    #     for sim_doc_id, sim in sim_documents:
+    #         if not ignore_same or doc_id != sim_doc_id:
+    #             predicted_values.append(sim)
+    #             if reverted[doc_id] == reverted[sim_doc_id]:
+    #                 ground_truth_values.append(1)
+    #             else:
+    #                 ground_truth_values.append(0)
+    #
+    #     ndcg = metrics.ndcg_score(np.array([ground_truth_values]),
+    #                               np.array([predicted_values]))
+    #     return ndcg
+    #
+    # @staticmethod
+    # def ndcg_b(sim_documents, doc_id: str, corpus: Corpus, reverted, ignore_same: bool = False):
+    #     # print(reverted)
+    #     ground_truth_values = []
+    #     predicted_values = []
+    #     c = 0
+    #     for sim_doc_id, _ in sim_documents:
+    #         if not ignore_same or doc_id != sim_doc_id:
+    #             if reverted[doc_id] == reverted[sim_doc_id]:
+    #                 predicted_values.append(1)
+    #             else:
+    #                 predicted_values.append(0)
+    #
+    #             if c < len(corpus.series_dict[reverted[doc_id]]):
+    #                 ground_truth_values.append(1)
+    #             else:
+    #                 ground_truth_values.append(0)
+    #             c += 1
+    #
+    #     ndcg = metrics.ndcg_score(np.array([ground_truth_values]),
+    #                               np.array([predicted_values]))
+    #     return ndcg
+
+    # @staticmethod
+    # def ndcg_ao(sim_documents, doc_id: str, corpus: Corpus, reverted, ignore_same: bool = False):
+    #     # print(reverted)
+    #     ground_truth_values = []
+    #     predicted_values = []
+    #     c = 0
+    #     for sim_doc_id, _ in sim_documents:
+    #         if not ignore_same or doc_id != sim_doc_id:
+    #             predicted_values.append(1)
+    #             if reverted[doc_id] == reverted[sim_doc_id]:
+    #                 ground_truth_values.append(1)
+    #             else:
+    #                 ground_truth_values.append(0)
+    #         else:
+    #             print(c, doc_id, sim_doc_id)
+    #         print(doc_id, sim_doc_id, predicted_values, ground_truth_values)
+    #         c += 1
+    #
+    #     ndcg = metrics.ndcg_score(np.array([ground_truth_values]),
+    #                               np.array([predicted_values]))
+    #     return ndcg
+
     @staticmethod
-    def ndcg_c(sim_documents, doc_id: str, corpus: Corpus, reverted, ignore_same: bool = False):
-        # print(reverted)
+    def mrr(sim_documents, doc_id: str, corpus: Corpus, reverted, series_length, ignore_same: bool = False):
         ground_truth_values = []
         predicted_values = []
-        for sim_doc_id, sim in sim_documents:
+        c = 1
+        # series_length = 3
+        for sim_doc_id, _ in sim_documents:
             if not ignore_same or doc_id != sim_doc_id:
-                predicted_values.append(sim)
                 if reverted[doc_id] == reverted[sim_doc_id]:
-                    ground_truth_values.append(1)
-                else:
-                    ground_truth_values.append(0)
-
-        ndcg = metrics.ndcg_score(np.array([ground_truth_values]),
-                                  np.array([predicted_values]))
-        return ndcg
+                    return 1/c
+                c += 1
+        return 0
 
     @staticmethod
-    def ndcg_b(sim_documents, doc_id: str, corpus: Corpus, reverted, ignore_same: bool = False):
+    def ndcg(sim_documents, doc_id: str, corpus: Corpus, reverted, series_length, ignore_same: bool = False):
         # print(reverted)
         ground_truth_values = []
         predicted_values = []
         c = 0
+        # series_length = 3
         for sim_doc_id, _ in sim_documents:
             if not ignore_same or doc_id != sim_doc_id:
+                if c < series_length:
+                    ground_truth_values.append(1)
+                else:
+                    ground_truth_values.append(0)
                 if reverted[doc_id] == reverted[sim_doc_id]:
                     predicted_values.append(1)
                 else:
                     predicted_values.append(0)
-
-                if c < len(corpus.series_dict[reverted[doc_id]]):
-                    ground_truth_values.append(1)
-                else:
-                    ground_truth_values.append(0)
-                c += 1
-
+            else:
+                if c != 0:
+                    raise UserWarning(f'First match is not lookup document {doc_id}!')
+            # print(doc_id, sim_doc_id, predicted_values, ground_truth_values)
+            c += 1
+        print(doc_id, ground_truth_values, predicted_values)
         ndcg = metrics.ndcg_score(np.array([ground_truth_values]),
                                   np.array([predicted_values]))
         return ndcg
 
-    @staticmethod
-    def ndcg_a(sim_documents, doc_id: str, corpus: Corpus, reverted, ignore_same: bool = False):
-        # print(reverted)
-        ground_truth_values = []
-        predicted_values = []
-
-        for sim_doc_id, _ in sim_documents:
-            if not ignore_same or doc_id != sim_doc_id:
-                predicted_values.append(1)
-                if reverted[doc_id] == reverted[sim_doc_id]:
-                    ground_truth_values.append(1)
-                else:
-                    ground_truth_values.append(0)
-
-        ndcg = metrics.ndcg_score(np.array([ground_truth_values]),
-                                  np.array([predicted_values]))
-        return ndcg
+    # @staticmethod
+    # def ndcg_a2(sim_documents, doc_id: str, corpus: Corpus, reverted, ignore_same: bool = False):
+    #     # print(reverted)
+    #     ground_truth_values = []
+    #     predicted_values = []
+    #     c = 0
+    #     sim_docs = [sim_doc_id for sim_doc_id, _ in sim_documents]
+    #     for doc_id in doc_ids:
+    #         if doc_id in sim_docs:
+    #             predicted_values.append(1)
+    #         if reverted[doc_id] == reverted[sim_doc_id]:
+    #
+    #     for sim_doc_id, _ in sim_documents:
+    #         if not ignore_same or doc_id != sim_doc_id:
+    #             predicted_values.append(1)
+    #             if reverted[doc_id] == reverted[sim_doc_id]:
+    #                 ground_truth_values.append(1)
+    #             else:
+    #                 ground_truth_values.append(0)
+    #         else:
+    #             print(c, doc_id, sim_doc_id)
+    #         print(doc_id, sim_doc_id, predicted_values, ground_truth_values)
+    #         c += 1
+    #
+    #     ndcg = metrics.ndcg_score(np.array([ground_truth_values]),
+    #                               np.array([predicted_values]))
+    #     return ndcg
 
 
 class Evaluation:
@@ -842,22 +914,23 @@ class RealSeriesEvaluationRun:
     config = ConfigLoader.get_config()
     num_cores = int(0.75*multiprocessing.cpu_count())
 
-    # ignore_same = False
-    # evaluation_metric = EvaluationMetric.ap
-    # evaluation_metric = EvaluationMetric.precision_scores
-    # evaluation_metric = EvaluationMetric.ndcg_a
-    # evaluation_metric = EvaluationMetric.ndcg_b
-    # evaluation_metric = EvaluationMetric.ndcg_c
-
     ignore_same = True
     # evaluation_metric = EvaluationMetric.ap
     # evaluation_metric = EvaluationMetric.precision_scores
-    # evaluation_metric = EvaluationMetric.ndcg_a
-    evaluation_metric = EvaluationMetric.ndcg_b
+    evaluation_metric = EvaluationMetric.ndcg
+    # evaluation_metric = EvaluationMetric.ndcg_b
+    # evaluation_metric = EvaluationMetric.ndcg_c
+
+    # ignore_same = False
+    # evaluation_metric = EvaluationMetric.ap
+    # evaluation_metric = EvaluationMetric.precision_scores
+    # evaluation_metric = EvaluationMetric.ndcg
+    # evaluation_metric = EvaluationMetric.ndcg_b
     # evaluation_metric = EvaluationMetric.ndcg_c
 
     data_sets = [
-        "german_series"
+        "german_series",
+        # "dta_series"
     ]
     filters = [
         "no_filter",
@@ -872,12 +945,25 @@ class RealSeriesEvaluationRun:
     vectorization_algorithms = [
         "avg_wv2doc",
         "doc2vec",
+        # "longformer_untuned"
         "book2vec",
         "book2vec_wo_raw",
         "book2vec_wo_loc",
         "book2vec_wo_time",
         "book2vec_wo_sty",
         "book2vec_wo_atm",
+        "book2vec_w2v",
+        "book2vec_adv",
+        # "book2vec_adv_wo_raw",
+        # "book2vec_adv_wo_loc",
+        # "book2vec_adv_wo_time",
+        # "book2vec_adv_wo_sty",
+        # "book2vec_adv_wo_atm",
+        # "book2vec_adv_wo_plot",
+        # "book2vec_adv_wo_cont",
+        "avg_wv2doc_untrained",
+        "doc2vec_untrained",
+        "book2vec_untrained",
     ]
 
     @classmethod
@@ -1174,9 +1260,10 @@ class RealSeriesEvaluationRun:
         precs_b = []
         topn_value = 1
         if cls.ignore_same:
-            topn_value = 2
+            topn_value = 1
         for doc_id in doctags:
-            topn = len(corpus.series_dict[reverted[doc_id]])
+            # topn = len(corpus.series_dict[reverted[doc_id]])
+            topn = 20
             if topn > topn_value:
                 sim_documents = Vectorizer.most_similar_documents(vectors, corpus,
                                                                   positives=[doc_id],
@@ -1184,19 +1271,21 @@ class RealSeriesEvaluationRun:
                                                                   topn=topn,
                                                                   print_results=False)
                 # hard_correct = EvaluationMetric.precision_scores(sim_documents, doc_id, corpus, reverted)
-                hard_correct = cls.evaluation_metric(sim_documents, doc_id, corpus, reverted, ignore_same=cls.ignore_same)
+                hard_correct = cls.evaluation_metric(sim_documents, doc_id, corpus, reverted,
+                                                     len(corpus.series_dict[reverted[doc_id]]),
+                                                     ignore_same=cls.ignore_same)
                 results.append(hard_correct)
 
                 # ap_values.append(EvaluationMetric.ap(sim_documents, doc_id, corpus, reverted, ignore_same=False))
                 # precs.append(EvaluationMetric.precision_scores(sim_documents, doc_id, corpus, reverted,
                 #                                                ignore_same=False))
-                # ndcg_as.append(EvaluationMetric.ndcg_a(sim_documents, doc_id, corpus, reverted, ignore_same=False))
+                # ndcg_as.append(EvaluationMetric.ndcg(sim_documents, doc_id, corpus, reverted, ignore_same=False))
                 # ndcg_cs.append(EvaluationMetric.ndcg_c(sim_documents, doc_id, corpus, reverted, ignore_same=False))
                 # if topn > 2:
                 #     ap_values_b.append(EvaluationMetric.ap(sim_documents, doc_id, corpus, reverted, ignore_same=True))
                 #     precs_b.append(EvaluationMetric.precision_scores(sim_documents, doc_id, corpus, reverted,
                 #                                                      ignore_same=True))
-                #     ndcg_as_b.append(EvaluationMetric.ndcg_a(sim_documents, doc_id, corpus, reverted, ignore_same=True))
+                #     ndcg_as_b.append(EvaluationMetric.ndcg(sim_documents, doc_id, corpus, reverted, ignore_same=True))
                 #     ndcg_cs_b.append(EvaluationMetric.ndcg_c(sim_documents, doc_id, corpus, reverted, ignore_same=True))
 
         # results_avg, _ = Evaluation.similar_docs_avg(vectors, corpus, reverted, doctags, topn)
@@ -1240,5 +1329,5 @@ if __name__ == '__main__':
     # EvaluationRun.run_evaluation()
 
     # RealSeriesEvaluationRun.build_real_series_corpora()
-    # RealSeriesEvaluationRun.train_real_series_vecs()
+    RealSeriesEvaluationRun.train_real_series_vecs()
     RealSeriesEvaluationRun.run_evaluation_eff()
