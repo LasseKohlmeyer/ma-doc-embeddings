@@ -34,7 +34,10 @@ class DocumentKeyedVectors:
             else:
                 wv[key] = kv[key]
 
-        self.wv = KeyedWordVectors(wv)
+        if len(wv) > 0:
+            self.wv = KeyedWordVectors(wv)
+        else:
+            self.wv = {}
         self.docvecs = KeyedDocumentVectors(docvecs)
 
 
