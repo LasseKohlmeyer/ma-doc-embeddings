@@ -106,3 +106,5 @@ networkx~=2.5
 mmae~=0.2.2
 transformers~=3.5.1
 nlp~=0.2.0
+pyyaml~=5.3.1
+torch~=1.7.0+cpu

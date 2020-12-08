@@ -23,10 +23,11 @@ def main():
     # print(corpus_prep.name, corpus_prep.document_entities)
     # vecs = Vectorizer.avg_wv2doc(corpus_prep)
     # vecs = Vectorizer.doc2vec(corpus_prep)
-    # corpus_prep = Corpus.fast_load(path="corpora/german_series")
-    corpus = DataHandler.load_test_corpus()
-    corpus_prep = Preprocesser.annotate_corpus(corpus)
-    # vecs = Vectorizer.book2vec_multi_algorithm_base(corpus_prep, save_path="models/test7.model", algorithm="doc2vec",
+    corpus_prep = Corpus.fast_load(path="corpora/german_series")
+    # corpus = DataHandler.load_test_corpus()
+    # corpus_prep = Preprocesser.annotate_corpus(corpus)
+    corpus_prep.get_common_words_relaxed(corpus_prep.series_dict)
+    # vecs = Vectorizer.book2vec_adv(corpus_prep, save_path="models/test7.model", algorithm="doc2vec",
     #                                                 disable_aspects=["plot", "cont"])
     # vecs = Vectorizer.longformer_untuned(corpus_prep, save_path="models/test3.model")
     vecs = Vectorizer.random_aspect2vec(corpus_prep, save_path="models/test10.model")
@@ -115,8 +116,8 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
-
+    # main()
+    DataHandler.load_maharjan_goodreads()
     # chunked_texts, chunk_list = Preprocesser.chunk_text(["hallo das ist ein mittellanger Text", "das ist kurz",
     #                                                      "das ist ein sehr viel längerer text der wirklich nichts von dem enthält, was er verspricht. wirklich gar nichts, überhaupt nichts"],
     #                                                     2)
