@@ -199,7 +199,7 @@ class Summarizer:
             root_corpus = Corpus.fast_load(path=corpus_root_path)
             for doc_id, doc in root_corpus.documents.items():
                 sents, ids = Summarizer.generate_summary_of_corpus_doc(doc, 20)
-                print(doc_id, ":", ids, [' '.join(sent) for sent in sents])
+                # print(doc_id, ":", ids, [' '.join(sent) for sent in sents])
                 summary_dict[doc_id] = ids
             with open(summary_dict_path, 'w', encoding='utf-8') as fp:
                 json.dump(summary_dict, fp, indent=1)
