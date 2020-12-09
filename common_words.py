@@ -66,42 +66,39 @@ class CommonWords:
         medium_common_words = CommonWords.without_gerneral_words(common_words)
         return medium_common_words
 
-    @staticmethod
-    def global_common_words(doc_texts: Dict[str, List[str]]) -> Dict[str, Set[str]]:
-        tokens = [set(doc_tokens) for doc_id, doc_tokens in doc_texts.items()]
-
-        global_intersect = set()
-        for token_set_a in tokens:
-            for token_set_b in tokens:
-                if token_set_a != token_set_b:
-                    global_intersect.update(token_set_a.intersection(token_set_b))
-
-        global__strict_intersect = set.intersection(*tokens)
-
-        common_words = {}
-        for c, (doc_id, doc_tokens) in enumerate(doc_texts.items()):
-            not_to_delete = set(doc_tokens).difference(global_intersect).union(global__strict_intersect)
-            to_delete = set(doc_tokens).difference(not_to_delete)
-            common_words[doc_id] = to_delete
-
-        return common_words
+    # @staticmethod
+    # def global_common_words(doc_texts: Dict[str, List[str]]) -> Set[str]:
+    #     tokens = [set(doc_tokens) for doc_id, doc_tokens in doc_texts.items()]
+    #
+    #     global_intersect = set()
+    #     for token_set_a in tokens:
+    #         for token_set_b in tokens:
+    #             if token_set_a != token_set_b:
+    #                 global_intersect.update(token_set_a.intersection(token_set_b))
+    #
+    #     global__strict_intersect = set.intersection(*tokens)
+    #
+    #     common_words = {}
+    #     for c, (doc_id, doc_tokens) in enumerate(doc_texts.items()):
+    #         not_to_delete = set(doc_tokens).difference(global_intersect).union(global__strict_intersect)
+    #         to_delete = set(doc_tokens).difference(not_to_delete)
+    #         common_words[doc_id] = to_delete
+    #
+    #     return common_words
 
     @staticmethod
     def global_too_specific_words_doc_frequency(doc_texts: Dict[str, List[str]], percentage_share: float,
                                                 absolute_share: int = None) \
-            -> Dict[str, Set[str]]:
-        # d = defaultdict(set)
-        # for doc_id, doc_tokens in doc_texts.items():
-        #     for token in doc_tokens:
-        #         d[token].add(doc_id)
-        # freq_dict = {token: len(doc_ids) / len(doc_texts) for token, doc_ids in d.items()}
-        tqdm_disable = True
+            -> Set[str]:
+
+        tqdm_disable = False
         freq_dict = defaultdict(lambda: 0.0)
         vocab = set()
         if absolute_share:
             percentage_share = absolute_share
+
         for doc_id, doc_tokens in tqdm(doc_texts.items(), total=len(doc_texts), desc="Calculate DF",
-                                       disable=tqdm_disable):
+                                       disable=True):
 
             for token in set(doc_tokens):
                 vocab.add(token)
@@ -116,24 +113,25 @@ class CommonWords:
         #     lower_bound = lower_bound_absolute / len(doc_texts)
         # print(len(freq_dict.keys()), len(vocab))
         # print(min(freq_dict.values()), max(freq_dict.values()))
-        to_remove = [token for token, doc_freq in tqdm(freq_dict.items(), total=len(freq_dict), desc="Filter DF",
-                                                       disable=tqdm_disable)
-                     if doc_freq <= percentage_share]
+        to_remove = set([token for token, doc_freq in tqdm(freq_dict.items(), total=len(freq_dict),
+                                                           desc="Filter DF",
+                                                           disable=True)
+                         if doc_freq <= percentage_share])
         # print(len(to_remove))
         # print(to_remove)
-        too_specific_words = {doc_id: set(doc_tokens).intersection(to_remove)
-                              for doc_id, doc_tokens in tqdm(doc_texts.items(), total=len(doc_texts),
-                                                             desc="Extract words to remove", disable=tqdm_disable)}
+        # too_specific_words = {doc_id: set(doc_tokens).intersection(to_remove)
+        #                       for doc_id, doc_tokens in tqdm(doc_texts.items(), total=len(doc_texts),
+        #                                                      desc="Extract words to remove", disable=tqdm_disable)}
 
-        new_toks = set()
-        for doc_id, toks in too_specific_words.items():
-            new_toks.update(toks)
+        # new_toks = set()
+        # for doc_id, toks in too_specific_words.items():
+        #     new_toks.update(toks)
         # print(len(new_toks))
         # opposite
         # too_specific_words = {doc_id: set(doc_tokens).difference(to_remove)
         #                 for doc_id, doc_tokens in doc_texts.items()}
         # print('>', too_specific_words)
-        return too_specific_words
+        return to_remove
 
 
 if __name__ == "__main__":

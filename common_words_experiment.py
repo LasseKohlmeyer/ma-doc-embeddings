@@ -39,11 +39,11 @@ class CommonWordsExperiment:
             data_set_bar.refresh()
             annotated_corpus_path = os.path.join(cls.config["system_storage"]["corpora"], data_set)
             try:
-                corpus = Corpus.fast_load(path=annotated_corpus_path)
+                corpus = Corpus.fast_load(path=annotated_corpus_path, load_entities=False)
             except FileNotFoundError:
                 corpus = DataHandler.load_corpus(data_set)
                 print('corpus loaded')
-                corpus = Preprocesser.annotate_corpus(corpus, without_spacy=True)
+                corpus = Preprocesser.annotate_corpus(corpus, without_spacy=False)
                 print('annotated corpus')
                 corpus.save_corpus_adv(annotated_corpus_path)
                 print('saved corpus')
@@ -55,6 +55,7 @@ class CommonWordsExperiment:
             else:
                 thresholds = cls.thresholds
 
+            print('thresholds set')
             threshold_bar = tqdm(thresholds, total=len(thresholds), desc="3 Calculate filter_mode results")
             if parallel:
                 Parallel(n_jobs=cls.num_cores)(
@@ -70,6 +71,7 @@ class CommonWordsExperiment:
 
     @classmethod
     def calculate_vocab_sizes(cls, corpus: Corpus, threshold):
+        print('>|0')
         if cls.absolute:
             common_words = CommonWords.global_too_specific_words_doc_frequency(
                 corpus.get_flat_document_tokens(as_dict=True), percentage_share=threshold, absolute_share=threshold)
@@ -77,15 +79,14 @@ class CommonWordsExperiment:
             common_words = CommonWords.global_too_specific_words_doc_frequency(
                 corpus.get_flat_document_tokens(as_dict=True),
                 percentage_share=threshold)
-
+        print('>|1')
         filtered_corpus = corpus.common_words_corpus_copy(common_words, masking=False)
+        print('>|2')
         corpus_vocab_size = len(filtered_corpus.get_vocab())
-
         document_sizes = {document_id:  {'vocab_size': len(document.get_vocab()),
                                          'document_length': len([token for token in document.get_flat_document_tokens()
                                                                  if token != 'del'])}
                           for document_id, document in filtered_corpus.documents.items()}
-
         # for document_id, document in filtered_corpus.documents.items():
         #     print([token for token in document.get_flat_document_tokens() if token != 'del'][:100])
 
@@ -97,7 +98,7 @@ class CommonWordsExperiment:
             vocab_sizes.append(document_size['vocab_size'])
             document_lengths.append(document_size['document_length'])
 
-        print(threshold, corpus_vocab_size, np.mean(vocab_sizes), np.mean(document_lengths), document_sizes)
+        print(threshold, corpus_vocab_size, np.mean(vocab_sizes), np.mean(document_lengths))
 
         result_dict = {'global_vocab_size': corpus_vocab_size,
                        'avg_vocab_size': np.mean(vocab_sizes),
@@ -105,6 +106,7 @@ class CommonWordsExperiment:
                        'avg_document_length': np.mean(document_lengths),
                        'std_document_length': np.std(document_lengths),
                        'document_sizes': document_sizes}
+
         # print(filtered_corpus.get_vocab())
         # print(filtered_corpus.get_flat_document_tokens())
         return result_dict

@@ -4,7 +4,7 @@ import re
 from collections import defaultdict
 from enum import Enum
 import random
-from typing import Union, List, Dict, Tuple, Set
+from typing import Union, List, Dict, Tuple, Set, Generator, Any
 import pandas as pd
 import yaml
 from bs4 import BeautifulSoup
@@ -563,6 +563,8 @@ class Language(str, Enum):
 
 
 class Token:
+    __slots__ = 'text', 'lemma', 'pos', 'ne', 'punctuation', 'alpha', 'stop'
+
     def __init__(self, text: str,
                  lemma: str = None,
                  pos: str = None,
@@ -625,7 +627,6 @@ class Token:
                 return True
             else:
                 return False
-        # todo: memory error
         text, lemma, pos, ne, punctuation, alpha, stop = input_repr.split('\t')
         punctuation = bool_unconverter(punctuation)
         alpha = bool_unconverter(alpha)
@@ -641,6 +642,8 @@ class Token:
 
 
 class Sentence:
+    __slots__ = 'tokens'
+
     # def __init__(self, tokens: List[str]):
     #     self.tokens = tokens
     def __init__(self, tokens: List[Token]):
@@ -659,6 +662,8 @@ class Sentence:
 
 
 class Document:
+    __slots__ = 'doc_id', 'text', 'title', 'language', 'authors', 'date', 'genres', 'sentences', 'absolute_positions'
+
     def __init__(self, doc_id: str, text: str, title: str, language: Language,
                  authors: str = None, date: str = None, genres: str = None, sentences: List[Sentence] = None):
         self.doc_id = doc_id
@@ -677,6 +682,9 @@ class Document:
     # def set_sentences(self, sentences: List[List[str]]):
     #     self.sentences = [Sentence(sentence) for sentence in sentences]
     #     self.tokens = [token for sentence in sentences for token in sentence]
+
+    def set_sentences_from_gen(self):
+        self.sentences = list(self.sentences)
 
     def set_sentences(self, sentences: List[Sentence]):
         self.sentences = sentences
@@ -734,22 +742,36 @@ class Document:
 
     @staticmethod
     def create_document_from_doc_file(doc_path: str):
+        def parse_sentence(sentence_string):
+            return Sentence([Token.parse_text_file_token_representation(token_ln)
+                             for token_ln in sentence_string.split('\n')
+                             if token_ln != '' and token_ln is not None])
+
+        def sentences_gen(cont):
+            for sentence in cont.split('<SENT>'):
+                return parse_sentence(sentence)
         with open(doc_path, "r", encoding="utf-8") as file:
-            lines = file.read().split('\n')
-            sentences = []
-            tokens = []
-            for line in lines:
-                try:
-                    tokens.append(Token.parse_text_file_token_representation(line))
-                except ValueError:
-                    if line == '<SENT>':
-                        sentences.append(Sentence(tokens))
-                        tokens = []
-                    elif line == '' or line is None:
-                        # skip line
-                        pass
-                    else:
-                        logging.error(f'Error at {doc_path}')
+            content = file.read()
+            sentences = [parse_sentence(sentence) for sentence in content.split('<SENT>')]
+            # sentences = sentences_gen(content)
+            # print(sentences[0].tokens)
+
+            # lines = content.split('\n')
+            # sentences = parse_sentence(lines)
+            # sentences = []
+            # tokens = []
+            # for line in lines:
+            #     try:
+            #         tokens.append(Token.parse_text_file_token_representation(line))
+            #     except ValueError:
+            #         if line == '<SENT>':
+            #             sentences.append(Sentence(tokens))
+            #             tokens = []
+            #         elif line == '' or line is None:
+            #             # skip line
+            #             pass
+            #         else:
+            #             logging.error(f'Error at {doc_path}')
 
             fn = os.path.basename(doc_path)
             doc_id, authors, title, language, genres, date = fn.replace('.txt', '').split('_-_')
@@ -768,12 +790,16 @@ class Document:
                 genres = None
             if date == "None":
                 date = None
+            # text = None
             text = ' '.join([' '.join(sentence.representation()) for sentence in sentences])
             return Document(doc_id=doc_id, text=text, title=title, language=Language.get_from_str(language),
                             authors=authors, date=date, genres=genres, sentences=sentences)
 
 
 class Corpus:
+    __slots__ = 'name', 'language', 'document_entities', 'series_dict', 'root_corpus_path', 'shared_attributes_dict', \
+                'reversed_attributes_dict', 'success_dict', 'documents'
+
     def __init__(self, source: Union[Dict[Union[str, int], Document], List[Document], str],
                  name: str = None,
                  language: Language = None):
@@ -843,14 +869,18 @@ class Corpus:
     def save_corpus_adv(self, corpus_dir: str):
         if not os.path.isdir(corpus_dir):
             os.mkdir(corpus_dir)
-        for doc_id, document in tqdm(self.documents.items(), total=len(self.documents), desc="save corpus"):
+        for doc_id, document in tqdm(self.documents.items(), total=len(self.documents), desc="save corpus",
+                                     disable=False):
             document.meta_string_representation()
             doc_path = os.path.join(corpus_dir, f'{document.meta_string_representation()}.txt')
+            doc_sents = []
             with open(doc_path, 'w', encoding="utf-8") as writer:
                 for sentence in document.sentences:
                     for token in sentence.tokens:
                         writer.write(f'{token.get_save_file_representation()}\n')
                     writer.write("<SENT>\n")
+                    doc_sents.append(sentence)
+            document.sentences = doc_sents
         if self.root_corpus_path is None:
             self.root_corpus_path = corpus_dir
         data = {"name": self.name, "root_corpus_path": self.root_corpus_path,
@@ -866,9 +896,9 @@ class Corpus:
         with open(meta_path, 'r', encoding='utf-8') as file:
             meta_data = json.loads(file.read())
 
-        document_paths = [file_path for file_path in os.listdir(corpus_dir) if file_path.endswith('.txt')]
+        document_paths = [file_path for file_path in os.listdir(corpus_dir) if file_path.endswith('.txt')][:1000]
         documents = [Document.create_document_from_doc_file(os.path.join(corpus_dir, doc_path))
-                     for doc_path in tqdm(document_paths)]
+                     for doc_path in tqdm(document_paths, desc="load_file", disable=False)]
         corpus = Corpus(source=documents, name=meta_data["name"], language=meta_data["language"])
         corpus.root_corpus_path = meta_data["root_corpus_path"]
         corpus.set_series_dict(meta_data["series_dict"])
@@ -877,7 +907,8 @@ class Corpus:
         return corpus
 
     @staticmethod
-    def fast_load(number_of_subparts=None, size=None, data_set=None, filer_mode=None, fake_real=None, path=None):
+    def fast_load(number_of_subparts=None, size=None, data_set=None, filer_mode=None, fake_real=None, path=None,
+                  load_entities: bool = True):
         if path is None:
             corpus_dir = Corpus.build_corpus_dir(number_of_subparts,
                                                  size,
@@ -900,7 +931,11 @@ class Corpus:
             else:
                 corpus = Corpus(f'{path}.json')
                 corpus.save_corpus_adv(path)
-        corpus.set_document_entities()
+
+        # corpus.set_sentences_from_own_gens()
+        if load_entities:
+            corpus.set_document_entities()
+
         return corpus
 
     def get_years(self) -> [str]:
@@ -1120,6 +1155,11 @@ class Corpus:
         #     document.set_sentences(sentences[doc_id])
         [document.set_sentences(sentences[doc_id]) for doc_id, document in self.documents.items()]
 
+    def set_sentences_from_own_gens(self):
+        # for doc_id, document in self.documents.items():
+        #     document.set_sentences(sentences[doc_id])
+        [document.set_sentences_from_gen() for document in tqdm(self.documents.values(), desc="exhaust gen")]
+
     # def set_root_path(self, root_path: str):
     #     self.root_corpus_path = root_path
     def get_flat_documents(self, lemma: bool = False, lower: bool = False, as_sentence: bool = True):
@@ -1147,7 +1187,6 @@ class Corpus:
                       for doc_id, document in self.documents.items()]
         if len(tokens) == 0:
             raise UserWarning("No sentences set")
-
         return tokens
 
     def get_flat_and_filtered_document_tokens(self, lemma: bool = False, lower: bool = False, pos: list = None,
@@ -1384,7 +1423,7 @@ class Corpus:
                 common_words[doc_id] = common_words[series_id]
         return common_words
 
-    def get_global_common_words(self) -> Dict[str, Set[str]]:
+    def get_global_common_words(self) -> Set[str]:
         common_words = CommonWords.global_too_specific_words_doc_frequency(self.get_flat_document_tokens(as_dict=True),
                                                                            percentage_share=0.25)
         return common_words
@@ -1405,14 +1444,17 @@ class Corpus:
     #             common_words[doc_id] = common_words[series_id]
     #     return common_words
 
-    def common_words_corpus_copy(self, common_words: Dict[str, Set[str]], masking: bool):
-        def filter_condition(token: Token, document_id: str, common_ws: Dict[str, Set[str]]):
+    def common_words_corpus_copy(self, common_words: Union[Set[str], Dict[str, Set[str]]], masking: bool):
+        def filter_condition(token: Token, document_id: str, common_ws: Union[Set[str], Dict[str, Set[str]]]):
             # print(token.representation(lemma=True, lower=True) not in common_words[document_id],
             #       token.representation(lemma=True, lower=True),
             #       common_words[document_id])
-            return token.representation(lemma=False, lower=False) not in common_ws[document_id]
+            if isinstance(common_words, set):
+                return token.representation(lemma=False, lower=False) not in common_ws
+            else:
+                return token.representation(lemma=False, lower=False) not in common_ws[document_id]
 
-        def mask(token: Token, document_id: str, common_ws: Dict[str, Set[str]]):
+        def mask(token: Token, document_id: str, common_ws: Set[str]):
             if not filter_condition(token, document_id, common_ws):
                 token.text = "del"
                 token.lemma = "del"
@@ -1421,12 +1463,14 @@ class Corpus:
         for doc_id, document in tqdm(self.documents.items(), total=len(self.documents), desc="Filtering corpus",
                                      disable=True):
             if not masking:
-                new_sents = [Sentence([token for token in sentence.tokens
-                                       if filter_condition(token, doc_id, common_words)])
-                             for sentence in document.sentences]
-                for sent in new_sents:
+                new_sents_gen = (Sentence([token for token in sentence.tokens
+                                           if filter_condition(token, doc_id, common_words)])
+                                 for sentence in document.sentences)
+                new_sents = []
+                for sent in new_sents_gen:
                     if len(sent.tokens) == 0:
                         sent.tokens.append(Token.empty_token())
+                    new_sents.append(sent)
                 # for new_s in new_sents:
                 #     print(new_s.representation())
             else:
@@ -1435,6 +1479,7 @@ class Corpus:
                 # for new_s in new_sents:
                 #     print(new_s.representation())
             # document.set_sentences(new_sents)
+
             documents[doc_id] = Document(doc_id=doc_id,
                                          text=document.text,
                                          title=document.title,
@@ -1667,6 +1712,7 @@ class Preprocesser:
             # print(len(text))
         return chunked_texts, chunked_list
 
+
     # @staticmethod
     # def merge_chunks(chunked_texts: Union[List[str], List[List[str]], List[Dict]], chunked_list: List[bool]):
     #     unchunked = []
@@ -1698,7 +1744,8 @@ class Preprocesser:
     #             unchunked_object.clear()
     #     return unchunked
     @staticmethod
-    def merge_chunks(chunked_texts: List[List[Sentence]], chunked_list: List[bool]):
+    def merge_chunks(chunked_texts: Union[List[List[Sentence]], List[Generator[Sentence, Any, None]]],
+                     chunked_list: List[bool]):
         unchunked = []
         unchunked_object = []
 
@@ -1706,6 +1753,8 @@ class Preprocesser:
             unchunked_object.extend(text)
             if not is_chunked:
                 if isinstance(text, list):
+                    unchunked.append(unchunked_object.copy())
+                elif isinstance(text, Generator):
                     unchunked.append(unchunked_object.copy())
                 else:
                     raise UserWarning("Not supported type!")
@@ -1771,39 +1820,20 @@ class Preprocesser:
         #         yield (sentence_generator(sentence)
         #                for sentence in re.split(sentence_split_regex, document))
 
-        def test_gen(plain_texts):
+        def nested_sentences_generator(plain_texts):
             # ds = []
             # for document in tqdm(plain_texts, total=len(plain_texts), desc="Tokenize"):
             #     ds.append((Sentence([Token(text=token) for token in sentence.split() if token != ' '])
             #                for sentence in re.split(sentence_split_regex, document)))
-            # todo: do for spacy
             ds = [((Sentence([Token(text=token) for token in sentence.split() if token != ' '])
                     for sentence in re.split(sentence_split_regex, document)))
                   for document in tqdm(plain_texts, total=len(plain_texts), desc="Tokenize")]
             return ds
 
+
         if without_spacy:
             sentence_split_regex = re.compile("(?<!\w\.\w.)(?<![A-Z]\.)(?<![A-Z][a-z]\.)(?<=\.|\?)")
-            nested_sentences = test_gen(texts)
-            print(nested_sentences)
-            # nested_sentences = []
-            # for doc in tqdm(texts, total=len(texts), desc="Tokenize"):
-            #     preprocessed_sentences = []
-            #     doc_sents = re.split(sentence_split_regex, doc)
-            #
-            #     for sent in doc_sents:
-            #         sent_tokens = sent.split()
-            #         sentence_tokens = Sentence([Token(text=token)
-            #                                     for token in sent_tokens if token != ' '])
-            #         preprocessed_sentences.append(sentence_tokens)
-            #         # all_document_sentences.extend(sentence_tokens)
-            #
-            #     # preprocessed_documents.append(all_document_sentences)
-            #     nested_sentences.append(preprocessed_sentences)
-
-            # nested_sentences = [[sentence_generator(sent)
-            #                      for sent in re.split(sentence_split_regex, doc)]
-            #                     for doc in tqdm(texts, total=len(texts), desc="Tokenize")]
+            nested_sentences = nested_sentences_generator(texts)
 
         else:
             nlp = spacy.load("en_core_web_sm") if lan_model is None else lan_model
@@ -1812,27 +1842,33 @@ class Preprocesser:
             if not nlp.has_pipe('sentencizer'):
                 nlp.add_pipe(nlp.create_pipe('sentencizer'))
             # entities_of_documents = []
+            # nested_sentences = nested_sentences_spacy_generator(nlp, texts, disable_list)
             nested_sentences = []
             chunked_texts, chunk_list = Preprocesser.chunk_text(texts, 5000)
+            chunked_texts_gen = (chunk_text for chunk_text in chunked_texts)
             logging.info(f'Start annotation of {len(chunked_texts)} chunked texts')
-            for doc in nlp.pipe(chunked_texts, disable=disable_list):
-                # ents = {e.text: e.label_ for e in doc.ents}
 
-                # entities_of_documents.append(ents)
-                preprocessed_sentences = []
-                # all_document_sentences = []
-                for sent in doc.sents:
-                    sentence_tokens = Sentence([token_representation(token)
-                                                for token in sent if token.text != ' '])
-                    preprocessed_sentences.append(sentence_tokens)
-                    # all_document_sentences.extend(sentence_tokens)
-
-                # preprocessed_documents.append(all_document_sentences)
-                nested_sentences.append(preprocessed_sentences)
-
-            # print(len(nested_sentences))
+            nested_sentences = [(Sentence([token_representation(token)
+                                           for token in sent if token.text != ' '])
+                                for sent in doc.sents)
+                                for doc in tqdm(nlp.pipe(chunked_texts_gen, batch_size=100,
+                                                         disable=disable_list),
+                                                desc="spacify",
+                                                total=len(chunked_texts))]
             nested_sentences = Preprocesser.merge_chunks(nested_sentences, chunk_list)
-        # print(len(nested_sentences))
+
+
+            # for doc in tqdm(nlp.pipe(chunked_texts_gen, disable=disable_list), desc="spcify", total=len(chunked_texts)):
+            #     preprocessed_sentences = []
+            #     for sent in doc.sents:
+            #         sentence_tokens = Sentence([token_representation(token)
+            #                                     for token in sent if token.text != ' '])
+            #         preprocessed_sentences.append(sentence_tokens)
+            #
+            #     nested_sentences.append(preprocessed_sentences)
+            #
+            # nested_sentences = Preprocesser.merge_chunks(nested_sentences, chunk_list)
+
         return nested_sentences
 
     @staticmethod

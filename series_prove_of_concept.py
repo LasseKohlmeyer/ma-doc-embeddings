@@ -1473,7 +1473,7 @@ if __name__ == '__main__':
 
     # RealSeriesEvaluationRun.build_real_series_corpora()
     # RealSeriesEvaluationRun.train_real_series_vecs()
-    # RealSeriesEvaluationRun.run_evaluation_eff()
+    RealSeriesEvaluationRun.run_evaluation_eff()
     print(EvaluationUtils.create_paper_table("results/simple_series_experiment_table.csv", "results/z_table.csv",
                                              metrics=["ndcg", "prec", "prec01", "prec03", "prec05", "prec10", "length_metric"],
                                              filters=["common_words_relaxed", "common_words_strict",
