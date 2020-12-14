@@ -6,7 +6,7 @@ from nltk.cluster.util import cosine_distance
 import numpy as np
 import networkx as nx
 import json
-from utils import Document, Corpus, Language
+from corpus_structure import Document, Corpus, Language
 
 
 class Summarizer:

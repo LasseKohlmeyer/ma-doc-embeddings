@@ -1,6 +1,6 @@
 import os
 
-from utils import ConfigLoader, Corpus
+from corpus_structure import ConfigLoader, Corpus
 
 
 def corpus2plain_text_dir(source_path: str):

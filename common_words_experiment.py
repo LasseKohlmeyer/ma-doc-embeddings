@@ -7,8 +7,8 @@ import pandas as pd
 from joblib import Parallel, delayed
 from tqdm import tqdm
 import numpy as np
-from common_words import CommonWords
-from utils import Corpus, DataHandler, Preprocesser, ConfigLoader
+from corpus_structure import Corpus, DataHandler, ConfigLoader, Preprocesser, CommonWords
+# from corpus_processing import Preprocesser, CommonWords
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -23,22 +23,22 @@ class CommonWordsExperiment:
     # filters = ["common_words_doc_freq"]
     thresholds = [
         0.00,
-        0.005,
-        0.01,
-        0.015, 0.0175,
-        0.02,
-        0.03, 0.04,
-        0.05,
-        0.06, 0.07, 0.08,
+        # 0.005,
+        # 0.01,
+        # 0.015, 0.0175,
+        # 0.02,
+        # 0.03, 0.04,
+        # 0.05,
+        # 0.06, 0.07, 0.08,
         0.10,
-        0.15,
-        0.20,
-        0.25,
-        0.30, 0.35, 0.40, 0.45,
-        0.50,
-        0.55,
-        0.60, 0.65, 0.70, 0.75, 0.80, 0.85,
-        0.90, 0.95,
+        # 0.15,
+        # 0.20,
+        # 0.25,
+        # 0.30, 0.35, 0.40, 0.45,
+        # 0.50,
+        # 0.55,
+        # 0.60, 0.65, 0.70, 0.75, 0.80, 0.85,
+        # 0.90, 0.95,
         1.00
     ]
     absolute = False
@@ -80,7 +80,6 @@ class CommonWordsExperiment:
 
                 with open(output_path, 'w', encoding='utf-8') as outfile:
                     json.dump(res, outfile, indent=1)
-
 
     @classmethod
     def calculate_vocab_sizes(cls, corpus: Corpus, threshold, data_set: str):
@@ -186,12 +185,11 @@ def plot_many(x, y_list, title=None, skip=0, labels=None, plot_range=None, loc="
     # plt.savefig("output.png", bbox_inches="tight")
 
 
-def violion_plot(x, dataframe):
+def violion_plot(dataframe):
     sns.set_theme(style="whitegrid")
-
-    ax = sns.violinplot(x="Threshold", y="Value", hue="Value Type",
-                        data=dataframe, palette="muted", split=False)
-    ax = sns.lineplot(data=dataframe, x="Threshold", y="Global Vocab Size")
+    _ = sns.violinplot(x="Threshold", y="Value", hue="Value Type",
+                       data=dataframe, palette="muted", split=False)
+    _ = sns.lineplot(data=dataframe, x="Threshold", y="Global Vocab Size")
     plt.show()
 
 
@@ -267,7 +265,7 @@ def plot_results(path: str):
             df_tuples.append((doc_id, threshold, relative_doc_len, 'Document Length Loss', relative_global_vocab))
 
     df = pd.DataFrame(df_tuples, columns=['Document ID', 'Threshold', 'Value', 'Value Type', 'Global Vocab Size'])
-    violion_plot(threshold_vals, df)
+    violion_plot(df)
 
     documents_vocab_ls = [val for _, val in documents_vocab.items()]
     documents_len_ls = [val for _, val in documents_len.items()]

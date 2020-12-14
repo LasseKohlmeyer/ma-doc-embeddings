@@ -3,7 +3,7 @@ import os
 import HeidelTime
 from bs4 import BeautifulSoup
 
-from utils import Language, ConfigLoader
+from corpus_structure import Language, ConfigLoader
 
 
 def get_time_tokens(input_string: str, language: Language):

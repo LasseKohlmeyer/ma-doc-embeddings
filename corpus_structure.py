@@ -376,7 +376,6 @@ class DataHandler:
                 try:
                     content = file.read().replace('\n@\n', ' ').replace('\n', ' ').replace('  ', ' ').replace('  ', ' ')
                     content = ' '.join([token.split('/')[0] for token in content.split()])
-                    # print(content)
                     meta = suffix_path.replace('a.txt.clean.pos', '').split('-')
                     author = meta[0].replace('+', ' ')
                     year = None
@@ -414,15 +413,16 @@ class DataHandler:
 
     @staticmethod
     def load_maharjan_goodreads(corpus_dir: str = None) -> "Corpus":
-        def load_textfile_book(prefix_path, genre, status, suffix_path, document_id, ):
-            with open(join(prefix_path, genre, status, suffix_path), "r", encoding="utf-8") as file:
+        def load_textfile_book(prefix_path, text_genre, success_status, suffix_path, document_id, ):
+            with open(join(prefix_path, text_genre, success_status, suffix_path), "r", encoding="utf-8") as file:
                 try:
                     file_path_splitted = suffix_path.replace('.txt', '').split('_')
                     guten_id = file_path_splitted[0]
                     title = file_path_splitted[-1].replace('+', ' ').title()
 
                     base_content = file.read()
-                    content = base_content.replace('\n@\n', ' ').replace('\n', ' ').replace('  ', ' ').replace('  ', ' ')
+                    content = base_content.replace('\n@\n', ' ').replace('\n', ' ').replace('  ', ' ') \
+                        .replace('  ', ' ')
                     content = ' '.join([token.split('/')[0] for token in content.split()])
 
                     year = None
@@ -445,7 +445,7 @@ class DataHandler:
                                  language=Language.DE,
                                  authors=author,
                                  date=str(year),
-                                 genres=genre)
+                                 genres=text_genre)
                 except FileNotFoundError:
                     raise FileNotFoundError
             return d
@@ -468,8 +468,8 @@ class DataHandler:
         succes_dict = {}
         book_counter = 0
         for genre, genre_dict in genres_dict.items():
-            books = [(book, "failure")for book in genre_dict["failure"]]
-            books.extend([(book, "success")for book in genre_dict["success"]])
+            books = [(book, "failure") for book in genre_dict["failure"]]
+            books.extend([(book, "success") for book in genre_dict["success"]])
 
             for (book, status) in books:
                 doc_id = f"gr_{book_counter}"
@@ -552,7 +552,8 @@ class Token:
                 return "1"
             else:
                 return "0"
-        return f'{self.text }\t{self.lemma}\t{str(self.pos).strip()}\t{str(self.ne).strip()}' \
+
+        return f'{self.text}\t{self.lemma}\t{str(self.pos).strip()}\t{str(self.ne).strip()}' \
                f'\t{bool_converter(self.punctuation)}' \
                f'\t{bool_converter(self.alpha)}\t{bool_converter(self.stop)}'
 
@@ -563,6 +564,7 @@ class Token:
                 return True
             else:
                 return False
+
         text, lemma, pos, ne, punctuation, alpha, stop = input_repr.split('\t')
         punctuation = bool_unconverter(punctuation)
         alpha = bool_unconverter(alpha)
@@ -894,14 +896,13 @@ class Corpus:
 
         self.save_corpus_meta(corpus_dir)
 
-
     @staticmethod
     def load_corpus_from_dir_format(corpus_dir: str):
         meta_path = os.path.join(corpus_dir, "meta_info.json")
         with open(meta_path, 'r', encoding='utf-8') as file:
             meta_data = json.loads(file.read())
 
-        document_paths = [file_path for file_path in os.listdir(corpus_dir) if file_path.endswith('.txt')][:1000]
+        document_paths = [file_path for file_path in os.listdir(corpus_dir) if file_path.endswith('.txt')][:10]
 
         documents = [Document.create_document_from_doc_file(os.path.join(corpus_dir, doc_path), disable_sentences=True)
                      for doc_path in tqdm(document_paths, desc="load_file", disable=False)]
@@ -1074,7 +1075,6 @@ class Corpus:
 
         return len(vocab)
 
-
     # def year_wise(self, ids: bool = False) -> Dict[int, List[Union[str, int, Document]]]:
     #     year_bins = defaultdict(list)
     #
@@ -1155,7 +1155,7 @@ class Corpus:
                     positions = find_sub_list(tm, token_reprs)
                     for position in positions:
                         start, end = position
-                        for i in range(start, end+1):
+                        for i in range(start, end + 1):
                             self.documents[doc_id].get_token_at_doc_position(i).ne = "TIME"
 
     def set_series_dict(self, series_dict: Dict[str, List[str]]):
@@ -1193,7 +1193,7 @@ class Corpus:
         return documents
 
     def get_flat_document_tokens(self, lemma: bool = False, lower: bool = False, as_dict: bool = False,
-                                 generator: bool = False) -> Union[List[str],  Dict[str, List[str]]]:
+                                 generator: bool = False) -> Union[List[str], Dict[str, List[str]]]:
         # for doc_id, document in self.documents.items():
         #     print(document.sentences[1].tokens)
         if not generator:
@@ -1222,15 +1222,15 @@ class Corpus:
         return Document.create_document_from_doc_file(self.file_dict[doc_id])
 
     def get_improved_flat_document_tokens(self, lemma: bool = False, lower: bool = False, as_dict: bool = False) -> \
-            Union[List[str],  Dict[str, List[str]]]:
+            Union[List[str], Dict[str, List[str]]]:
         if as_dict:
             tokens = {doc_id: (token.representation(lemma, lower)
-                      for sentence in self.get_tokens_from_file(doc_id).sentences for token in sentence.tokens)
+                               for sentence in self.get_tokens_from_file(doc_id).sentences for token in sentence.tokens)
                       for doc_id in tqdm(self.documents.keys(), total=len(self.documents), desc="Get tokens of doc",
                                          disable=True)}
         else:
             tokens = ((token.representation(lemma, lower)
-                      for sentence in self.get_tokens_from_file(doc_id).sentences for token in sentence.tokens)
+                       for sentence in self.get_tokens_from_file(doc_id).sentences for token in sentence.tokens)
                       for doc_id in self.documents.keys())
         if len(tokens) == 0:
             raise UserWarning("No sentences set")
@@ -1286,12 +1286,12 @@ class Corpus:
 
         return tokens
 
-    def get_flat_and_random_document_tokens(self,  prop_to_keep: float, seed: int,
+    def get_flat_and_random_document_tokens(self, prop_to_keep: float, seed: int,
                                             lemma: bool = False, lower: bool = False,
                                             masking: bool = False):
-        def filter_condition(token: Token):
+        def filter_condition():
             random_number = random.randint(1, 1000)
-            return random_number <= 1000*prop_to_keep
+            return random_number <= 1000 * prop_to_keep
 
         def mask(input_token: Token):
             output_token = Token(text=input_token.text,
@@ -1301,16 +1301,17 @@ class Corpus:
                                  punctuation=input_token.punctuation,
                                  alpha=input_token.alpha,
                                  stop=input_token.stop)
-            if not filter_condition(output_token):
+            if not filter_condition():
                 output_token.text = "del"
                 output_token.lemma = "del"
             return output_token
+
         random.seed(seed)
         if not masking:
             tokens = [[token.representation(lemma, lower)
                        for sentence in document.sentences
                        for token in sentence.tokens
-                       if filter_condition(token)]
+                       if filter_condition()]
                       for doc_id, document in self.documents.items()]
         else:
             tokens = [[mask(token).representation(lemma, lower)
@@ -1506,6 +1507,7 @@ class Corpus:
                 token.text = "del"
                 token.lemma = "del"
             return token
+
         for doc_id, document in tqdm(self.documents.items(), total=len(self.documents), desc="Filtering corpus",
                                      disable=True):
             if not masking:
@@ -1643,7 +1645,7 @@ class Corpus:
                                     authors=document.authors,
                                     date=document.date,
                                     genres=document.genres,
-                                    sentences=new_sents,)
+                                    sentences=new_sents, )
 
             new_document.calculate_sizes()
 
@@ -1792,17 +1794,17 @@ class Corpus:
                                 revert=revert)
 
     def filter_on_copy(self, mode: str, masking: bool = False) -> "Corpus":
-        def filter_condition(token: Token, document_id: str, common_ws: Dict[str, Set[str]]):
-            # print(token.representation(lemma=True, lower=True) not in common_words[document_id],
-            #       token.representation(lemma=True, lower=True),
-            #       common_words[document_id])
-            return token.representation(lemma=False, lower=False) not in common_ws[document_id]
+        # def filter_condition(token: Token, document_id: str, common_ws: Dict[str, Set[str]]):
+        #     # print(token.representation(lemma=True, lower=True) not in common_words[document_id],
+        #     #       token.representation(lemma=True, lower=True),
+        #     #       common_words[document_id])
+        #     return token.representation(lemma=False, lower=False) not in common_ws[document_id]
 
-        def mask(token: Token, document_id: str, common_ws: Dict[str, Set[str]]):
-            if not filter_condition(token, document_id, common_ws):
-                token.text = "del"
-                token.lemma = "del"
-            return token
+        # def mask(token: Token, document_id: str, common_ws: Dict[str, Set[str]]):
+        #     if not filter_condition(token, document_id, common_ws):
+        #         token.text = "del"
+        #         token.lemma = "del"
+        #     return token
 
         if mode.lower() == "no_filter" or mode.lower() == "nf":
             return self
@@ -1826,7 +1828,6 @@ class Corpus:
             common_words = self.get_global_common_words()
             corpus = self.common_words_corpus_copy(common_words, masking)
             return corpus
-
         else:
             pos = None
             remove_stopwords = False
@@ -1868,17 +1869,17 @@ class Corpus:
                                                revert=revert)
 
     def filter_on_copy_memory_efficient(self, mode: str, masking: bool = False) -> "Corpus":
-        def filter_condition(token: Token, document_id: str, common_ws: Dict[str, Set[str]]):
-            # print(token.representation(lemma=True, lower=True) not in common_words[document_id],
-            #       token.representation(lemma=True, lower=True),
-            #       common_words[document_id])
-            return token.representation(lemma=False, lower=False) not in common_ws[document_id]
+        # def filter_condition(token: Token, document_id: str, common_ws: Dict[str, Set[str]]):
+        #     # print(token.representation(lemma=True, lower=True) not in common_words[document_id],
+        #     #       token.representation(lemma=True, lower=True),
+        #     #       common_words[document_id])
+        #     return token.representation(lemma=False, lower=False) not in common_ws[document_id]
 
-        def mask(token: Token, document_id: str, common_ws: Dict[str, Set[str]]):
-            if not filter_condition(token, document_id, common_ws):
-                token.text = "del"
-                token.lemma = "del"
-            return token
+        # def mask(token: Token, document_id: str, common_ws: Dict[str, Set[str]]):
+        #     if not filter_condition(token, document_id, common_ws):
+        #         token.text = "del"
+        #         token.lemma = "del"
+        #     return token
 
         if mode.lower() == "no_filter" or mode.lower() == "nf":
             return self
@@ -2142,7 +2143,7 @@ class Preprocesser:
             return ds
 
         if without_spacy:
-            sentence_split_regex = re.compile("(?<!\w\.\w.)(?<![A-Z]\.)(?<![A-Z][a-z]\.)(?<=\.|\?)")
+            sentence_split_regex = re.compile(r"(?<!\w\.\w.)(?<![A-Z]\.)(?<![A-Z][a-z]\.)(?<=.|\?)")
             nested_sentences = nested_sentences_generator(texts)
 
         else:
@@ -2153,22 +2154,22 @@ class Preprocesser:
                 nlp.add_pipe(nlp.create_pipe('sentencizer'))
             # entities_of_documents = []
             # nested_sentences = nested_sentences_spacy_generator(nlp, texts, disable_list)
-            nested_sentences = []
             chunked_texts, chunk_list = Preprocesser.chunk_text(texts, 5000)
             chunked_texts_gen = (chunk_text for chunk_text in chunked_texts)
             logging.info(f'Start annotation of {len(chunked_texts)} chunked texts')
 
             nested_sentences = [(Sentence([token_representation(token)
                                            for token in sent if token.text != ' '])
-                                for sent in doc.sents)
+                                 for sent in doc.sents)
                                 for doc in tqdm(nlp.pipe(chunked_texts_gen, batch_size=100,
                                                          disable=disable_list),
                                                 desc="spacify",
                                                 total=len(chunked_texts))]
             nested_sentences = Preprocesser.merge_chunks(nested_sentences, chunk_list)
 
-
-            # for doc in tqdm(nlp.pipe(chunked_texts_gen, disable=disable_list), desc="spcify", total=len(chunked_texts)):
+            # for doc in tqdm(nlp.pipe(chunked_texts_gen, disable=disable_list),
+            #                 desc="spcify",
+            #                 total=len(chunked_texts)):
             #     preprocessed_sentences = []
             #     for sent in doc.sents:
             #         sentence_tokens = Sentence([token_representation(token)
@@ -2342,7 +2343,8 @@ class CommonWords:
         return dict(common_words)
 
     @staticmethod
-    def strict_general_words_sensitive(series_dictionary: Dict[str, List[str]], doc_texts: Dict[str, List[str]]) -> Dict[str, Set[str]]:
+    def strict_general_words_sensitive(series_dictionary: Dict[str, List[str]], doc_texts: Dict[str, List[str]]) \
+            -> Dict[str, Set[str]]:
         common_words = CommonWords.strict(series_dictionary, doc_texts)
         medium_common_words = CommonWords.without_gerneral_words(common_words)
         return medium_common_words
@@ -2389,8 +2391,7 @@ class CommonWords:
     def global_too_specific_words_doc_frequency(corpus: Corpus, percentage_share: float,
                                                 absolute_share: int = None) \
             -> Set[str]:
-
-        tqdm_disable = False
+        tqdm_disable = True
         freq_dict = defaultdict(lambda: 0.0)
         vocab = set()
         if absolute_share:
@@ -2399,7 +2400,7 @@ class CommonWords:
         # doc_texts = corpus.get_flat_document_tokens()
         doc_texts = corpus.get_flat_document_tokens(generator=True, as_dict=True)
         for doc_id, doc_tokens in tqdm(doc_texts.items(), total=len(corpus.documents), desc="Calculate DF",
-                                       disable=True):
+                                       disable=tqdm_disable):
 
             for token in set(list(doc_tokens)):
                 vocab.add(token)
@@ -2416,14 +2417,13 @@ class CommonWords:
         # print(min(freq_dict.values()), max(freq_dict.values()))
         to_remove = set([token for token, doc_freq in tqdm(freq_dict.items(), total=len(freq_dict),
                                                            desc="Filter DF",
-                                                           disable=True)
+                                                           disable=tqdm_disable)
                          if doc_freq <= percentage_share])
         # print(len(to_remove))
         # print(to_remove)
         # too_specific_words = {doc_id: set(doc_tokens).intersection(to_remove)
         #                       for doc_id, doc_tokens in tqdm(doc_texts.items(), total=len(doc_texts),
         #                                                      desc="Extract words to remove", disable=tqdm_disable)}
-
         # new_toks = set()
         # for doc_id, toks in too_specific_words.items():
         #     new_toks.update(toks)

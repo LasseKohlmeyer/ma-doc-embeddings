@@ -14,7 +14,7 @@ from statsmodels.stats.multicomp import pairwise_tukeyhsd
 from tqdm import tqdm
 
 from doc2vec_structures import DocumentKeyedVectors
-from utils import DataHandler, Corpus, Preprocesser, Utils, ConfigLoader
+from corpus_structure import DataHandler, Corpus, Preprocesser, Utils, ConfigLoader
 from vectorization import Vectorizer
 import random
 import pandas as pd

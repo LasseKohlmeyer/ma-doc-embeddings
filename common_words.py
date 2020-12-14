@@ -3,7 +3,7 @@ from typing import Dict, List, Set
 
 from tqdm import tqdm
 
-from utils import Corpus, CommonWords, Language
+from corpus_structure import Corpus, CommonWords, Language
 
 if __name__ == "__main__":
     documents = {'d_0_0': 'A B C D F G H', 'd_0_1': 'A B C D G I W 1', 'd_0_2': 'A B C D F J W 1 2',

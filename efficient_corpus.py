@@ -8,7 +8,7 @@ import numpy as np
 import spacy
 from tqdm import tqdm
 
-from utils import Language
+from corpus_structure import Language
 
 
 class ConfigLoader:

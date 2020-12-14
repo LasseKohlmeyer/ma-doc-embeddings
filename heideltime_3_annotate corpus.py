@@ -1,7 +1,7 @@
 import json
 import os
 
-from utils import Corpus, ConfigLoader
+from corpus_structure import Corpus, ConfigLoader
 
 if __name__ == "__main__":
     config = ConfigLoader.get_config()

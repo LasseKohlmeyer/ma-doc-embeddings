@@ -4,7 +4,7 @@ from collections import defaultdict
 import gensim
 from gensim import corpora
 from gensim.models import CoherenceModel
-from utils import Corpus
+from corpus_structure import Corpus
 
 
 class TopicModeller:

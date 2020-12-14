@@ -19,7 +19,7 @@ from transformers import TFAutoModel, AutoTokenizer, AdamW, LongformerModel, Lon
 from doc2vec_structures import DocumentKeyedVectors
 from text_summarisation import Summarizer
 from topic_modelling import TopicModeller
-from utils import Preprocesser, Corpus, ConfigLoader, DataHandler
+from corpus_structure import Preprocesser, Corpus, ConfigLoader, DataHandler
 
 config = ConfigLoader.get_config()
 

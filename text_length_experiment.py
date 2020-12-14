@@ -6,7 +6,7 @@ from typing import Dict, Union
 from scipy import stats
 from joblib import Parallel, delayed
 from tqdm import tqdm
-from utils import Corpus, Utils, ConfigLoader
+from corpus_structure import Corpus, Utils, ConfigLoader
 from vectorization import Vectorizer
 import pandas as pd
 import numpy as np
@@ -14,16 +14,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 from matplotlib import cm
-from sklearn.preprocessing import MinMaxScaler
 from sklearn.preprocessing import minmax_scale
-from sklearn.preprocessing import MaxAbsScaler
-from sklearn.preprocessing import StandardScaler
-from sklearn.preprocessing import RobustScaler
-from sklearn.preprocessing import Normalizer
-from sklearn.preprocessing import QuantileTransformer
-from sklearn.preprocessing import PowerTransformer
-
-from sklearn.datasets import fetch_california_housing
 
 
 def get_short_mid_long(df, column):
@@ -51,26 +42,6 @@ class HistScatter:
         self.y = minmax_scale(y_full)
         self.distributions = [
             (f'', self.x),
-            # (f'{self.title} Data after standard scaling',
-            #  StandardScaler().fit_transform(self.x)),
-            # (f'{self.title} Data after min-max scaling',
-            #  MinMaxScaler().fit_transform(self.x)),
-            # (f'{self.title} Data after max-abs scaling',
-            #  MaxAbsScaler().fit_transform(self.x)),
-            # (f'{self.title} Data after robust scaling',
-            #  RobustScaler(quantile_range=(25, 75)).fit_transform(self.x)),
-            # (f'{self.title} Data after power transformation (Yeo-Johnson)',
-            #  PowerTransformer(method='yeo-johnson').fit_transform(self.x)),
-            # # ('Data after power transformation (Box-Cox)',
-            # #  PowerTransformer(method='box-cox').fit_transform(self.x)),
-            # (f'{self.title} Data after quantile transformation (gaussian pdf)',
-            #  QuantileTransformer(output_distribution='normal')
-            #  .fit_transform(self.x)),
-            # (f'{self.title} Data after quantile transformation (uniform pdf)',
-            #  QuantileTransformer(output_distribution='uniform')
-            #  .fit_transform(self.x)),
-            # (f'{self.title} Data after sample-wise L2 normalizing',
-            #  Normalizer().fit_transform(self.x)),
         ]
 
         self.make_plot(0)
@@ -333,7 +304,9 @@ class TextLengthExperiment:
 
     @staticmethod
     def combined_sim(vectors, length_lookup, doc_id_a, doc_id_b):
-        return vectors.docvecs.similarity(doc_id_a, doc_id_b), TextLengthExperiment.length_similarity(length_lookup, doc_id_a, doc_id_b)
+        return vectors.docvecs.similarity(doc_id_a, doc_id_b), TextLengthExperiment.length_similarity(length_lookup,
+                                                                                                      doc_id_a,
+                                                                                                      doc_id_b)
 
     @staticmethod
     def modified_doc_id(doc_id, modificator):
@@ -454,7 +427,6 @@ class TextLengthExperiment:
         # cosine_df = pd.DataFrame(cosine_matrix, index=doctags, columns=doctags)
 
         return vectorization_algorithm, full_spearman, short_spearman, mid_spearman, long_spearman
-
 
 
 if __name__ == '__main__':

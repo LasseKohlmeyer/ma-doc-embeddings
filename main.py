@@ -1,5 +1,5 @@
 from series_prove_of_concept import Evaluation
-from utils import DataHandler, Preprocesser, Corpus
+from corpus_structure import DataHandler, Preprocesser, Corpus
 from vectorization import Vectorizer
 
 
