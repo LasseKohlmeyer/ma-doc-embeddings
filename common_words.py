@@ -3,136 +3,7 @@ from typing import Dict, List, Set
 
 from tqdm import tqdm
 
-
-class CommonWords:
-    @staticmethod
-    def testing(dict_a: Dict[str, Set[str]], dict_b: Dict[str, Set[str]]):
-        assert dict_a.keys() == dict_b.keys()
-        for series_id in dict_a:
-            set_a = dict_a[series_id]
-            set_b = dict_b[series_id]
-            assert set_a == set_b
-
-    @staticmethod
-    def without_gerneral_words(common_words: Dict[str, Set[str]]) -> Dict[str, Set[str]]:
-        medium_common_words = {}
-        for series_id_a, series_words_a in common_words.items():
-            series_words_a_copy = set()
-            series_words_a_copy.update(series_words_a)
-            general_words = set()
-            for series_id_b, series_words_b in common_words.items():
-                if series_id_a != series_id_b:
-                    general_words.update(series_words_a_copy.intersection(series_words_b))
-
-            series_words_a_copy.difference_update(general_words)
-            medium_common_words[series_id_a] = series_words_a_copy
-        return medium_common_words
-
-    @staticmethod
-    def strict(series_dictionary: Dict[str, List[str]], doc_texts: Dict[str, List[str]]) -> Dict[str, Set[str]]:
-        common_words = defaultdict(set)
-        for series_id, doc_ids in series_dictionary.items():
-            series_words = []
-            for doc_id in doc_ids:
-                series_words.append(set(doc_texts[doc_id]))
-
-            for token_set_a in series_words:
-                for token_set_b in series_words:
-                    if token_set_a != token_set_b:
-                        common_words[series_id].update(token_set_a.intersection(token_set_b))
-        return dict(common_words)
-
-    @staticmethod
-    def strict_general_words_sensitive(series_dictionary: Dict[str, List[str]], doc_texts: Dict[str, List[str]]) -> Dict[str, Set[str]]:
-        common_words = CommonWords.strict(series_dictionary, doc_texts)
-        medium_common_words = CommonWords.without_gerneral_words(common_words)
-        return medium_common_words
-
-    @staticmethod
-    def relaxed(series_dictionary: Dict[str, List[str]], doc_texts: Dict[str, List[str]]) -> Dict[str, Set[str]]:
-        common_words = defaultdict(set)
-        for series_id, doc_ids in series_dictionary.items():
-            series_words = []
-            for doc_id in doc_ids:
-                series_words.append(set(doc_texts[doc_id]))
-            common_words[series_id] = set.intersection(*series_words)
-
-        return dict(common_words)
-
-    @staticmethod
-    def relaxed_general_words_sensitive(series_dictionary: Dict[str, List[str]], doc_texts: Dict[str, List[str]]) \
-            -> Dict[str, Set[str]]:
-        common_words = CommonWords.relaxed(series_dictionary, doc_texts)
-        medium_common_words = CommonWords.without_gerneral_words(common_words)
-        return medium_common_words
-
-    # @staticmethod
-    # def global_common_words(doc_texts: Dict[str, List[str]]) -> Set[str]:
-    #     tokens = [set(doc_tokens) for doc_id, doc_tokens in doc_texts.items()]
-    #
-    #     global_intersect = set()
-    #     for token_set_a in tokens:
-    #         for token_set_b in tokens:
-    #             if token_set_a != token_set_b:
-    #                 global_intersect.update(token_set_a.intersection(token_set_b))
-    #
-    #     global__strict_intersect = set.intersection(*tokens)
-    #
-    #     common_words = {}
-    #     for c, (doc_id, doc_tokens) in enumerate(doc_texts.items()):
-    #         not_to_delete = set(doc_tokens).difference(global_intersect).union(global__strict_intersect)
-    #         to_delete = set(doc_tokens).difference(not_to_delete)
-    #         common_words[doc_id] = to_delete
-    #
-    #     return common_words
-
-    @staticmethod
-    def global_too_specific_words_doc_frequency(doc_texts: Dict[str, List[str]], percentage_share: float,
-                                                absolute_share: int = None) \
-            -> Set[str]:
-
-        tqdm_disable = False
-        freq_dict = defaultdict(lambda: 0.0)
-        vocab = set()
-        if absolute_share:
-            percentage_share = absolute_share
-
-        for doc_id, doc_tokens in tqdm(doc_texts.items(), total=len(doc_texts), desc="Calculate DF",
-                                       disable=True):
-
-            for token in set(doc_tokens):
-                vocab.add(token)
-                if absolute_share:
-                    freq_dict[token] += 1
-                else:
-                    freq_dict[token] += 1 / len(doc_texts)
-                    if freq_dict[token] > 1:
-                        freq_dict[token] = 1
-
-                    # if not lower_bound:
-        #     lower_bound = lower_bound_absolute / len(doc_texts)
-        # print(len(freq_dict.keys()), len(vocab))
-        # print(min(freq_dict.values()), max(freq_dict.values()))
-        to_remove = set([token for token, doc_freq in tqdm(freq_dict.items(), total=len(freq_dict),
-                                                           desc="Filter DF",
-                                                           disable=True)
-                         if doc_freq <= percentage_share])
-        # print(len(to_remove))
-        # print(to_remove)
-        # too_specific_words = {doc_id: set(doc_tokens).intersection(to_remove)
-        #                       for doc_id, doc_tokens in tqdm(doc_texts.items(), total=len(doc_texts),
-        #                                                      desc="Extract words to remove", disable=tqdm_disable)}
-
-        # new_toks = set()
-        # for doc_id, toks in too_specific_words.items():
-        #     new_toks.update(toks)
-        # print(len(new_toks))
-        # opposite
-        # too_specific_words = {doc_id: set(doc_tokens).difference(to_remove)
-        #                 for doc_id, doc_tokens in doc_texts.items()}
-        # print('>', too_specific_words)
-        return to_remove
-
+from utils import Corpus, CommonWords, Language
 
 if __name__ == "__main__":
     documents = {'d_0_0': 'A B C D F G H', 'd_0_1': 'A B C D G I W 1', 'd_0_2': 'A B C D F J W 1 2',
@@ -184,5 +55,6 @@ if __name__ == "__main__":
     # global_cw = CommonWords.global_common_words(documents)
     # print(global_cw)
     # CommonWords.testing(global_res, global_cw)
-    global_df = CommonWords.global_too_specific_words_doc_frequency(documents, 1)
+    c = Corpus(documents, name="Name", language=Language.DE)
+    global_df = CommonWords.global_too_specific_words_doc_frequency(c, 1)
     print(global_df)

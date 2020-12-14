@@ -22,12 +22,25 @@ class CommonWordsExperiment:
     config = ConfigLoader.get_config()
     # filters = ["common_words_doc_freq"]
     thresholds = [
-        0.00, 0.005, 0.01, 0.015, 0.0175, 0.02, 0.03, 0.04,
-        0.05, 0.06, 0.07, 0.08, 0.10, 0.15, 0.20, 0.25,
-        0.30, 0.35, 0.40, 0.45, 0.50, 0.55,
+        0.00,
+        0.005,
+        0.01,
+        0.015, 0.0175,
+        0.02,
+        0.03, 0.04,
+        0.05,
+        0.06, 0.07, 0.08,
+        0.10,
+        0.15,
+        0.20,
+        0.25,
+        0.30, 0.35, 0.40, 0.45,
+        0.50,
+        0.55,
         0.60, 0.65, 0.70, 0.75, 0.80, 0.85,
         0.90, 0.95,
-        1.00]
+        1.00
+    ]
     absolute = False
     num_cores = 4
 
@@ -59,33 +72,43 @@ class CommonWordsExperiment:
             threshold_bar = tqdm(thresholds, total=len(thresholds), desc="3 Calculate filter_mode results")
             if parallel:
                 Parallel(n_jobs=cls.num_cores)(
-                    delayed(CommonWordsExperiment.calculate_vocab_sizes)(corpus,
-                                                                         t)
+                    delayed(CommonWordsExperiment.calculate_vocab_sizes)(corpus, t, data_set=data_set)
                     for t in threshold_bar)
             else:
-                res = {t: CommonWordsExperiment.calculate_vocab_sizes(corpus, t)
+                res = {t: CommonWordsExperiment.calculate_vocab_sizes(corpus, t, data_set=data_set)
                        for t in threshold_bar}
 
                 with open(output_path, 'w', encoding='utf-8') as outfile:
                     json.dump(res, outfile, indent=1)
 
+
     @classmethod
-    def calculate_vocab_sizes(cls, corpus: Corpus, threshold):
+    def calculate_vocab_sizes(cls, corpus: Corpus, threshold, data_set: str):
         print('>|0')
         if cls.absolute:
-            common_words = CommonWords.global_too_specific_words_doc_frequency(
-                corpus.get_flat_document_tokens(as_dict=True), percentage_share=threshold, absolute_share=threshold)
+            to_specfic_words = CommonWords.global_too_specific_words_doc_frequency(
+                corpus, percentage_share=threshold, absolute_share=threshold)
         else:
-            common_words = CommonWords.global_too_specific_words_doc_frequency(
-                corpus.get_flat_document_tokens(as_dict=True),
+            to_specfic_words = CommonWords.global_too_specific_words_doc_frequency(
+                corpus,
                 percentage_share=threshold)
         print('>|1')
-        filtered_corpus = corpus.common_words_corpus_copy(common_words, masking=False)
+        # filtered_corpus = corpus.common_words_corpus_copy(to_specfic_words, masking=False)
+        filtered_corpus_dir = Corpus.build_corpus_dir("",
+                                                      "",
+                                                      data_set,
+                                                      f'specific_words_{threshold}',
+                                                      "None").replace('__', '_')
+        filtered_corpus = corpus.common_words_corpus_copy_mem_eff(to_specfic_words, masking=False,
+                                                                  corpus_dir=filtered_corpus_dir)
+        # corpus.common_words_corpus_filtered(to_specfic_words, masking=False)
+        # filtered_corpus = corpus
+        # del corpus
         print('>|2')
-        corpus_vocab_size = len(filtered_corpus.get_vocab())
-        document_sizes = {document_id:  {'vocab_size': len(document.get_vocab()),
-                                         'document_length': len([token for token in document.get_flat_document_tokens()
-                                                                 if token != 'del'])}
+
+        corpus_vocab_size = len(filtered_corpus.get_corpus_vocab())
+        document_sizes = {document_id:  {'vocab_size': document.vocab_size,
+                                         'document_length': document.length}
                           for document_id, document in filtered_corpus.documents.items()}
         # for document_id, document in filtered_corpus.documents.items():
         #     print([token for token in document.get_flat_document_tokens() if token != 'del'][:100])
@@ -107,7 +130,7 @@ class CommonWordsExperiment:
                        'std_document_length': np.std(document_lengths),
                        'document_sizes': document_sizes}
 
-        # print(filtered_corpus.get_vocab())
+        # print(filtered_corpus.get_corpus_vocab())
         # print(filtered_corpus.get_flat_document_tokens())
         return result_dict
 
@@ -229,7 +252,7 @@ def plot_results(path: str):
         for doc_id, vals in data['document_sizes'].items():
             documents_vocab[doc_id].append(vals['vocab_size'])
             documents_len[doc_id].append(vals['document_length'])
-            print(origin_doc_vocab)
+            # print(origin_doc_vocab)
             if doc_id not in origin_doc_vocab:
                 origin_doc_vocab[doc_id] = vals['vocab_size']
                 origin_doc_len[doc_id] = vals['document_length']
