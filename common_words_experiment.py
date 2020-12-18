@@ -23,30 +23,32 @@ class CommonWordsExperiment:
     # filters = ["common_words_doc_freq"]
     thresholds = [
         0.00,
-        # 0.005,
-        # 0.01,
-        # 0.015, 0.0175,
-        # 0.02,
-        # 0.03, 0.04,
-        # 0.05,
-        # 0.06, 0.07, 0.08,
+        0.005,
+        0.01,
+        0.015,
+        0.0175,
+        0.02,
+        0.03,
+        0.04,
+        0.05,
+        0.06, 0.07, 0.08,
         0.10,
-        # 0.15,
-        # 0.20,
-        # 0.25,
-        # 0.30, 0.35, 0.40, 0.45,
-        # 0.50,
-        # 0.55,
-        # 0.60, 0.65, 0.70, 0.75, 0.80, 0.85,
-        # 0.90, 0.95,
+        0.15,
+        0.20,
+        0.25,
+        0.30, 0.35, 0.40, 0.45,
+        0.50,
+        0.55,
+        0.60, 0.65, 0.70, 0.75, 0.80, 0.85,
+        0.90, 0.95,
         1.00
     ]
     absolute = False
     num_cores = 4
 
     @classmethod
-    def filter_thresholds(cls, output_path: str, parallel: bool = False):
-        data_set_bar = tqdm(cls.data_sets, total=len(cls.data_sets), desc="2 Operate on dataset")
+    def filter_thresholds(cls, dir_path: str, parallel: bool = False):
+        data_set_bar = tqdm(cls.data_sets, total=len(cls.data_sets), desc="2 Operate on dataset!!")
         for data_set in data_set_bar:
             data_set_bar.set_description(f'2 Operate on dataset >{data_set}<')
             data_set_bar.refresh()
@@ -56,10 +58,14 @@ class CommonWordsExperiment:
             except FileNotFoundError:
                 corpus = DataHandler.load_corpus(data_set)
                 print('corpus loaded')
-                corpus = Preprocesser.annotate_corpus(corpus, without_spacy=False)
+                # corpus = Preprocesser.annotate_corpus(corpus, without_spacy=False)
+                # corpus.save_corpus_adv(annotated_corpus_path)
+                Preprocesser.annotate_and_save(corpus,  corpus_dir=annotated_corpus_path, without_spacy=False)
                 print('annotated corpus')
-                corpus.save_corpus_adv(annotated_corpus_path)
-                print('saved corpus')
+                del corpus
+                corpus = Corpus.fast_load(path=annotated_corpus_path, load_entities=False)
+
+                # print('saved corpus')
 
             if cls.absolute:
                 thresholds = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
@@ -68,47 +74,64 @@ class CommonWordsExperiment:
             else:
                 thresholds = cls.thresholds
 
-            print('thresholds set')
             threshold_bar = tqdm(thresholds, total=len(thresholds), desc="3 Calculate filter_mode results")
             if parallel:
                 Parallel(n_jobs=cls.num_cores)(
-                    delayed(CommonWordsExperiment.calculate_vocab_sizes)(corpus, t, data_set=data_set)
+                    delayed(CommonWordsExperiment.calculate_vocab_sizes)(corpus, t, data_set=data_set,
+                                                                         dir_path=dir_path)
                     for t in threshold_bar)
             else:
-                res = {t: CommonWordsExperiment.calculate_vocab_sizes(corpus, t, data_set=data_set)
+                res = {t: CommonWordsExperiment.calculate_vocab_sizes(corpus, t, data_set=data_set,
+                                                                      dir_path=dir_path)
                        for t in threshold_bar}
 
-                with open(output_path, 'w', encoding='utf-8') as outfile:
+                with open(os.path.join(dir_path, 'all.json'), 'w', encoding='utf-8') as outfile:
                     json.dump(res, outfile, indent=1)
 
     @classmethod
-    def calculate_vocab_sizes(cls, corpus: Corpus, threshold, data_set: str):
-        print('>|0')
-        if cls.absolute:
-            to_specfic_words = CommonWords.global_too_specific_words_doc_frequency(
-                corpus, percentage_share=threshold, absolute_share=threshold)
-        else:
-            to_specfic_words = CommonWords.global_too_specific_words_doc_frequency(
-                corpus,
-                percentage_share=threshold)
-        print('>|1')
-        # filtered_corpus = corpus.common_words_corpus_copy(to_specfic_words, masking=False)
+    def calculate_vocab_sizes(cls, corpus: Corpus, threshold, data_set: str, dir_path: str):
         filtered_corpus_dir = Corpus.build_corpus_dir("",
                                                       "",
                                                       data_set,
                                                       f'specific_words_{threshold}',
                                                       "None").replace('__', '_')
-        filtered_corpus = corpus.common_words_corpus_copy_mem_eff(to_specfic_words, masking=False,
-                                                                  corpus_dir=filtered_corpus_dir)
+
+        # print(os.path.isfile(os.path.join(dir_path.replace('.txt', ''), f'{threshold}.json')))
+
+        if os.path.isfile(os.path.join(dir_path.replace('.txt', ''), f'{threshold}.json')):
+            with open(os.path.join(dir_path.replace('.txt', ''), f'{threshold}.json'), 'r', encoding='utf-8') as file:
+                data = json.load(file)
+                print(threshold, data['global_vocab_size'])
+                return data
+        print('>|0', threshold)
+        if not os.path.isdir(filtered_corpus_dir):
+            if cls.absolute:
+                to_specfic_words = CommonWords.global_too_specific_words_doc_frequency(
+                    corpus, percentage_share=threshold, absolute_share=threshold)
+            else:
+                to_specfic_words = CommonWords.global_too_specific_words_doc_frequency(
+                    corpus,
+                    percentage_share=threshold)
+            print('>|1 with len', len(to_specfic_words))
+            # filtered_corpus = corpus.common_words_corpus_copy(to_specfic_words, masking=False)
+
+            filtered_corpus = corpus.common_words_corpus_copy_mem_eff(to_specfic_words, masking=False,
+                                                                      corpus_dir=filtered_corpus_dir,
+                                                                      through_no_sentences_error=False)
+        else:
+            filtered_corpus = Corpus.load_corpus_from_dir_format(filtered_corpus_dir)
         # corpus.common_words_corpus_filtered(to_specfic_words, masking=False)
         # filtered_corpus = corpus
         # del corpus
         print('>|2')
 
         corpus_vocab_size = len(filtered_corpus.get_corpus_vocab())
+        print('>|3 vocab size', corpus_vocab_size)
         document_sizes = {document_id:  {'vocab_size': document.vocab_size,
                                          'document_length': document.length}
-                          for document_id, document in filtered_corpus.documents.items()}
+                          for document_id, document in tqdm(filtered_corpus.documents.items(),
+                                                            total=len(filtered_corpus),
+                                                            desc="Calculate Corpus Sizes")}
         # for document_id, document in filtered_corpus.documents.items():
         #     print([token for token in document.get_flat_document_tokens() if token != 'del'][:100])
 
@@ -128,6 +151,9 @@ class CommonWordsExperiment:
                        'avg_document_length': np.mean(document_lengths),
                        'std_document_length': np.std(document_lengths),
                        'document_sizes': document_sizes}
+
+        with open(os.path.join(dir_path, f'{threshold}.json'), 'w', encoding='utf-8') as outfile:
+            json.dump(result_dict, outfile, indent=1)
 
         # print(filtered_corpus.get_corpus_vocab())
         # print(filtered_corpus.get_flat_document_tokens())
@@ -186,9 +212,11 @@ def plot_many(x, y_list, title=None, skip=0, labels=None, plot_range=None, loc="
 
 
 def violion_plot(dataframe):
+    # todo different scales for absolute values
     sns.set_theme(style="whitegrid")
     _ = sns.violinplot(x="Threshold", y="Value", hue="Value Type",
-                       data=dataframe, palette="muted", split=False)
+                         data=dataframe, palette="muted", split=False)
+    # ax2 = ax1.twinx()
     _ = sns.lineplot(data=dataframe, x="Threshold", y="Global Vocab Size")
     plt.show()
 
@@ -198,8 +226,19 @@ def lin_scale(x):
 
 
 def plot_results(path: str):
-    with open(path, 'r', encoding='utf-8') as file:
-        result = json.load(file)
+    all_path = os.path.join(path, 'all.json')
+    if os.path.isfile(all_path):
+        with open(all_path, 'r', encoding='utf-8') as file:
+            result = json.load(file)
+    else:
+        files = [f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
+        result = {}
+        for file_path in files:
+            with open(os.path.join(path, file_path), 'r', encoding='utf-8') as file:
+                result[file_path.replace('.json', '')] = json.load(file)
+
+        with open(os.path.join(path, 'all.json'), 'w', encoding='utf-8') as outfile:
+            json.dump(result, outfile, indent=1)
 
     threshold_vals = []
     global_vocab_vals = []
@@ -305,7 +344,7 @@ def plot_results(path: str):
 
 
 if __name__ == '__main__':
-    path_name = 'results/common_words_experiment/threshold_values.txt'
+    path_name = 'results/common_words_experiment/threshold_values'
     CommonWordsExperiment.filter_thresholds(path_name)
 
     plot_results(path_name)
