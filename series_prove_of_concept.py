@@ -196,14 +196,16 @@ class EvaluationMetric:
         if doc_id[-1].isalpha():
             doc_id = '_'.join(doc_id.split('_')[:-1])
 
-        doc_len = len(task.corpus.documents[doc_id].get_flat_document_tokens())
+        # doc_len = len(task.corpus.documents[doc_id].get_flat_document_tokens())
+        doc_len = task.corpus.documents[doc_id].length  # len(task.corpus.documents[doc_id].get_flat_tokens_from_disk())
 
         for c, (sim_doc_id, _) in enumerate(sim_documents):
             if sim_doc_id[-1].isalpha():
                 sim_doc_id = '_'.join(sim_doc_id.split('_')[:-1])
 
             if not ignore_same or doc_id != sim_doc_id:
-                sim_doc_len = len(task.corpus.documents[sim_doc_id].get_flat_document_tokens())
+                # sim_doc_len = len(task.corpus.documents[sim_doc_id].get_flat_document_tokens())
+                sim_doc_len = task.corpus.documents[sim_doc_id].length
                 differences.append(abs(doc_len - sim_doc_len) / doc_len)
             # print(task, c, k, hard_correct, doc_id, sim_doc_id)
 
@@ -610,15 +612,15 @@ class EvaluationUtils:
 
     @staticmethod
     def create_paper_table(simple_df: Union[pd.DataFrame, str], out_path: str, task: str = None,
-                           metrics: List[str] = None, filters: List[str] = None, pivot_column: str = "Metric"):
+                           used_metrics: List[str] = None, filters: List[str] = None, pivot_column: str = "Metric"):
         if isinstance(simple_df, str):
             simple_df = pd.read_csv(simple_df)
         pd.options.mode.chained_assignment = None
         df_table = simple_df
         if task:
             df_table = df_table[df_table["Task"] == task]
-        if metrics:
-            df_table = df_table[df_table["Metric"].isin(metrics)]
+        if used_metrics:
+            df_table = df_table[df_table["Metric"].isin(used_metrics)]
         if filters:
             df_table = df_table[df_table["Filter"].isin(filters)]
         df_table["Dataset"] = pd.Categorical(df_table["Dataset"],
@@ -651,32 +653,32 @@ class EvaluationRun:
 
     data_sets = [
         # "summaries",
-        "goodreads_genres"
+        # "goodreads_genres"
         # "tagged_german_books"
-        # "german_books",
+        "german_books",
         # "german_series"
         # "litrec",
 
     ]
     filters = [
         "no_filter",
-        "named_entities",
-        "common_words",
-        "stopwords",
+        # "named_entities",
+        # "common_words",
+        # "stopwords",
         "nouns",
-        "verbs",
-        "adjectives",
-        "avn"
+        # "verbs",
+        # "adjectives",
+        # "avn"
     ]
     vectorization_algorithms = [
         "avg_wv2doc",
         "doc2vec",
         "book2vec",
-        "book2vec_wo_raw",
-        "book2vec_wo_loc",
-        "book2vec_wo_time",
-        "book2vec_wo_sty",
-        "book2vec_wo_atm",
+        # "book2vec_wo_raw",
+        # "book2vec_wo_loc",
+        # "book2vec_wo_time",
+        # "book2vec_wo_sty",
+        # "book2vec_wo_atm",
     ]
 
     @staticmethod
@@ -705,9 +707,10 @@ class EvaluationRun:
                                                       data_set,
                                                       filter_mode,
                                                       fake)
+
         if not os.path.isdir(filtered_corpus_dir):
-            corpus = corpus.filter_on_copy(mode=filter_mode)
-            corpus.save_corpus_adv(filtered_corpus_dir)
+            corpus.filter_on_copy_mem_eff(filtered_corpus_dir=filtered_corpus_dir, mode=filter_mode)
+            # corpus.save_corpus_adv(filtered_corpus_dir)
 
     @staticmethod
     def store_vectors_to_parameters(corpus, number_of_subparts, corpus_size, data_set, filter_mode,
@@ -719,6 +722,7 @@ class EvaluationRun:
                                                        vectorization_algorithm,
                                                        fake)
         if not os.path.isfile(vec_file_name):
+
             Vectorizer.algorithm(input_str=vectorization_algorithm,
                                  corpus=corpus,
                                  save_path=vec_file_name,
@@ -753,23 +757,27 @@ class EvaluationRun:
                     try:
                         # check if general corpus exists
                         # corpus = Corpus(annotated_corpus_path)
-                        corpus = Corpus.fast_load(path=annotated_corpus_path)
+                        corpus = Corpus.fast_load(path=annotated_corpus_path, load_entities=False)
                         corpus = Preprocesser.filter_too_small_docs_from_corpus(corpus)
-                        corpus, _ = corpus.fake_series(number_of_sub_parts=number_of_subparts)
-                        corpus.save_corpus_adv(annotated_series_corpus_path)
+                        corpus.fake_series(series_corpus_dir=annotated_series_corpus_path,
+                                           number_of_sub_parts=number_of_subparts)
+                        corpus = Corpus.fast_load(path=annotated_series_corpus_path, load_entities=False)
+                        # corpus.save_corpus_adv(annotated_series_corpus_path)
                     except FileNotFoundError:
                         # load from raw data
                         corpus = DataHandler.load_corpus(data_set)
-                        if cls.corpus_size == "no_limit":
-                            corpus = Preprocesser.annotate_corpus(corpus)
-                        else:
+                        if cls.corpus_size != "no_limit":
                             corpus = corpus.sample(cls.corpus_size, seed=42)
-                            corpus = Preprocesser.annotate_corpus(corpus)
-                            # corpus = Preprocesser.annotate_corpus(corpus[:cls.corpus_size])
-                        corpus.save_corpus_adv(annotated_corpus_path)
+                        Preprocesser.annotate_and_save(corpus, corpus_dir=annotated_corpus_path, without_spacy=False)
+                        # corpus = Preprocesser.annotate_corpus(corpus)
+                        # corpus.save_corpus_adv(annotated_corpus_path)
+                        corpus = Corpus.fast_load(path=annotated_corpus_path, load_entities=False)
+
                         corpus = Preprocesser.filter_too_small_docs_from_corpus(corpus)
-                        corpus, _ = corpus.fake_series(number_of_sub_parts=number_of_subparts)
-                        corpus.save_corpus_adv(annotated_series_corpus_path)
+                        corpus.fake_series(series_corpus_dir=annotated_series_corpus_path,
+                                           number_of_sub_parts=number_of_subparts)
+                        # corpus.save_corpus_adv(annotated_series_corpus_path)
+                        corpus = Corpus.fast_load(path=annotated_series_corpus_path, load_entities=False)
                 # Series:
                 # actual:
                 # series_dict = manual_dict
@@ -826,6 +834,7 @@ class EvaluationRun:
                                               "fake")
                     vec_bar = tqdm(cls.vectorization_algorithms, total=len(cls.vectorization_algorithms),
                                    desc="3 Apply Filter")
+
                     if parallel:
                         Parallel(n_jobs=cls.num_cores)(delayed(EvaluationRun.sep_vec_calc_eff)(corpus,
                                                                                                number_of_subparts,
@@ -1115,11 +1124,11 @@ class RealSeriesEvaluationRun:
     filters = [
         "no_filter",
         # "named_entities",
-        "common_words_strict",
-        "common_words_strict_general_words_sensitive",
-        "common_words_relaxed",
-        "common_words_relaxed_general_words_sensitive",
-        "common_words_doc_freq"
+        # "common_words_strict",
+        # "common_words_strict_general_words_sensitive",
+        # "common_words_relaxed",
+        # "common_words_relaxed_general_words_sensitive",
+        # "common_words_doc_freq",
         # "stopwords",
         # "nouns",
         # "verbs",
@@ -1129,7 +1138,7 @@ class RealSeriesEvaluationRun:
     vectorization_algorithms = [
         "avg_wv2doc",
         "doc2vec",
-        # "longformer_untuned"
+        # # "longformer_untuned"
         "book2vec",
         # "book2vec_o_raw",
         # "book2vec_o_loc",
@@ -1142,7 +1151,7 @@ class RealSeriesEvaluationRun:
         # "book2vec_wo_sty",
         # "book2vec_wo_atm",
         # "book2vec_w2v",
-        "book2vec_adv",
+        # "book2vec_adv",
         # "book2vec_adv_o_raw",
         # "book2vec_adv_o_loc",
         # "book2vec_adv_o_time",
@@ -1161,6 +1170,7 @@ class RealSeriesEvaluationRun:
         # "avg_wv2doc_untrained",
         # "doc2vec_untrained",
         # "book2vec_untrained",
+        'book2vec_bert'
     ]
 
     task_names = [
@@ -1179,13 +1189,17 @@ class RealSeriesEvaluationRun:
             try:
                 # check if general corpus exists
                 # corpus = Corpus(annotated_corpus_path)
-                corpus = Corpus.fast_load(path=annotated_corpus_path)
+                corpus = Corpus.fast_load(path=annotated_corpus_path, load_entities=False)
             except FileNotFoundError:
                 # load from raw data
                 corpus = DataHandler.load_corpus(data_set)
-                corpus = Preprocesser.annotate_corpus(corpus)
-                # corpus.save_corpus(annotated_corpus_path)
-                corpus.save_corpus_adv(annotated_corpus_path)
+                Preprocesser.annotate_and_save(corpus,  corpus_dir=annotated_corpus_path, without_spacy=False)
+                print('annotated corpus')
+                del corpus
+                corpus = Corpus.fast_load(path=annotated_corpus_path, load_entities=False)
+                # corpus = Preprocesser.annotate_corpus(corpus)
+                # # corpus.save_corpus(annotated_corpus_path)
+                # corpus.save_corpus_adv(annotated_corpus_path)
 
             filter_bar = tqdm(cls.filters, total=len(cls.filters), desc="3 Calculate filter_mode results")
             if parallel:
@@ -1227,7 +1241,8 @@ class RealSeriesEvaluationRun:
                                           "no_limit",
                                           data_set,
                                           filter_mode,
-                                          "real")
+                                          "real",
+                                          load_entities=False)
 
                 vec_bar = tqdm(cls.vectorization_algorithms, total=len(cls.vectorization_algorithms),
                                desc="4 Vectorize")
@@ -1298,7 +1313,8 @@ class RealSeriesEvaluationRun:
                                           "no_limit",
                                           data_set,
                                           filter_mode,
-                                          "real")
+                                          "real",
+                                          load_entities=False)
                 vec_bar = tqdm(cls.vectorization_algorithms,
                                total=len(cls.vectorization_algorithms),
                                desc=f"Evaluate algorithm")
@@ -1471,11 +1487,12 @@ if __name__ == '__main__':
     # EvaluationRun.train_vecs()
     # EvaluationRun.run_evaluation()
 
-    # RealSeriesEvaluationRun.build_real_series_corpora()
-    # RealSeriesEvaluationRun.train_real_series_vecs()
+    RealSeriesEvaluationRun.build_real_series_corpora()
+    RealSeriesEvaluationRun.train_real_series_vecs()
     RealSeriesEvaluationRun.run_evaluation_eff()
     print(EvaluationUtils.create_paper_table("results/simple_series_experiment_table.csv", "results/z_table.csv",
-                                             metrics=["ndcg", "prec", "prec01", "prec03", "prec05", "prec10", "length_metric"],
+                                             used_metrics=["ndcg", "prec", "prec01", "prec03", "prec05", "prec10",
+                                                      "length_metric"],
                                              filters=["common_words_relaxed", "common_words_strict",
                                                       "common_words_strict_general_words_sensitive",
                                                       "common_words_relaxed_general_words_sensitive",
