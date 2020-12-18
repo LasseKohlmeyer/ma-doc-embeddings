@@ -1,9 +1,12 @@
+import json
 import os
 from collections import defaultdict
 
 import gensim
 from gensim import corpora
 from gensim.models import CoherenceModel
+
+from corpus_iterators import TopicModellingIterator
 from corpus_structure import Corpus
 
 
@@ -155,6 +158,102 @@ class TopicModeller:
         # print(content_aspect_list)
         # print(content_aspect_dict)
         return content_aspect_dict, content_aspect_list
+
+    @staticmethod
+    def train_lda_mem_eff(corpus: Corpus):
+        # def make_bigrams(texts):
+        #     return [bigram_mod[doc] for doc in texts]
+        #
+        # def make_trigrams(texts):
+        #     return [trigram_mod[bigram_mod[doc]] for doc in texts]
+
+        # c.filter("ne")
+        # c.filter("V")
+
+        id2doc_id = {i: doc_id for i, doc_id in enumerate(corpus.documents.keys())}
+        lemma = True
+        lower = False
+        vocab = [[token for token in document.get_vocab(from_disk=True, lemma=lemma, lower=lower, lda_mode=True)
+                  if token != 'del']
+                 for doc_id, document in corpus.documents.items()]
+
+        # vocab = corpus.get_corpus_vocab(lemma=lemma, lower=lower,
+        #                                 lda_mode=True)
+
+        id2word_dict = corpora.Dictionary(list(vocab))
+        corpus = TopicModellingIterator(corpus, id2word_dict, lemma=lemma, lower=lower)
+
+        # data_words = [document.get_flat_document_tokens(lemma=True, lower=True)
+        #               for doc_id, document in c.documents.items()]
+        # data_words = corpus.get_flat_document_tokens(lemma=True, lower=True)
+        # bigram = gensim.models.Phrases(data_words, min_count=5, threshold=100)  # higher threshold fewer phrases.
+        # bigram_mod = gensim.models.phrases.Phraser(bigram)
+        #
+        # trigram = gensim.models.Phrases(bigram[data_words], threshold=150)
+        # trigram_mod = gensim.models.phrases.Phraser(trigram)
+        #
+        # data_lemmatized = make_trigrams(data_words)
+        #
+        # id2word_dict = corpora.Dictionary(data_lemmatized)
+        # corpus = [id2word_dict.doc2bow(text) for text in data_lemmatized]
+        # limit = 40
+        # start = 2
+        # step = 6
+        # lda_model, coherence, num_topics = compute_coherence_values(dictionary=id2word_dict,
+        #                                                             corpus=corpus,
+        #                                                             texts=data_lemmatized,
+        #                                                             start=start,
+        #                                                             limit=limit,
+        #                                                             step=step,
+        #                                                             id2word_dict)
+        # print(coherence, num_topics)
+
+        lda_model = gensim.models.ldamodel.LdaModel(corpus=corpus,
+                                                    id2word=id2word_dict,
+                                                    num_topics=15,
+                                                    random_state=100,
+                                                    update_every=1,
+                                                    iterations=100,
+                                                    chunksize=100,
+                                                    passes=50,
+                                                    alpha='auto',
+                                                    minimum_probability=0.0,
+                                                    per_word_topics=True)
+
+        # os.environ.update({'MALLET_HOME': r'C:/mallet_new/mallet-2.0.8'})
+        # mallet_path = "bin\\mallet"
+        # print(mallet_path)
+        # lda_model = gensim.models.wrappers.LdaMallet(mallet_path,
+        #                                              corpus=corpus, num_topics=15, id2word_dict=id2word_dict,
+        #                                              alpha='auto', random_seed=42)
+
+        # print(lda_model.print_topics())
+
+        # Compute Coherence Score
+        # coherence_model_lda = CoherenceModel(model=lda_model, texts=data_lemmatized, dictionary=id2word_dict,
+        #                                      coherence='c_v')
+        # coherence_lda = coherence_model_lda.get_coherence()
+        # print('\nCoherence Score: ', coherence_lda)
+
+        content_aspect_dict = TopicModeller.get_topic_words_for_docs(lda_model, corpus, id2doc_id)
+        content_aspect_list = [texts for doc_id, texts in content_aspect_dict.items()]
+        # print(content_aspect_list)
+        # print(content_aspect_dict)
+        return content_aspect_dict, content_aspect_list
+
+    @staticmethod
+    def topic_modelling(corpus: Corpus):
+        topic_dict_path = os.path.join(corpus.corpus_path, "topic_ids.json")
+        if not os.path.isfile(topic_dict_path):
+            topic_dict, _ = TopicModeller.train_lda_mem_eff(corpus)
+
+            with open(topic_dict_path, 'w', encoding='utf-8') as fp:
+                json.dump(topic_dict, fp, indent=1)
+        else:
+            with open(topic_dict_path) as json_file:
+                topic_dict = json.load(json_file)
+
+        return topic_dict
 
 
 if __name__ == "__main__":
