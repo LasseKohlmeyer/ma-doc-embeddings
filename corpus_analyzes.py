@@ -175,9 +175,10 @@ def analyze_word_distribution(all_dict, absoulte: bool = True):
 
 
 if __name__ == '__main__':
-    path_to_json = 'aspects/'
+    path_to_json = 'aspects_old/'
     corpus_select = 'german_series'
-    json_files = [pos_json for pos_json in os.listdir(path_to_json) if '_no_filter_real_book2vec_adv.model.json' in pos_json
+    json_files = [pos_json for pos_json in os.listdir(path_to_json)
+                  if '_no_filter_real_book2vec_adv.model.json' in pos_json
                   and pos_json.startswith(corpus_select)]
     print(json_files)
     all_d = {}
