@@ -12,4 +12,4 @@ if __name__ == "__main__":
         data = json.load(json_file)
     x = Corpus.load_corpus_from_dir_format(os.path.join(config["system_storage"]["corpora"], corpus_to_annotate))
     x.update_time_entities(data)
-    x.save_corpus_adv(os.path.join(config["system_storage"]["corpora"], corpus_to_annotate))
+    # x.save_corpus_adv(os.path.join(config["system_storage"]["corpora"], corpus_to_annotate))
