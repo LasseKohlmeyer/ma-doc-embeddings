@@ -1,12 +1,11 @@
 import multiprocessing
 import os
-from collections import defaultdict
 from typing import Dict, Union
 
 from scipy import stats
 from joblib import Parallel, delayed
 from tqdm import tqdm
-from corpus_structure import Corpus, Utils, ConfigLoader
+from corpus_structure import Corpus, ConfigLoader
 from vectorization import Vectorizer
 import pandas as pd
 import numpy as np
@@ -46,7 +45,8 @@ class HistScatter:
 
         self.make_plot(0)
 
-    def create_axes(self, title, figsize=(8, 6)):
+    @staticmethod
+    def create_axes(title, figsize=(8, 6)):
         fig = plt.figure(figsize=figsize)
         fig.suptitle(title)
 
@@ -86,10 +86,10 @@ class HistScatter:
                 # (ax_scatter_zoom, ax_histy_zoom, ax_histx_zoom),
                 ax_colorbar)
 
-    def plot_distribution(self, axes, X, y, hist_nbins=50, title="",
+    def plot_distribution(self, axes, x, y, hist_nbins=50, title="",
                           x0_label="", x1_label=""):
 
-        ax, hist_X1, hist_X0 = axes
+        ax, hist_x1, hist_x0 = axes
 
         ax.set_title(title)
         ax.set_xlabel(x0_label)
@@ -97,7 +97,7 @@ class HistScatter:
 
         # The scatter plot
         colors = self.cmap(y)
-        ax.scatter(X[:, 0], X[:, 1], alpha=0.5, marker='o', s=5, lw=0, c=colors)
+        ax.scatter(x[:, 0], x[:, 1], alpha=0.5, marker='o', s=5, lw=0, c=colors)
 
         filter_1q, filter_2q, filter_3q = get_short_mid_long(self.df, "Length A")
 
@@ -131,16 +131,16 @@ class HistScatter:
         ax.spines['bottom'].set_position(('outward', 10))
 
         # Histogram for axis X1 (feature 5)
-        hist_X1.set_ylim(ax.get_ylim())
-        hist_X1.hist(X[:, 1], bins=hist_nbins, orientation='horizontal',
+        hist_x1.set_ylim(ax.get_ylim())
+        hist_x1.hist(x[:, 1], bins=hist_nbins, orientation='horizontal',
                      color='grey', ec='grey')
-        hist_X1.axis('off')
+        hist_x1.axis('off')
 
         # Histogram for axis X0 (feature 0)
-        hist_X0.set_xlim(ax.get_xlim())
-        hist_X0.hist(X[:, 0], bins=hist_nbins, orientation='vertical',
+        hist_x0.set_xlim(ax.get_xlim())
+        hist_x0.hist(x[:, 0], bins=hist_nbins, orientation='vertical',
                      color='grey', ec='grey')
-        hist_X0.axis('off')
+        hist_x0.axis('off')
 
     def make_plot(self, item_idx):
         title, x = self.distributions[item_idx]
@@ -175,8 +175,8 @@ class HistScatter:
 
 def histogram(data: Dict[str, Union[int, float]]):
     tuples = []
-    for id, val in data.items():
-        tuples.append((id, val))
+    for idx, val in data.items():
+        tuples.append((idx, val))
 
     df = pd.DataFrame(tuples, columns=['Document ID', 'Length'])
     print(df)
@@ -195,13 +195,13 @@ class TextLengthExperiment:
         # "dta_series"
     ]
     filters = [
-        # "no_filter",
+        "no_filter",
         # "named_entities",
         # "common_words_strict",
         # "common_words_strict_general_words_sensitive",
         # "common_words_relaxed",
         # "common_words_relaxed_general_words_sensitive",
-        "common_words_doc_freq"
+        # "common_words_doc_freq"
         # "stopwords",
         # "nouns",
         # "verbs",
@@ -225,13 +225,13 @@ class TextLengthExperiment:
         # "book2vec_wo_atm",
         # "book2vec_w2v",
         "book2vec_adv",
-        "book2vec_adv_o_raw",
-        "book2vec_adv_o_loc",
-        "book2vec_adv_o_time",
-        "book2vec_adv_o_sty",
-        "book2vec_adv_o_atm",
-        "book2vec_adv_o_plot",
-        "book2vec_adv_o_cont",
+        # "book2vec_adv_o_raw",
+        # "book2vec_adv_o_loc",
+        # "book2vec_adv_o_time",
+        # "book2vec_adv_o_sty",
+        # "book2vec_adv_o_atm",
+        # "book2vec_adv_o_plot",
+        # "book2vec_adv_o_cont",
         # "book2vec_adv_wo_raw",
         # "book2vec_adv_wo_loc",
         # "book2vec_adv_wo_time",
@@ -247,14 +247,17 @@ class TextLengthExperiment:
 
     @classmethod
     def run_experiment(cls, parallel: bool = False):
-        res = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: dict())))
+        # res = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: dict())))
         for data_set in tqdm(cls.data_sets, total=len(cls.data_sets), desc=f"Evaluate datasets"):
             for filter_mode in tqdm(cls.filters, total=len(cls.filters), desc=f"Evaluate filters"):
                 corpus = Corpus.fast_load("all",
                                           "no_limit",
                                           data_set,
                                           filter_mode,
-                                          "real")
+                                          "real",
+                                          load_entities=False
+                                          )
+
                 vec_bar = tqdm(cls.vectorization_algorithms,
                                total=len(cls.vectorization_algorithms),
                                desc=f"Evaluate algorithm")
@@ -358,8 +361,11 @@ class TextLengthExperiment:
 
         doctags = vectors.docvecs.doctags.keys()
         doctags = [doctag for doctag in doctags if doctag[-1].isdigit()]
-        length_vals = {doc_id: len(document.get_flat_document_tokens()) for doc_id, document in
+        length_vals = {doc_id: len(document.get_flat_tokens_from_disk()) for doc_id, document in
                        corpus.documents.items()}
+        # length_vals = {doc_id: len(document.get_flat_document_tokens()) for doc_id, document in
+        #                corpus.documents.items()}
+        # print(length_vals)
         # histogram(length_vals)
 
         full_tuples = []
@@ -381,7 +387,7 @@ class TextLengthExperiment:
         print(full_df)
 
         tria_cos = cls.triangle_values(full_df, 'Cosine Similarity')
-        tria_len_d = cls.triangle_values(full_df, 'Length Distance')
+        # tria_len_d = cls.triangle_values(full_df, 'Length Distance')
         tria_len = cls.triangle_values(full_df, 'Length Similarity')
 
         tuples = []
@@ -394,7 +400,8 @@ class TextLengthExperiment:
         # pd.plotting.scatter_matrix(df, hist_kwds={'bins': 50})
         # plt.show()
 
-        HistScatter(full_df, x0_label='Cosine Similarity', x1_label='Length Similarity', algorithm_name=vectorization_algorithm)
+        HistScatter(full_df, x0_label='Cosine Similarity', x1_label='Length Similarity',
+                    algorithm_name=vectorization_algorithm)
 
         # print(vectorization_algorithm, stats.pearsonr(full_df[['Cosine Similarity']].to_numpy().flatten(),
         #                                               full_df[['Length Simimarity']].to_numpy().flatten()))
@@ -439,7 +446,17 @@ if __name__ == '__main__':
     #                   columns=['Cosine Similarity', 'Length Similarity', 'Length A'])
     # HistScatter(df, x0_label='Length Similarity', x1_label='Cosine Similarity', algorithm_name="No")
     # histogram({'d1': 2, 'd3': 3, 'd2': 2, 'd4': 5})
-    TextLengthExperiment.run_experiment()
+    # TextLengthExperiment.run_experiment()
+    c = Corpus.fast_load("all",
+                         "no_limit",
+                         "german_series",
+                         "no_filter",
+                         "real",
+                         load_entities=False
+                         )
+    length_values = {doc_id: document.vocab_size for doc_id, document in
+                     c.documents.items()}
+    histogram(length_values)
 
 # avg_wv2doc SpearmanrResult(correlation=0.1822316899913066, pvalue=1.03923709619589e-79)
 # doc2vec SpearmanrResult(correlation=0.07783613065249204, pvalue=1.0637541425586075e-15)
