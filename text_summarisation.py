@@ -1,5 +1,6 @@
 import math
 import os
+from typing import Dict
 
 from nltk.corpus import stopwords
 from nltk.cluster.util import cosine_distance
@@ -26,9 +27,9 @@ class Summarizer:
         return sentences
 
     @staticmethod
-    def sentence_similarity(sent1, sent2, stopwords=None):
-        if stopwords is None:
-            stopwords = []
+    def sentence_similarity(sent1, sent2, stop_words=None):
+        if stop_words is None:
+            stop_words = []
 
         sent1 = [w.lower() for w in sent1]
         sent2 = [w.lower() for w in sent2]
@@ -40,13 +41,13 @@ class Summarizer:
 
         # build the vector for the first sentence
         for w in sent1:
-            if w in stopwords:
+            if w in stop_words:
                 continue
             vector1[all_words.index(w)] += 1
 
         # build the vector for the second sentence
         for w in sent2:
-            if w in stopwords:
+            if w in stop_words:
                 continue
             vector2[all_words.index(w)] += 1
 
@@ -153,6 +154,7 @@ class Summarizer:
 
     @staticmethod
     def generate_summary_of_corpus_doc(document: Document, top_n=5, as_sent_ids: bool = True):
+        document.load_sentences_from_disk()
         stop_words = set(stopwords.words('english'))
         if document.language == Language.DE:
             stop_words = set(stopwords.words('german'))
@@ -189,6 +191,7 @@ class Summarizer:
         for sent_id, o_sent in zip(sent_ids, res):
             if document.sentences[sent_id].representation() != o_sent:
                 print("Not correct", document.sentences[sent_id].representation(), o_sent)
+        document.sentences = None
         return res, sent_ids
 
     @staticmethod
@@ -196,7 +199,7 @@ class Summarizer:
         summary_dict_path = os.path.join(corpus_root_path, "sent_ids.json")
         if not os.path.isfile(summary_dict_path):
             summary_dict = {}
-            root_corpus = Corpus.fast_load(path=corpus_root_path)
+            root_corpus = Corpus.fast_load(path=corpus_root_path, load_entities=False)
             for doc_id, doc in root_corpus.documents.items():
                 sents, ids = Summarizer.generate_summary_of_corpus_doc(doc, 20)
                 # print(doc_id, ":", ids, [' '.join(sent) for sent in sents])
@@ -209,6 +212,16 @@ class Summarizer:
         return summary_dict
 
     @staticmethod
+    def document_summary_list(document: Document, corpus_summary_dict: Dict, lemma: bool = False, lower: bool = False):
+        doc_summary_tokens = []
+        for sentence_id in corpus_summary_dict[document.doc_id]:
+            # print(corpus.documents[doc_id].sentences[sentence_id].representation())
+            doc_summary_tokens.extend([token.representation(lemma=lemma, lower=lower)
+                                       for token in document.sentences[sentence_id].tokens])
+
+        return doc_summary_tokens
+
+    @staticmethod
     def get_corpus_summary_sentence_list(corpus: Corpus, lemma: bool, lower: bool):
         corpus_summary = []
         if corpus.root_corpus_path is None:
@@ -217,12 +230,11 @@ class Summarizer:
         corpus_summary_dict = Summarizer.get_summary(summary_corpus_path)
         _, doc_ids = corpus.get_texts_and_doc_ids()
         for doc_id in doc_ids:
-            doc_summary_tokens = []
-            for sentence_id in corpus_summary_dict[doc_id]:
-                # print(corpus.documents[doc_id].sentences[sentence_id].representation())
-                doc_summary_tokens.extend([token.representation(lemma=lemma, lower=lower)
-                                           for token in corpus.documents[doc_id].sentences[sentence_id].tokens])
-            corpus_summary.append(doc_summary_tokens)
+            document = corpus.documents[doc_id]
+            corpus_summary.append(Summarizer.document_summary_list(document,
+                                                                   corpus_summary_dict,
+                                                                   lemma=lemma,
+                                                                   lower=lower))
         return corpus_summary
 
 
