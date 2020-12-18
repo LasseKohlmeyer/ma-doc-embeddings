@@ -108,3 +108,5 @@ transformers~=3.5.1
 nlp~=0.2.0
 pyyaml~=5.3.1
 torch~=1.7.0+cpu
+setuptools~=50.3.0
+flair~=0.7
