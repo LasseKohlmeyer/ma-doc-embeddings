@@ -1093,7 +1093,7 @@ class Corpus:
         if isinstance(documents, dict):
             self.documents: Dict[str, Document] = documents
         elif isinstance(documents, list):
-            self.documents: Dict[str, Document] = {document.document_id: document for document in documents}
+            self.documents: Dict[str, Document] = {document.doc_id: document for document in documents}
         else:
             self.documents: Dict[str, Document] = {}
             raise NotImplementedError("Not supported Document collection!")
@@ -1191,9 +1191,11 @@ class Corpus:
             if os.path.exists(path):
                 corpus = Corpus.load_corpus_from_dir_format(path)
                 corpus.corpus_path = path
-            else:
+            elif os.path.exists(f'{path}.json'):
                 corpus = Corpus(f'{path}.json')
                 corpus.save_corpus_adv(path)
+            else:
+                raise FileNotFoundError
         # corpus.set_sentences_from_own_gens()
         if load_entities:
             corpus.set_document_entities()
