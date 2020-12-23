@@ -410,6 +410,7 @@ class TextLengthExperiment:
 
         filter_1q, filter_2q, filter_3q = get_short_mid_long(full_df, "Length A")
 
+        # noinspection PyTypeChecker
         full_spearman = stats.spearmanr(tria_cos, tria_len)
 
         full_spearman = f'{full_spearman[0]:.4f} [{full_spearman[1]:.4f}]'
