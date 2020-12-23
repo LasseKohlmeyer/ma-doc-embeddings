@@ -54,7 +54,7 @@ class Vectorizer:
     pretrained_emb = robust_vec_loading(pretrained_emb_path, binary=False)
 
     @staticmethod
-    def build_vec_file_name(number_of_subparts: int, size: int, dataset: str, filter_mode: str,
+    def build_vec_file_name(number_of_subparts: Union[int, str], size: Union[int, str], dataset: str, filter_mode: str,
                             vectorization_algorithm: str, fake_series: str) \
             -> str:
         sub_path = DataHandler.build_config_str(number_of_subparts, size, dataset, filter_mode,
@@ -840,6 +840,7 @@ class Vectorizer:
             for word, row in vocab.items():
                 if binary:
                     row = row.astype(real)
+                    # noinspection PyTypeChecker
                     fout.write(utils.to_utf8(word) + b" " + row.tostring())
                 else:
                     fout.write(utils.to_utf8("%s %s\n" % (word, ' '.join(repr(val) for val in row))))
@@ -894,6 +895,7 @@ class Vectorizer:
                 doctag = u"%s%s" % (prefix, _index_to_doctag(i, offset2doctag, max_rawint))
                 row = vectors_docs[i]
                 if binary:
+                    # noinspection PyTypeChecker
                     fout.write(utils.to_utf8(doctag) + b" " + row.tostring())
                 else:
                     fout.write(utils.to_utf8("%s %s\n" % (doctag, ' '.join("%f" % val for val in row))))
@@ -1172,6 +1174,41 @@ class Vectorizer:
     #     for result in results:
     #         index, sim = result
     #         print(index, corpus.id2desc(index), sim)
+
+    @staticmethod
+    def get_facet_sims(model: Union[Doc2Vec, DocumentKeyedVectors],
+                       id_a: str, id_b: str,
+                       print_results: bool = False):
+        def build_facet_dict(facet_ids):
+            facet_dict = {}
+            for doc_id in facet_ids:
+                if str(doc_id)[-1].isalpha():
+                    facet_ind = doc_id.split('_')[-1]
+                    facet_dict[facet_ind] = doc_id
+                else:
+                    facet_dict['sum'] = doc_id
+            return facet_dict
+        a_facet_ids = []
+        b_facet_ids = []
+        for doctag in model.docvecs.doctags:
+            if str(doctag).startswith(id_a):
+                a_facet_ids.append(doctag)
+
+            if str(doctag).startswith(id_b):
+                b_facet_ids.append(doctag)
+
+        a_facets = build_facet_dict(a_facet_ids)
+        b_facets = build_facet_dict(b_facet_ids)
+        if a_facets.keys() != b_facets.keys():
+            raise UserWarning("Found different facets!")
+
+        similarity_tuples = []
+        for facet in a_facets.keys():
+            if print_results:
+                print(facet, id_a, id_b, model.docvecs.similarity(a_facets[facet], b_facets[facet]))
+            similarity_tuples.append((facet, id_a, id_b, model.docvecs.similarity(a_facets[facet], b_facets[facet])))
+
+        return similarity_tuples
 
     @staticmethod
     def most_similar_documents(model: Union[Doc2Vec, DocumentKeyedVectors],
