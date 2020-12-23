@@ -1,5 +1,5 @@
-# RealSeriesEvaluationRun.build_real_series_corpora()
-# RealSeriesEvaluationRun.train_real_series_vecs()
+# RealSeriesEvaluationRun.build_corpora()
+# RealSeriesEvaluationRun.train_vecs()
 import json
 import os
 from collections import defaultdict
@@ -43,7 +43,7 @@ class CommonWordsExperiment:
         0.90, 0.95,
         1.00
     ]
-    absolute = False
+    absolute = True
     num_cores = 4
 
     @classmethod
@@ -70,7 +70,7 @@ class CommonWordsExperiment:
             if cls.absolute:
                 thresholds = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
                               11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
-                              25, 50, 75, 100, 125, 144]
+                              25, 50, 100, 1000, len(corpus)]
             else:
                 thresholds = cls.thresholds
 
