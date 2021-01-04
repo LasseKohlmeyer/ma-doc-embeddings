@@ -329,7 +329,7 @@ class FlairDocumentIterator(object):
 #                 # print(doc_id, i, len(chunked_tokens), chunked_tokens[:10])
 #                 yield f'{doc_id}_{i}', ' '.join(chunked_tokens)
 
-
+# todo: other combination possibility of chunks and facets
 class CorpusTaggedFacetIterator(object):
     def __init__(self, corpus: Corpus, lemma: bool = False, lower: bool = False, disable_aspects: List[str] = None,
                  topic_dict: Dict = None, summary_dict: Dict = None, chunk_len: int = None):
