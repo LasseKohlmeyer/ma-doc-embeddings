@@ -54,8 +54,8 @@ def radar_chart(df):
     plt.show()
 
 
-def get_facet_sims_of_books(vectors, doc_id_a: str, doc_id_b: str):
-    tuples = Vectorizer.get_facet_sims(vectors, doc_id_a, doc_id_b)
+def get_facet_sims_of_books(vectors, corpus: Corpus, doc_id_a: str, doc_id_b: str):
+    tuples = Vectorizer.get_facet_sims(vectors, corpus, doc_id_a, doc_id_b)
     df = pd.DataFrame(tuples, columns=["Facet", "ID_A", "ID_B", "Similarity"])
     df = df.pivot(index=["ID_A", "ID_B"], columns="Facet", values="Similarity")
     return df
@@ -66,8 +66,10 @@ def loop_facets(vectors, corpus: Corpus):
     for i, doc_id_a in enumerate(corpus.documents.keys()):
         for j, doc_id_b in enumerate(corpus.documents.keys()):
             if j > i:
-                tuples.extend(Vectorizer.get_facet_sims(vectors, doc_id_a, doc_id_b))
+                tuples.extend(Vectorizer.get_facet_sims(vectors, corpus, doc_id_a, doc_id_b))
     df = pd.DataFrame(tuples, columns=["Facet", "ID_A", "ID_B", "Similarity"])
+    df.to_csv('results/facet_evaluation/facet_sims.csv')
+    print(df)
     return df
 
 
@@ -100,31 +102,43 @@ def correlation(human_df, vectors):
 
 
 if __name__ == '__main__':
-    c = Corpus.fast_load(path="corpora/german_series", load_entities=False)
+    # c = Corpus.fast_load(path="corpora/german_series", load_entities=False)
+    #
+    # vec_path = Vectorizer.build_vec_file_name("all",
+    #                                           "no_limit",
+    #                                           "german_series",
+    #                                           "no_filter",
+    #                                           "book2vec",
+    #                                           "real")
 
-    vec_path = Vectorizer.build_vec_file_name("all",
-                                              "no_limit",
-                                              "german_series",
+    c = Corpus.fast_load(path="corpora/classic_gutenberg", load_entities=False)
+
+    vec_path = Vectorizer.build_vec_file_name("",
+                                              "",
+                                              "classic_gutenberg",
                                               "no_filter",
-                                              "book2vec",
+                                              "book2vec_adv",
                                               "real")
 
     vecs = Vectorizer.my_load_doc2vec_format(vec_path)
 
+    Vectorizer.most_similar_documents(vecs, c, positives="cb_18", feature_to_use="atm")
+
     big_df = loop_facets(vecs, c)
 
-    fake_df = pd.DataFrame([('gs_0_0', 'gs_0_1', 'time', 0.9), ('gs_0_0', 'gs_0_1', 'sty', 0.91),
-                            ('gs_0_0', 'gs_10_0', 'time', 0.4), ('gs_0_0', 'gs_10_0', 'sty', 0.5),
-                            ('gs_0_0', 'gs_1_0', 'time', 0.6), ('gs_0_0', 'gs_1_0', 'sty', 0.3)],
-                           columns=['ID_A', 'ID_B', 'Facet', 'Similarity'])
-    complete_corr, facet_cors = correlation(fake_df, vecs)
-    print(complete_corr, facet_cors)
-
-    radar_chart(get_facet_sims_of_books(vecs, c[0].doc_id, c[1].doc_id))
-    radar_chart(get_facet_sims_of_books(vecs, c[0].doc_id, c[2].doc_id))
-    radar_chart(get_facet_sims_of_books(vecs, c[0].doc_id, c[3].doc_id))
-    radar_chart(get_facet_sims_of_books(vecs, c[0].doc_id, c[10].doc_id))
+    radar_chart(get_facet_sims_of_books(vecs, c, c[0].doc_id, c[1].doc_id))
+    radar_chart(get_facet_sims_of_books(vecs, c, c[0].doc_id, c[2].doc_id))
+    radar_chart(get_facet_sims_of_books(vecs, c, c[0].doc_id, c[3].doc_id))
+    radar_chart(get_facet_sims_of_books(vecs, c, c[0].doc_id, c[10].doc_id))
 
     # get_facet_sims_of_books(vecs, corpus[0].doc_id, corpus[2].doc_id)
     # get_facet_sims_of_books(vecs, corpus[0].doc_id, corpus[3].doc_id)
     # get_facet_sims_of_books(vecs, corpus[0].doc_id, corpus[10].doc_id)
+
+
+    # fake_df = pd.DataFrame([('gs_0_0', 'gs_0_1', 'time', 0.9), ('gs_0_0', 'gs_0_1', 'sty', 0.91),
+    #                         ('gs_0_0', 'gs_10_0', 'time', 0.4), ('gs_0_0', 'gs_10_0', 'sty', 0.5),
+    #                         ('gs_0_0', 'gs_1_0', 'time', 0.6), ('gs_0_0', 'gs_1_0', 'sty', 0.3)],
+    #                        columns=['ID_A', 'ID_B', 'Facet', 'Similarity'])
+    # complete_corr, facet_cors = correlation(fake_df, vecs)
+    # print(complete_corr, facet_cors)
