@@ -230,52 +230,109 @@ class CorpusDocumentIterator(object):
 
 
 class CorpusTaggedDocumentIterator(object):
-    def __init__(self, corpus: Corpus, lemma: bool = False, lower: bool = False):
+    def __init__(self, corpus: Corpus, lemma: bool = False, lower: bool = False, chunk_len: int = None):
         self.corpus = corpus
         self.lemma = lemma
         self.lower = lower
+        self.chunk_len = chunk_len
 
     def __len__(self):
         return len(self.corpus.documents)
 
     def __iter__(self):
-        for doc_id, document in self.corpus.documents.items():
-            yield TaggedDocument(document.get_flat_tokens_from_disk(lemma=self.lemma, lower=self.lower), [doc_id])
+        if self.chunk_len:
+            for doc_id, document in self.corpus.documents.items():
+                tokens = document.get_flat_tokens_from_disk(lemma=self.lemma, lower=self.lower)
+                for i in range(0, len(tokens), self.chunk_len):
+                    chunked_tokens = tokens[i:i + self.chunk_len]
+                    # print(doc_id, i, len(chunked_tokens), chunked_tokens[:10])
+                    yield TaggedDocument(chunked_tokens, [f'{doc_id}_{i}'])
+        else:
+            for doc_id, document in self.corpus.documents.items():
+                yield TaggedDocument(document.get_flat_tokens_from_disk(lemma=self.lemma, lower=self.lower), [doc_id])
 
 
-class CorpusDocumentSentenceIterator(object):
-    def __init__(self, corpus: Corpus, lemma: bool = False, lower: bool = False):
-        self.corpus = corpus
-        self.lemma = lemma
-        self.lower = lower
+# class CorpusChunkLongDocumentIterator(object):
+#     def __init__(self, corpus: Corpus, lemma: bool = False, lower: bool = False):
+#         self.corpus = corpus
+#         self.lemma = lemma
+#         self.lower = lower
+#         self.chunk_len = 10000
+#
+#     def __len__(self):
+#         return len(self.corpus.documents)
+#
+#     def __iter__(self):
+#         for doc_id, document in self.corpus.documents.items():
+#             tokens = document.get_flat_tokens_from_disk(lemma=self.lemma, lower=self.lower)
+#             for i in range(0, len(tokens), self.chunk_len):
+#                 chunked_tokens = tokens[i:i + self.chunk_len]
+#                 # print(doc_id, i, len(chunked_tokens), chunked_tokens[:10])
+#                 yield TaggedDocument(chunked_tokens, [f'{doc_id}_{i}'])
+#             # yield TaggedDocument(tokens, [doc_id])
 
-    def __len__(self):
-        return len(self.corpus.documents)
 
-    def __iter__(self):
-        for doc_id, document in self.corpus.documents.items():
-            # yield document.get_flat_tokens_from_disk(lemma=self.lemma, lower=self.lower)
-            yield [sentence.representation(self.lemma, self.lower)
-                   for sentence in document.get_sentences_from_disk()]
+# class CorpusDocumentSentenceIterator(object):
+#     def __init__(self, corpus: Corpus, lemma: bool = False, lower: bool = False):
+#         self.corpus = corpus
+#         self.lemma = lemma
+#         self.lower = lower
+#
+#     def __len__(self):
+#         return len(self.corpus.documents)
+#
+#     def __iter__(self):
+#         for doc_id, document in self.corpus.documents.items():
+#             # yield document.get_flat_tokens_from_disk(lemma=self.lemma, lower=self.lower)
+#             yield [sentence.representation(self.lemma, self.lower)
+#                    for sentence in document.get_sentences_from_disk()]
 
 
 class FlairDocumentIterator(object):
-    def __init__(self, corpus: Corpus, lemma: bool = False, lower: bool = False):
+    def __init__(self, corpus: Corpus, lemma: bool = False, lower: bool = False, chunk_len: int = None):
         self.corpus = corpus
         self.lemma = lemma
         self.lower = lower
+        self.chunk_len = chunk_len
 
     def __len__(self):
         return len(self.corpus.documents)
 
     def __iter__(self):
-        for doc_id, document in self.corpus.documents.items():
-            yield doc_id, ' '.join(document.get_flat_tokens_from_disk(lemma=self.lemma, lower=self.lower))
+        if self.chunk_len:
+            for doc_id, document in self.corpus.documents.items():
+                tokens = document.get_flat_tokens_from_disk(lemma=self.lemma, lower=self.lower)
+                for i in range(0, len(tokens), self.chunk_len):
+                    chunked_tokens = tokens[i:i + self.chunk_len]
+                    # print(doc_id, i, len(chunked_tokens), chunked_tokens[:10])
+                    yield f'{doc_id}_{i}', ' '.join(chunked_tokens)
+        else:
+            for doc_id, document in self.corpus.documents.items():
+                yield doc_id, ' '.join(document.get_flat_tokens_from_disk(lemma=self.lemma, lower=self.lower))
+
+
+# class FlairChunkLongDocumentIterator(object):
+#     def __init__(self, corpus: Corpus, lemma: bool = False, lower: bool = False, chunk_len: int = 512):
+#         self.corpus = corpus
+#         self.lemma = lemma
+#         self.lower = lower
+#         self.chunk_len = chunk_len
+#
+#     def __len__(self):
+#         return len(self.corpus.documents)
+#
+#     def __iter__(self):
+#         for doc_id, document in self.corpus.documents.items():
+#             tokens = document.get_flat_tokens_from_disk(lemma=self.lemma, lower=self.lower)
+#             for i in range(0, len(tokens), self.chunk_len):
+#                 chunked_tokens = tokens[i:i + self.chunk_len]
+#                 # print(doc_id, i, len(chunked_tokens), chunked_tokens[:10])
+#                 yield f'{doc_id}_{i}', ' '.join(chunked_tokens)
 
 
 class CorpusTaggedFacetIterator(object):
     def __init__(self, corpus: Corpus, lemma: bool = False, lower: bool = False, disable_aspects: List[str] = None,
-                 topic_dict: Dict = None, summary_dict: Dict = None):
+                 topic_dict: Dict = None, summary_dict: Dict = None, chunk_len: int = None):
         self.corpus = corpus
         self.lemma = lemma
         self.lower = lower
@@ -283,29 +340,48 @@ class CorpusTaggedFacetIterator(object):
         self.doc_aspects = {}
         self.topic_dict = topic_dict
         self.summary_dict = summary_dict
+        self.chunk_len = chunk_len
 
     def __len__(self):
         return len(self.corpus.documents)
 
     def __iter__(self):
-        for doc_id, document in self.corpus.documents.items():
+        if self.chunk_len:
+            for doc_id, document in self.corpus.documents.items():
 
-            doc_aspects = calculate_facets_of_document(document,
-                                                       doc_id=doc_id,
-                                                       disable_aspects=self.disable_aspects,
-                                                       lemma=self.lemma,
-                                                       lower=self.lower,
-                                                       topic_dict=self.topic_dict,
-                                                       summary_dict=self.summary_dict)
-            self.doc_aspects[doc_id] = {aspect_name: len(document_aspects)
-                                        for aspect_name, document_aspects in doc_aspects.items()}
-            for aspect_name, document_aspects in doc_aspects.items():
-                yield TaggedDocument(document_aspects, [f'{doc_id}_{aspect_name}'])
+                doc_aspects = calculate_facets_of_document(document,
+                                                           doc_id=doc_id,
+                                                           disable_aspects=self.disable_aspects,
+                                                           lemma=self.lemma,
+                                                           lower=self.lower,
+                                                           topic_dict=self.topic_dict,
+                                                           summary_dict=self.summary_dict)
+                self.doc_aspects[doc_id] = {aspect_name: len(document_aspects)
+                                            for aspect_name, document_aspects in doc_aspects.items()}
+                for aspect_name, document_aspects in doc_aspects.items():
+                    for i in range(0, len(document_aspects), self.chunk_len):
+                        chunked_aspect = document_aspects[i:i + self.chunk_len]
+                        # print(doc_id, i, len(chunked_aspect), chunked_aspect[:10])
+                        yield TaggedDocument(chunked_aspect, [f'{doc_id}_{aspect_name}_{i}'])
+        else:
+            for doc_id, document in self.corpus.documents.items():
+
+                doc_aspects = calculate_facets_of_document(document,
+                                                           doc_id=doc_id,
+                                                           disable_aspects=self.disable_aspects,
+                                                           lemma=self.lemma,
+                                                           lower=self.lower,
+                                                           topic_dict=self.topic_dict,
+                                                           summary_dict=self.summary_dict)
+                self.doc_aspects[doc_id] = {aspect_name: len(document_aspects)
+                                            for aspect_name, document_aspects in doc_aspects.items()}
+                for aspect_name, document_aspects in doc_aspects.items():
+                    yield TaggedDocument(document_aspects, [f'{doc_id}_{aspect_name}'])
 
 
 class FlairFacetIterator(object):
     def __init__(self, corpus: Corpus, lemma: bool = False, lower: bool = False, disable_aspects: List[str] = None,
-                 topic_dict: Dict = None, summary_dict: Dict = None):
+                 topic_dict: Dict = None, summary_dict: Dict = None, chunk_len: int = None):
         self.corpus = corpus
         self.lemma = lemma
         self.lower = lower
@@ -313,31 +389,55 @@ class FlairFacetIterator(object):
         self.doc_aspects = {}
         self.topic_dict = topic_dict
         self.summary_dict = summary_dict
+        self.chunk_len = chunk_len
 
     def __len__(self):
         return len(self.corpus.documents)
 
     def __iter__(self):
-        for doc_id, document in self.corpus.documents.items():
+        if self.chunk_len:
+            for doc_id, document in self.corpus.documents.items():
 
-            doc_aspects = calculate_facets_of_document(document,
-                                                       doc_id=doc_id,
-                                                       disable_aspects=self.disable_aspects,
-                                                       lemma=self.lemma,
-                                                       lower=self.lower,
-                                                       topic_dict=self.topic_dict,
-                                                       summary_dict=self.summary_dict)
-            self.doc_aspects[doc_id] = {aspect_name: len(document_aspects)
-                                        for aspect_name, document_aspects in doc_aspects.items()}
-            for aspect_name, document_aspects in doc_aspects.items():
-                doc_aspect_id = f'{doc_id}_{aspect_name}'
-                print(doc_aspect_id, len(document_aspects))
-                yield doc_aspect_id, f"{' '.join(document_aspects)} ."
+                doc_aspects = calculate_facets_of_document(document,
+                                                           doc_id=doc_id,
+                                                           disable_aspects=self.disable_aspects,
+                                                           lemma=self.lemma,
+                                                           lower=self.lower,
+                                                           topic_dict=self.topic_dict,
+                                                           summary_dict=self.summary_dict)
+                self.doc_aspects[doc_id] = {aspect_name: len(document_aspects)
+                                            for aspect_name, document_aspects in doc_aspects.items()}
+                for aspect_name, document_aspects in doc_aspects.items():
+                    for i in range(0, len(document_aspects), self.chunk_len):
+                        chunked_aspect = document_aspects[i:i + self.chunk_len]
+                        # print(doc_id, i, len(chunked_aspect), chunked_aspect[:10])
+                        doc_aspect_id = f'{doc_id}_{aspect_name}_{i}'
+                        yield doc_aspect_id, f"{' '.join(chunked_aspect)} ."
+        else:
+            for doc_id, document in self.corpus.documents.items():
+
+                doc_aspects = calculate_facets_of_document(document,
+                                                           doc_id=doc_id,
+                                                           disable_aspects=self.disable_aspects,
+                                                           lemma=self.lemma,
+                                                           lower=self.lower,
+                                                           topic_dict=self.topic_dict,
+                                                           summary_dict=self.summary_dict)
+                self.doc_aspects[doc_id] = {aspect_name: len(document_aspects)
+                                            for aspect_name, document_aspects in doc_aspects.items()}
+                for aspect_name, document_aspects in doc_aspects.items():
+                    doc_aspect_id = f'{doc_id}_{aspect_name}'
+                    print(doc_aspect_id, len(document_aspects))
+                    yield doc_aspect_id, f"{' '.join(document_aspects)} ."
 
 #  - facette analyzes: done
 #  - content facet: done
 #  - summarry facet: done
 #  - heideltime: done
+#  - design common facet book task: done
+#  - design facet evaluation tasks: mostly done
+#  - classic corpus parser, annotation, experiments: done
 #  - simplify german books vs german series
 #  - small test corpus with series + no series elements
-#  - design common facet book task
+#  - doc2vec u.ä. verfahrens limits berücksichtigen über avg
+#
