@@ -431,6 +431,46 @@ class DataHandler:
         return Corpus(source=documents, name="german_fiction_tagged", language=Language.DE)
 
     @staticmethod
+    def load_classic_gutenberg_as_corpus(path: str = None) -> "Corpus":
+        def load_textfile_book(prefix_path, suffix_path, document_id):
+            doc_path = join(prefix_path, suffix_path)
+            if not os.path.isfile(doc_path):
+                raise UserWarning(f"No file found! {doc_path}")
+            # with open(doc_path, "r", encoding="utf-8") as file:
+            #     # content = file.read().replace('\n', ' ').replace('  ', ' ').replace('  ', ' ')
+            #     content = DataHandler.raw_text_parse(file.read(), DataHandler.parse_func_german_books)
+            content = ""
+
+            meta = suffix_path.replace('.txt', '').split('_-_')
+            author = meta[1].replace('_', ' ')
+            year = meta[2]
+            title = meta[0].replace('_', ' ')
+
+            print(author, '|', title, '|', year)
+            d = Document(doc_id=document_id,
+                         text=content,
+                         title=title,
+                         language=Language.DE,
+                         authors=author,
+                         date=str(year),
+                         genres=None,
+                         parse_fun=DataHandler.parse_func_german_books,
+                         file_path=doc_path)
+            return d
+
+        if path is None:
+            path = config["data_set_path"]["gutenberg_top_20"]
+
+        file_paths = [f for f in listdir(path) if isfile(join(path, f))]
+
+        documents = {}
+        for i, file_path in enumerate(file_paths):
+            doc_id = f'cb_{i}'
+            documents[doc_id] = load_textfile_book(path, file_path, doc_id)
+
+        return Corpus(source=documents, name="classic_books", language=Language.EN)
+
+    @staticmethod
     def load_litrec_books_as_corpus(corpus_dir: str = None) -> "Corpus":
         def load_textfile_book(prefix_path, suffix_path, document_id, title):
             doc_path = join(prefix_path, suffix_path)
@@ -476,6 +516,7 @@ class DataHandler:
                 not_found.append((row['title'], row['filename']))
         # print(len(not_found))
         return Corpus(source=documents, name="litrec", language=Language.EN)
+
 
     @staticmethod
     def load_maharjan_goodreads(corpus_dir: str = None) -> "Corpus":
@@ -1361,6 +1402,14 @@ class Corpus:
             index = index.replace('_time', '')
         elif index.endswith('_loc'):
             index = index.replace('_loc', '')
+        elif index.endswith('_atm'):
+            index = index.replace('_atm', '')
+        elif index.endswith('_sty'):
+            index = index.replace('_sty', '')
+        elif index.endswith('_plot'):
+            index = index.replace('_plot', '')
+        elif index.endswith('_raw'):
+            index = index.replace('_raw', '')
         return str(self.documents[index])
 
     def give_spacy_lan_model(self):
