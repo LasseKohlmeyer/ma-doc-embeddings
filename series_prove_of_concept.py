@@ -774,7 +774,6 @@ class FakeSeriesEval:
             Vectorizer.algorithm(input_str=vectorization_algorithm,
                                  corpus=corpus,
                                  save_path=vec_file_name,
-                                 filter_mode=filter_mode,
                                  return_vecs=False)
         # else:
         #     logging.info(f'{vec_file_name} already exists, skip')
