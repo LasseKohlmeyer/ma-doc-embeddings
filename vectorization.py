@@ -278,6 +278,7 @@ class Vectorizer:
         model = Doc2Vec(vector_size=cls.dim, min_count=cls.min_count, epochs=cls.epochs,
                         pretrained_emb=cls.pretrained_emb_path, seed=cls.seed, workers=cls.workers,
                         window=cls.window)
+
         model.build_vocab(documents)
         if not without_training:
             model.train(documents, total_examples=model.corpus_count, epochs=model.epochs)
@@ -576,6 +577,8 @@ class Vectorizer:
         # print('Start training')
         logging.info("Start training")
 
+        # for document in documents:
+        #     print(document)
         model, words_dict, docs_dict = cls.doc2vec_base(documents, without_training, chunk_len=chunk_len)
 
         aspect_path = os.path.basename(save_path)
@@ -802,8 +805,13 @@ class Vectorizer:
     def combine_vectors_by_sum(document_dictionary: Dict[str, np.array]):
         summed_vecs = {}
         # print(document_dictionary.keys())
-        base_ending_candidates = set([f"_{tag.split('_')[-2]}" for tag in document_dictionary.keys()])
 
+        if list(document_dictionary.keys())[0][-1].isdigit():
+            element_pointer = -2
+        else:
+            element_pointer = -1
+        base_ending_candidates = set([f"_{tag.split('_')[element_pointer]}" for tag in document_dictionary.keys()])
+        print(base_ending_candidates, document_dictionary.keys())
         candidate_counter_dict = defaultdict(int)
         plain_doc_ids = set()
         for base_ending_candidate in base_ending_candidates:
@@ -818,7 +826,7 @@ class Vectorizer:
 
                     if base_ending_candidate == suffix:
                         candidate_counter_dict[base_ending_candidate] += 1
-
+        print(len(plain_doc_ids), candidate_counter_dict)
         final_candidates = [candidate for candidate, count in candidate_counter_dict.items()
                             if count == len(plain_doc_ids)]
 
