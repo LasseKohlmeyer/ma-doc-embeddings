@@ -341,28 +341,49 @@ class CorpusTaggedFacetIterator(object):
         self.topic_dict = topic_dict
         self.summary_dict = summary_dict
         self.chunk_len = chunk_len
+        self.facets_of_chunks = True
 
     def __len__(self):
         return len(self.corpus.documents)
 
     def __iter__(self):
         if self.chunk_len:
-            for doc_id, document in self.corpus.documents.items():
+            if self.facets_of_chunks:
+                for doc_id, document in self.corpus.documents.items():
+                    document_chunks = document.into_chunks(chunk_size=self.chunk_len)
+                    for i, document_chunk in enumerate(document_chunks):
+                        doc_aspects = calculate_facets_of_document(document_chunk,
+                                                                   doc_id=doc_id,
+                                                                   disable_aspects=self.disable_aspects,
+                                                                   lemma=self.lemma,
+                                                                   lower=self.lower,
+                                                                   topic_dict=self.topic_dict,
+                                                                   summary_dict=self.summary_dict)
+                        chunked_doc_aspects = doc_aspects
+                        self.doc_aspects[document_chunk.doc_id] = {aspect_name: len(document_aspects)
+                                                                   for aspect_name, document_aspects in doc_aspects.items()}
+                        for aspect_name, document_aspects in chunked_doc_aspects.items():
+                            # print(doc_id, i, len(chunked_aspect), chunked_aspect[:10])
+                            chunked_aspect_doc_id = f'{doc_id}_{aspect_name}_{i}'
+                            yield TaggedDocument(document_aspects, [chunked_aspect_doc_id])
 
-                doc_aspects = calculate_facets_of_document(document,
-                                                           doc_id=doc_id,
-                                                           disable_aspects=self.disable_aspects,
-                                                           lemma=self.lemma,
-                                                           lower=self.lower,
-                                                           topic_dict=self.topic_dict,
-                                                           summary_dict=self.summary_dict)
-                self.doc_aspects[doc_id] = {aspect_name: len(document_aspects)
-                                            for aspect_name, document_aspects in doc_aspects.items()}
-                for aspect_name, document_aspects in doc_aspects.items():
-                    for i in range(0, len(document_aspects), self.chunk_len):
-                        chunked_aspect = document_aspects[i:i + self.chunk_len]
-                        # print(doc_id, i, len(chunked_aspect), chunked_aspect[:10])
-                        yield TaggedDocument(chunked_aspect, [f'{doc_id}_{aspect_name}_{i}'])
+            else:
+                for doc_id, document in self.corpus.documents.items():
+
+                    doc_aspects = calculate_facets_of_document(document,
+                                                               doc_id=doc_id,
+                                                               disable_aspects=self.disable_aspects,
+                                                               lemma=self.lemma,
+                                                               lower=self.lower,
+                                                               topic_dict=self.topic_dict,
+                                                               summary_dict=self.summary_dict)
+                    self.doc_aspects[doc_id] = {aspect_name: len(document_aspects)
+                                                for aspect_name, document_aspects in doc_aspects.items()}
+                    for aspect_name, document_aspects in doc_aspects.items():
+                        for i in range(0, len(document_aspects), self.chunk_len):
+                            chunked_aspect = document_aspects[i:i + self.chunk_len]
+                            # print(doc_id, i, len(chunked_aspect), chunked_aspect[:10])
+                            yield TaggedDocument(chunked_aspect, [f'{doc_id}_{aspect_name}_{i}'])
         else:
             for doc_id, document in self.corpus.documents.items():
 
@@ -390,29 +411,50 @@ class FlairFacetIterator(object):
         self.topic_dict = topic_dict
         self.summary_dict = summary_dict
         self.chunk_len = chunk_len
+        self.facets_of_chunks = True
 
     def __len__(self):
         return len(self.corpus.documents)
 
     def __iter__(self):
         if self.chunk_len:
-            for doc_id, document in self.corpus.documents.items():
+            if self.facets_of_chunks:
+                for doc_id, document in self.corpus.documents.items():
+                    document_chunks = document.into_chunks(chunk_size=self.chunk_len)
+                    for i, document_chunk in enumerate(document_chunks):
+                        doc_aspects = calculate_facets_of_document(document_chunk,
+                                                                   doc_id=doc_id,
+                                                                   disable_aspects=self.disable_aspects,
+                                                                   lemma=self.lemma,
+                                                                   lower=self.lower,
+                                                                   topic_dict=self.topic_dict,
+                                                                   summary_dict=self.summary_dict)
+                        chunked_doc_aspects = {aspect_name: len(document_aspects)
+                                               for aspect_name, document_aspects in doc_aspects.items()}
+                        self.doc_aspects[document_chunk.doc_id] = chunked_doc_aspects
+                        for aspect_name, document_aspects in chunked_doc_aspects.items():
+                            # print(doc_id, i, len(chunked_aspect), chunked_aspect[:10])
+                            chunked_aspect_doc_id = f'{doc_id}_{aspect_name}_{i}'
+                            yield chunked_aspect_doc_id, f"{' '.join(chunked_doc_aspects)} ."
 
-                doc_aspects = calculate_facets_of_document(document,
-                                                           doc_id=doc_id,
-                                                           disable_aspects=self.disable_aspects,
-                                                           lemma=self.lemma,
-                                                           lower=self.lower,
-                                                           topic_dict=self.topic_dict,
-                                                           summary_dict=self.summary_dict)
-                self.doc_aspects[doc_id] = {aspect_name: len(document_aspects)
-                                            for aspect_name, document_aspects in doc_aspects.items()}
-                for aspect_name, document_aspects in doc_aspects.items():
-                    for i in range(0, len(document_aspects), self.chunk_len):
-                        chunked_aspect = document_aspects[i:i + self.chunk_len]
-                        # print(doc_id, i, len(chunked_aspect), chunked_aspect[:10])
-                        doc_aspect_id = f'{doc_id}_{aspect_name}_{i}'
-                        yield doc_aspect_id, f"{' '.join(chunked_aspect)} ."
+            else:
+                for doc_id, document in self.corpus.documents.items():
+
+                    doc_aspects = calculate_facets_of_document(document,
+                                                               doc_id=doc_id,
+                                                               disable_aspects=self.disable_aspects,
+                                                               lemma=self.lemma,
+                                                               lower=self.lower,
+                                                               topic_dict=self.topic_dict,
+                                                               summary_dict=self.summary_dict)
+                    self.doc_aspects[doc_id] = {aspect_name: len(document_aspects)
+                                                for aspect_name, document_aspects in doc_aspects.items()}
+                    for aspect_name, document_aspects in doc_aspects.items():
+                        for i in range(0, len(document_aspects), self.chunk_len):
+                            chunked_aspect = document_aspects[i:i + self.chunk_len]
+                            # print(doc_id, i, len(chunked_aspect), chunked_aspect[:10])
+                            doc_aspect_id = f'{doc_id}_{aspect_name}_{i}'
+                            yield doc_aspect_id, f"{' '.join(chunked_aspect)} ."
         else:
             for doc_id, document in self.corpus.documents.items():
 
