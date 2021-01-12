@@ -567,7 +567,8 @@ class DataHandler:
 
         guten_dict = load_gutenberg_meta(config["data_set_path"]["gutenberg_meta"])
 
-        genres = [genre_dir for genre_dir in listdir(corpus_dir) if os.path.isdir(join(corpus_dir, genre_dir))]
+        genres = [genre_dir for genre_dir in listdir(corpus_dir) if os.path.isdir(join(corpus_dir, genre_dir))
+                  if genre_dir != "dismissed"]
         genres_dict = {}
         for genre in genres:
             with open(join(corpus_dir, genre, "meta_data.yaml"), 'r') as stream:
@@ -712,6 +713,10 @@ class Sentence:
         return str(self.representation())
 
     __repr__ = __str__
+
+    def truncate(self, n: int):
+        self.tokens = self.tokens[:n]
+        self.length = sum((1 for token in self.tokens if token.text != "del"))
 
     def __len__(self):
         return self.length
@@ -1087,6 +1092,57 @@ class Document:
         return defaultdict(lambda: [], {entity_type: [token.representation(lemma=lemma, lower=lower)
                                                       for token in tokens]
                                         for entity_type, tokens in self.doc_entities.items()})
+
+    def into_chunks(self, chunk_size: int):
+
+        def flush_chunk():
+            chunk_tokens = [token for current_sentence in current_sentences for token in current_sentence.tokens]
+            # print(chunk_tokens)
+            if len(chunk_tokens) > chunk_size:
+                assert len(current_sentences) == 1
+                old_length = len(current_sentences[0])
+                current_sentences[0].truncate(chunk_size)
+                print(f'Warning: sentences of length {old_length} truncated too {chunk_size}'
+                      f', new length is {len(current_sentences[0].tokens)}')
+                # raise UserWarning(f"Chunk size of {chunk_size} is too small, "
+                #                   f"sentence with {len(chunk_tokens)} encountered")
+            chunked_doc_id = f'{self.doc_id}_{chunk_counter}'
+            return Document(doc_id=chunked_doc_id, text="",
+                            title=self.title,
+                            language=self.language,
+                            authors=self.authors, date=self.date, genres=self.genres,
+                            sentences=current_sentences,
+                            file_path=self.file_path, length=len(chunk_tokens),
+                            vocab_size=len(set(chunk_tokens)), sentence_nr=len(current_sentences)), len(chunk_tokens)
+
+        current_size = 0
+        current_sentences = []
+        chunk_counter = 0
+        self.load_sentences_from_disk()
+        counted_tokens = []
+        chunk_token_nrs = []
+        for sentence in self.sentences:
+            counted_tokens.append(len(sentence.tokens))
+            if current_size + len(sentence.tokens) <= chunk_size:
+                # print('o',  len(sentence.tokens), current_size)
+                current_sentences.append(sentence)
+                current_size += len(sentence.tokens)
+            else:
+                # print('x', len(sentence.tokens), current_size)
+                chunk_doc, chunk_token_nr = flush_chunk()
+                chunk_token_nrs.append(chunk_token_nr)
+                yield chunk_doc
+
+                current_sentences = [sentence]
+                current_size = len(sentence.tokens)
+                chunk_counter += 1
+
+        if len(current_sentences) > 0:
+            chunk_doc, chunk_token_nr = flush_chunk()
+            chunk_token_nrs.append(chunk_token_nr)
+            yield chunk_doc
+        assert sum(counted_tokens) == sum(chunk_token_nrs)
+        self.sentences = []
 
 
 class Corpus:
@@ -1691,18 +1747,18 @@ class Corpus:
         return sentences
 
     def calculate_documents_with_shared_attributes(self):
-        same_author_dict = defaultdict(list)
-        same_year_dict = defaultdict(list)
-        same_genre_dict = defaultdict(list)
+        same_author_dict = defaultdict(set)
+        same_year_dict = defaultdict(set)
+        same_genre_dict = defaultdict(set)
 
         for doc_id, document in self.documents.items():
-            same_author_dict[document.authors].append(doc_id)
-            same_year_dict[document.date].append(doc_id)
-            same_genre_dict[document.genres].append(doc_id)
+            same_author_dict[document.authors].add(doc_id)
+            same_year_dict[document.date].add(doc_id)
+            same_genre_dict[document.genres].add(doc_id)
         self.shared_attributes_dict = {"same_author": same_author_dict, "same_year": same_year_dict,
-                                       "same_genre_dict": same_genre_dict}
+                                       "same_genres": same_genre_dict}
 
-        self.reversed_attributes_dict = {category: Utils.revert_dictionaried_list(category_dict)
+        self.reversed_attributes_dict = {category: Utils.revert_dictionaried_set(category_dict)
                                          for category, category_dict in self.shared_attributes_dict.items()}
         # print(self.shared_attributes_dict["same_author"])
 
@@ -1712,19 +1768,29 @@ class Corpus:
         # return same_author_docs
         if self.shared_attributes_dict is None:
             self.calculate_documents_with_shared_attributes()
-        other_ids = self.shared_attributes_dict["same_author"][self.documents[doc_id].authors]
+        other_ids = list(self.shared_attributes_dict["same_author"][self.documents[doc_id].authors])
+        if doc_id in other_ids:
+            other_ids.remove(doc_id)
         return other_ids
 
     def get_other_doc_ids_by_same_genres(self, doc_id):
         if self.shared_attributes_dict is None:
             self.calculate_documents_with_shared_attributes()
-        other_ids = self.shared_attributes_dict["same_genres"][self.documents[doc_id].genres].remove(doc_id)
+        # print(self.shared_attributes_dict["same_genres"])
+        # print(self.documents[doc_id].genres)
+        other_ids = list(self.shared_attributes_dict["same_genres"][self.documents[doc_id].genres])
+        # print(other_ids)
+        if doc_id in other_ids:
+            other_ids.remove(doc_id)
+        # print(other_ids)
         return other_ids
 
     def get_other_doc_ids_by_same_year(self, doc_id):
         if self.shared_attributes_dict is None:
             self.calculate_documents_with_shared_attributes()
-        other_ids = self.shared_attributes_dict["same_year"][self.documents[doc_id].date].remove(doc_id)
+        other_ids = list(self.shared_attributes_dict["same_year"][self.documents[doc_id].date])
+        if doc_id in other_ids:
+            other_ids.remove(doc_id)
         return other_ids
 
     def get_windowed_aspects(self, aspect_dict: Dict[str, List[str]], window_size: int = 10):
