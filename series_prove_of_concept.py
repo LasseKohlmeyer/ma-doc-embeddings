@@ -57,8 +57,13 @@ class EvaluationMath:
             for value in values:
                 tuples.append((group, value))
             # print(group, Evaluation.mean(values))
+        # print(tuples)
         df = pd.DataFrame(tuples, columns=['Group', 'Value'])
-        m_comp: TukeyHSDResults = pairwise_tukeyhsd(endog=df['Value'], groups=df['Group'], alpha=0.05)
+        try:
+            m_comp: TukeyHSDResults = pairwise_tukeyhsd(endog=df['Value'], groups=df['Group'], alpha=0.05)
+        except ValueError:
+            list_results.keys()
+            return {key: "" for key in list_results.keys()}
         m_comp_data = m_comp.summary().data
         mcomp_df = pd.DataFrame(m_comp_data[1:], columns=m_comp_data[0])
         group_id_lookup = {key: i + 1 for i, key in enumerate(list_results.keys())}
@@ -106,9 +111,10 @@ class EvaluationMath:
 
 
 class EvaluationTask(ABC):
-    def __init__(self, reverted: Dict[str, str], corpus: Corpus):
+    def __init__(self, reverted: Dict[str, str], corpus: Corpus, topn):
         self.reverted = reverted
         self.corpus = corpus
+        self.topn = topn - 1
 
     @abstractmethod
     def has_passed(self, doc_id: str, sim_doc_id: str):
@@ -124,13 +130,13 @@ class EvaluationTask(ABC):
     __repr__ = __str__
 
     @staticmethod
-    def create_from_name(task_name: str, reverted: Dict[str, str], corpus: Corpus):
+    def create_from_name(task_name: str, reverted: Dict[str, str], corpus: Corpus, topn: int):
         if task_name.lower() == "seriestask" or task_name.lower() == "series_task" or task_name.lower() == "series":
-            return SeriesTask(reverted, corpus)
+            return SeriesTask(reverted, corpus, topn)
         elif task_name.lower() == "authortask" or task_name.lower() == "author_task" or task_name.lower() == "author":
-            return AuthorTask(reverted, corpus)
+            return AuthorTask(reverted, corpus, topn)
         elif task_name.lower() == "genretask" or task_name.lower() == "genre_task" or task_name.lower() == "genre":
-            return GenreTask(reverted, corpus)
+            return GenreTask(reverted, corpus, topn)
         else:
             raise UserWarning(f"{task_name} is not defined as task")
 
@@ -140,7 +146,10 @@ class SeriesTask(EvaluationTask):
         return self.reverted[doc_id] == self.reverted[sim_doc_id]
 
     def nr_of_possible_matches(self, doc_id: str):
-        return len(self.corpus.series_dict[self.reverted[doc_id]]) - 1
+        real_matches = len(self.corpus.series_dict[self.reverted[doc_id]]) - 1
+        if real_matches > self.topn:
+            return self.topn
+        return real_matches
 
 
 class AuthorTask(EvaluationTask):
@@ -148,15 +157,22 @@ class AuthorTask(EvaluationTask):
         return self.corpus.documents[doc_id].authors == self.corpus.documents[sim_doc_id].authors
 
     def nr_of_possible_matches(self, doc_id: str):
-        return len(self.corpus.get_other_doc_ids_by_same_author(doc_id)) - 1
+        real_matches = len(self.corpus.get_other_doc_ids_by_same_author(doc_id))
+        # print(real_matches, doc_id, self.corpus.get_other_doc_ids_by_same_author(doc_id))
+        if real_matches > self.topn:
+            return self.topn
+        return real_matches
 
 
 class GenreTask(EvaluationTask):
     def has_passed(self, doc_id: str, sim_doc_id: str):
-        return self.corpus.documents[doc_id].authors == self.corpus.documents[sim_doc_id].authors
+        return self.corpus.documents[doc_id].genres == self.corpus.documents[sim_doc_id].genres
 
     def nr_of_possible_matches(self, doc_id: str):
-        return len(self.corpus.get_other_doc_ids_by_same_genres(doc_id)) - 1
+        real_matches = len(self.corpus.get_other_doc_ids_by_same_genres(doc_id))
+        if real_matches > self.topn:
+            return self.topn
+        return real_matches
 
 
 class EvaluationMetric:
@@ -218,8 +234,8 @@ class EvaluationMetric:
                        ignore_same: bool = False, k: int = None):
         # how many selected items are relevant?
         if task.nr_of_possible_matches(doc_id) == 0:
-            print('zero devision fix at fair_precision')
-            return 1
+            # print('zero devision fix at fair_precision')
+            return None
         hard_correct = 0
         # soft_correct = 0
         # print(reverted)
@@ -252,8 +268,8 @@ class EvaluationMetric:
                ignore_same: bool = False, k: int = None):
         # how many relevant items are selected?
         if task.nr_of_possible_matches(doc_id) == 0:
-            print('zero devision fix at recall')
-            return 1
+            # print('zero devision fix at recall')
+            return None
         hard_correct = 0
         # soft_correct = 0
         # print(reverted)
@@ -327,8 +343,8 @@ class EvaluationMetric:
              ignore_same: bool = False, k: int = None):
         # print(task, doc_id, task.corpus.get_other_doc_ids_by_same_author(doc_id), task.nr_of_possible_matches(doc_id))
         if task.nr_of_possible_matches(doc_id) == 0:
-            print('zero devision fix at ndcg')
-            return 1
+            # print('zero devision fix at ndcg')
+            return None
         # print(reverted)
         ground_truth_values = []
         predicted_values = []
@@ -355,12 +371,13 @@ class EvaluationMetric:
             else:
                 if c != 0:
                     print(f'First match ({c}) is not lookup document {doc_id} but {sim_doc_id}!')
-                    # raise UserWarning(f'First match ({c}) is not lookup document {doc_id} but {sim_doc_id}!')
 
             # print(task, doc_id, sim_doc_id, predicted_values, ground_truth_values,
             #       task.nr_of_possible_matches(doc_id),
             #       task.corpus.get_other_doc_ids_by_same_author(doc_id),
             #       task.corpus.series_dict[task.reverted[doc_id]])
+        # print(ground_truth_values, predicted_values)
+        # print(doc_id, sim_documents, sum(ground_truth_values),  task.nr_of_possible_matches(doc_id))
         assert sum(ground_truth_values) == task.nr_of_possible_matches(doc_id)
         # print(doc_id, ground_truth_values, predicted_values)
         ndcg = metrics.ndcg_score(np.array([ground_truth_values]),
@@ -375,7 +392,10 @@ class EvaluationMetric:
 
         recall = EvaluationMetric.recall(sim_documents, doc_id,
                                          task, ignore_same, k=k)
-        f_sum = (precision + recall)
+        if precision and recall:
+            f_sum = (precision + recall)
+        else:
+            return None
         if f_sum == 0:
             f_sum = 1
         return 2 * (precision * recall) / f_sum
@@ -465,7 +485,7 @@ class Evaluation:
                                                               topn=topn,
                                                               print_results=False)
 
-            task = SeriesTask(reverted=reverted, corpus=corpus)
+            task = SeriesTask(reverted=reverted, corpus=corpus, topn=topn)
             hard_correct = cls.evaluation_metric(sim_documents, doc_id, task=task)
 
             results.append(hard_correct)
@@ -660,11 +680,11 @@ class EvalParams:
     evaluation_metric = EvaluationMetric.multi_metric
 
     data_sets = [
-        "german_series",
+        # "german_series",
         # "german_books",
         # "dta_series"
         # "summaries",
-        # "goodreads_genres"
+        "goodreads_genres"
         # "tagged_german_books"
         # "litrec",
     ]
@@ -687,11 +707,11 @@ class EvalParams:
         "doc2vec",
         # # "longformer_untuned"
         "book2vec",
-        # "book2vec_o_raw",
-        # "book2vec_o_loc",
-        # "book2vec_o_time",
-        # "book2vec_o_sty",
-        # "book2vec_o_atm",
+        "book2vec_o_raw",
+        "book2vec_o_loc",
+        "book2vec_o_time",
+        "book2vec_o_sty",
+        "book2vec_o_atm",
         # "book2vec_wo_raw",
         # "book2vec_wo_loc",
         # "book2vec_wo_time",
@@ -717,14 +737,14 @@ class EvalParams:
         # "avg_wv2doc_untrained",
         # "doc2vec_untrained",
         # "book2vec_untrained",
-        'book2vec_bert',
-        'bert'
+        # 'book2vec_bert',
+        # 'bert'
     ]
 
     task_names = [
-        "SeriesTask",
+        # "SeriesTask",
         "AuthorTask",
-        # "GenreTask"
+        "GenreTask"
     ]
 
 
@@ -1069,6 +1089,10 @@ class RealSeriesEval:
                           results_as_dict: Dict[str, np.ndarray],
                           cache_path: str):
         tuples = []
+
+        results_as_dict = {key: [result for result in results if result is not None]
+                           for key, results in results_as_dict.items()}
+
         significance_dict = EvaluationMath.one_way_anova(results_as_dict)
         vec_bar = tqdm(EvalParams.vectorization_algorithms, total=len(EvalParams.vectorization_algorithms),
                        desc="Store final results for algorithm")
@@ -1076,6 +1100,9 @@ class RealSeriesEval:
 
         for vectorization_algorithm in vec_bar:
             results = results_as_dict[vectorization_algorithm]
+            # print('>|', results)
+            # results = [res for res in results if res is not None]
+            # print('>|', results)
             sig = significance_dict[vectorization_algorithm]
             score, deviation = EvaluationMath.mean(results)
             # vectorization_results[vectorization_algorithm] = score, deviation
@@ -1136,6 +1163,7 @@ class RealSeriesEval:
                                           for vectorization_algorithm in vec_bar]
 
                 for subpart_nr, data, filt_mod, vec_algo, results in tuple_list_results:
+                    # results = results[results != np.array(None)]
                     res[subpart_nr][data][filt_mod][vec_algo] = results
 
         for data_set in tqdm(EvalParams.data_sets, total=len(EvalParams.data_sets),
@@ -1198,7 +1226,11 @@ class RealSeriesEval:
                 summation_method = focus_facette
             else:
                 raise FileNotFoundError
-        reverted = Utils.revert_dictionaried_list(corpus.series_dict)
+
+        if corpus.series_dict:
+            reverted = Utils.revert_dictionaried_list(corpus.series_dict)
+        else:
+            reverted = None
         doctags = vectors.docvecs.doctags.keys()
         doctags = [doctag for doctag in doctags if doctag[-1].isdigit()]
 
@@ -1208,13 +1240,12 @@ class RealSeriesEval:
         topn_value = 1
         if EvalParams.ignore_same:
             topn_value = 1
-
-        tasks = [EvaluationTask.create_from_name(task_name, reverted=reverted, corpus=corpus)
+        topn = 100
+        tasks = [EvaluationTask.create_from_name(task_name, reverted=reverted, corpus=corpus, topn=topn)
                  for task_name in EvalParams.task_names]
 
         for doc_id in doctags:
             # topn = len(corpus.series_dict[reverted[doc_id]])
-            topn = 20
 
             if topn > topn_value:
                 # print('#############', doc_id, len(doctags))
@@ -1225,6 +1256,7 @@ class RealSeriesEval:
                                                                   print_results=False)
 
                 for task in tasks:
+                    # print(task.nr_of_possible_matches(doc_id), task.__class__)
                     metric_results = EvalParams.evaluation_metric(sim_documents, doc_id,
                                                                   task,
                                                                   ignore_same=EvalParams.ignore_same)
@@ -1280,9 +1312,9 @@ if __name__ == '__main__':
     # formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     # logging.confi
 
-    FakeSeriesEval.build_corpora()
-    FakeSeriesEval.train_vecs()
-    FakeSeriesEval.run_evaluation()
+    # FakeSeriesEval.build_corpora()
+    # FakeSeriesEval.train_vecs()
+    # FakeSeriesEval.run_evaluation()
 
     # RealSeriesEval.build_corpora()
     # RealSeriesEval.train_vecs()
@@ -1296,6 +1328,12 @@ if __name__ == '__main__':
     #                                                   "common_words_doc_freq"]))
 
     print(EvaluationUtils.create_paper_table("results/simple_series_experiment_table.csv", "results/z_table.csv",
-                                             used_metrics=["ndcg", "prec", "prec01", "prec03", "prec05", "prec10",
+                                             used_metrics=["ndcg", "f_prec", "f_prec01", "f_prec03", "f_prec05",
+                                                           "f_prec10",
+                                                           "length_metric"],
+                                             filters=["no_filter"]))
+    print(EvaluationUtils.create_paper_table("results/simple_series_experiment_table.csv", "results/z_2table.csv",
+                                             used_metrics=["ndcg", "prec", "prec01", "prec03", "prec05",
+                                                           "prec10",
                                                            "length_metric"],
                                              filters=["no_filter"]))
