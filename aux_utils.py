@@ -2,7 +2,7 @@ import json
 import os
 from collections import defaultdict
 
-from typing import Union, List, Dict
+from typing import Union, List, Dict, Set
 
 import logging
 
@@ -38,6 +38,10 @@ class Utils:
 
     @staticmethod
     def revert_dictionaried_list(dictionary: Dict[str, List[str]]):
+        return {value: key for key, values in dictionary.items() for value in values}
+
+    @staticmethod
+    def revert_dictionaried_set(dictionary: Dict[str, Set[str]]):
         return {value: key for key, values in dictionary.items() for value in values}
 
     @staticmethod
