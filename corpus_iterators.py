@@ -107,7 +107,26 @@ def calculate_facets_of_document(document: Document,
                                  disable_aspects: List[str],
                                  lemma: bool, lower: bool,
                                  topic_dict: Union[None, Dict[str, List[str]]],
-                                 summary_dict: Union[None, Dict[str, List[Union[str, int]]]]):
+                                 summary_dict: Union[None, Dict[str, List[Union[str, int]]]],
+                                 window: int = 0):
+    def windowing(facet_ids: List[int], doc: Document, window_size: int):
+        facet_words = []
+        for (sentence_id, token_id) in facet_ids:
+            # print(sentence_id, token_id, facet_ids)
+            sentence = doc.sentences[sentence_id]
+            lower_bound = token_id - window_size
+            upper_bound = token_id + window_size
+            if lower_bound < 0:
+                lower_bound = 0
+            if upper_bound >= len(sentence.tokens):
+                upper_bound = len(sentence.tokens) - 1
+            # print(lower_bound, upper_bound)
+            for i in range(lower_bound, upper_bound + 1):
+                # print(window, i, sentence.tokens[i].representation(lemma=lemma, lower=lower))
+                facet_words.append(sentence.tokens[i].representation(lemma=lemma, lower=lower))
+        # print(window_size, facet_words)
+        return facet_words
+    print('w', window)
     document.load_sentences_from_disk()
     if document.doc_entities is None:
         document.set_entities()
@@ -116,27 +135,34 @@ def calculate_facets_of_document(document: Document,
         raise UserWarning("No Entities set!")
 
     times, locations = resolve_doc_entities(document.get_document_entities_representation(lemma,
-                                                                                          lower))
-    # print(len(times), times)
+                                                                                          lower,
+                                                                                          as_id=True))
 
+    # print(len(times), times)
     doc_aspects = {}
     if "time" not in disable_aspects:
-        doc_aspects['time'] = times
+        doc_aspects['time'] = windowing(facet_ids=times, doc=document, window_size=window)
 
     if "loc" not in disable_aspects:
-        doc_aspects['loc'] = locations
+        doc_aspects['loc'] = windowing(facet_ids=locations, doc=document, window_size=window)
 
     if "raw" not in disable_aspects:
         doc_aspects['raw'] = document.get_flat_document_tokens(lemma=lemma, lower=lower)
 
     if "atm" not in disable_aspects:
-        doc_aspects['atm'] = document.get_flat_and_filtered_document_tokens(lemma=lemma,
-                                                                            lower=lower,
-                                                                            pos=["ADJ", "ADV"])
+        doc_aspects['atm'] = windowing(facet_ids=document.get_flat_and_filtered_document_tokens(lemma=lemma,
+                                                                                                lower=lower,
+                                                                                                pos=["ADJ", "ADV"],
+                                                                                                ids=True),
+                                       doc=document,
+                                       window_size=window)
     if "sty" not in disable_aspects:
-        doc_aspects['sty'] = document.get_flat_and_filtered_document_tokens(lemma=lemma,
-                                                                            lower=lower,
-                                                                            focus_stopwords=True)
+        doc_aspects['sty'] = windowing(facet_ids=document.get_flat_and_filtered_document_tokens(lemma=lemma,
+                                                                                                lower=lower,
+                                                                                                focus_stopwords=True,
+                                                                                                ids=True),
+                                       doc=document,
+                                       window_size=window)
     if "cont" not in disable_aspects:
         doc_aspects["cont"] = topic_dict[doc_id]
 
@@ -329,10 +355,11 @@ class FlairDocumentIterator(object):
 #                 # print(doc_id, i, len(chunked_tokens), chunked_tokens[:10])
 #                 yield f'{doc_id}_{i}', ' '.join(chunked_tokens)
 
-# todo: other combination possibility of chunks and facets
+
 class CorpusTaggedFacetIterator(object):
     def __init__(self, corpus: Corpus, lemma: bool = False, lower: bool = False, disable_aspects: List[str] = None,
-                 topic_dict: Dict = None, summary_dict: Dict = None, chunk_len: int = None):
+                 topic_dict: Dict = None, summary_dict: Dict = None, chunk_len: int = None,
+                 facets_of_chunks: bool = True, window: int = 0):
         self.corpus = corpus
         self.lemma = lemma
         self.lower = lower
@@ -341,7 +368,8 @@ class CorpusTaggedFacetIterator(object):
         self.topic_dict = topic_dict
         self.summary_dict = summary_dict
         self.chunk_len = chunk_len
-        self.facets_of_chunks = True
+        self.facets_of_chunks = facets_of_chunks
+        self.window = window
 
     def __len__(self):
         return len(self.corpus.documents)
@@ -358,7 +386,8 @@ class CorpusTaggedFacetIterator(object):
                                                                    lemma=self.lemma,
                                                                    lower=self.lower,
                                                                    topic_dict=self.topic_dict,
-                                                                   summary_dict=self.summary_dict)
+                                                                   summary_dict=self.summary_dict,
+                                                                   window=self.window)
                         chunked_doc_aspects = doc_aspects
                         self.doc_aspects[document_chunk.doc_id] = {aspect_name: len(document_aspects)
                                                                    for aspect_name, document_aspects in doc_aspects.items()}
@@ -376,7 +405,8 @@ class CorpusTaggedFacetIterator(object):
                                                                lemma=self.lemma,
                                                                lower=self.lower,
                                                                topic_dict=self.topic_dict,
-                                                               summary_dict=self.summary_dict)
+                                                               summary_dict=self.summary_dict,
+                                                               window=self.window)
                     self.doc_aspects[doc_id] = {aspect_name: len(document_aspects)
                                                 for aspect_name, document_aspects in doc_aspects.items()}
                     for aspect_name, document_aspects in doc_aspects.items():
@@ -393,7 +423,8 @@ class CorpusTaggedFacetIterator(object):
                                                            lemma=self.lemma,
                                                            lower=self.lower,
                                                            topic_dict=self.topic_dict,
-                                                           summary_dict=self.summary_dict)
+                                                           summary_dict=self.summary_dict,
+                                                           window=self.window)
                 self.doc_aspects[doc_id] = {aspect_name: len(document_aspects)
                                             for aspect_name, document_aspects in doc_aspects.items()}
                 for aspect_name, document_aspects in doc_aspects.items():
@@ -402,7 +433,8 @@ class CorpusTaggedFacetIterator(object):
 
 class FlairFacetIterator(object):
     def __init__(self, corpus: Corpus, lemma: bool = False, lower: bool = False, disable_aspects: List[str] = None,
-                 topic_dict: Dict = None, summary_dict: Dict = None, chunk_len: int = None):
+                 topic_dict: Dict = None, summary_dict: Dict = None, chunk_len: int = None,
+                 facets_of_chunks: bool = True, window: int = 0):
         self.corpus = corpus
         self.lemma = lemma
         self.lower = lower
@@ -411,7 +443,8 @@ class FlairFacetIterator(object):
         self.topic_dict = topic_dict
         self.summary_dict = summary_dict
         self.chunk_len = chunk_len
-        self.facets_of_chunks = True
+        self.facets_of_chunks = facets_of_chunks
+        self.window = window
 
     def __len__(self):
         return len(self.corpus.documents)
@@ -428,7 +461,8 @@ class FlairFacetIterator(object):
                                                                    lemma=self.lemma,
                                                                    lower=self.lower,
                                                                    topic_dict=self.topic_dict,
-                                                                   summary_dict=self.summary_dict)
+                                                                   summary_dict=self.summary_dict,
+                                                                   window=self.window)
                         chunked_doc_aspects = {aspect_name: len(document_aspects)
                                                for aspect_name, document_aspects in doc_aspects.items()}
                         self.doc_aspects[document_chunk.doc_id] = chunked_doc_aspects
@@ -446,7 +480,8 @@ class FlairFacetIterator(object):
                                                                lemma=self.lemma,
                                                                lower=self.lower,
                                                                topic_dict=self.topic_dict,
-                                                               summary_dict=self.summary_dict)
+                                                               summary_dict=self.summary_dict,
+                                                               window=self.window)
                     self.doc_aspects[doc_id] = {aspect_name: len(document_aspects)
                                                 for aspect_name, document_aspects in doc_aspects.items()}
                     for aspect_name, document_aspects in doc_aspects.items():
@@ -464,7 +499,8 @@ class FlairFacetIterator(object):
                                                            lemma=self.lemma,
                                                            lower=self.lower,
                                                            topic_dict=self.topic_dict,
-                                                           summary_dict=self.summary_dict)
+                                                           summary_dict=self.summary_dict,
+                                                           window=self.window)
                 self.doc_aspects[doc_id] = {aspect_name: len(document_aspects)
                                             for aspect_name, document_aspects in doc_aspects.items()}
                 for aspect_name, document_aspects in doc_aspects.items():
