@@ -17,8 +17,8 @@ from sklearn.preprocessing import minmax_scale
 
 
 def get_short_mid_long(df, column):
-    q1_of_length = int(df[[column]].quantile(q=0.25))
-    q3_of_length = int(df[[column]].quantile(q=0.75))
+    q1_of_length = int(df[[column]].quantile(q=0.333333333))
+    q3_of_length = int(df[[column]].quantile(q=0.666666666))
     # print(q1_of_length, q3_of_length)
     filter_1q = df[df[column] <= q1_of_length]
     filter_2q = df[(q1_of_length < df[column]) & (df[column] <= q3_of_length)]

@@ -681,11 +681,17 @@ class EvalParams:
 
     data_sets = [
         # "german_series",
+        # "german_series_short",
+        # "german_series_medium",
+        # "german_series_large",
         # "german_books",
         # "dta_series"
         # "summaries",
-        "goodreads_genres"
-        # "tagged_german_books"
+        "goodreads_genres",
+        # "goodreads_genres_short",
+        # "goodreads_genres_medium",
+        # "goodreads_genres_large",
+        # "tagged_german_books",
         # "litrec",
     ]
     filters = [
@@ -705,13 +711,33 @@ class EvalParams:
     vectorization_algorithms = [
         "avg_wv2doc",
         "doc2vec",
+        # "doc2vec_chunk",
         # # "longformer_untuned"
+
         "book2vec",
-        "book2vec_o_raw",
-        "book2vec_o_loc",
-        "book2vec_o_time",
-        "book2vec_o_sty",
-        "book2vec_o_atm",
+        "book2vec_window",
+        # "book2vec_o_raw",
+        # "book2vec_o_loc",
+        # "book2vec_o_time",
+        # "book2vec_o_sty",
+        # "book2vec_o_atm",
+
+        "book2vec_chunk",
+        # "book2vec_chunk_window",
+        # "book2vec_chunk_o_raw",
+        # "book2vec_chunk_o_loc",
+        # "book2vec_chunk_o_time",
+        # "book2vec_chunk_o_sty",
+        # "book2vec_chunk_o_atm",
+
+        "book2vec_chunk_facet",
+        "book2vec_chunk_facet_window",
+        # "book2vec_chunk_facet_o_raw",
+        # "book2vec_chunk_facet_o_loc",
+        # "book2vec_chunk_facet_o_time",
+        # "book2vec_chunk_facet_o_sty",
+        # "book2vec_chunk_facet_o_atm",
+
         # "book2vec_wo_raw",
         # "book2vec_wo_loc",
         # "book2vec_wo_time",
@@ -744,7 +770,7 @@ class EvalParams:
     task_names = [
         # "SeriesTask",
         "AuthorTask",
-        "GenreTask"
+        # "GenreTask"
     ]
 
 
@@ -759,6 +785,7 @@ class FakeSeriesEval:
                                                        filter_mode,
                                                        vectorization_algorithm,
                                                        fake)
+        # print(vec_file_name)
         if not os.path.isfile(vec_file_name):
             FakeSeriesEval.store_vectors_to_parameters(corpus,
                                                        number_of_subparts,
@@ -1004,6 +1031,9 @@ class RealSeriesEval:
         for data_set in data_set_bar:
             data_set_bar.set_description(f'2 Operate on dataset >{data_set}<')
             data_set_bar.refresh()
+            data_set = data_set.replace("_short", "")
+            data_set = data_set.replace("_medium", "")
+            data_set = data_set.replace("_large", "")
             annotated_corpus_path = os.path.join(EvalParams.config["system_storage"]["corpora"], data_set)
             try:
                 # check if general corpus exists
@@ -1046,6 +1076,9 @@ class RealSeriesEval:
             data_set_bar.set_description(f'2 Operate on dataset >{data_set}<')
             data_set_bar.refresh()
 
+            data_set = data_set.replace("_short", "")
+            data_set = data_set.replace("_medium", "")
+            data_set = data_set.replace("_large", "")
             filter_bar = tqdm(EvalParams.filters, total=len(EvalParams.filters), desc="3 Apply Filter")
             for filter_mode in filter_bar:
                 filter_bar.set_description(f'3 Apply Filter >{filter_mode}<')
@@ -1135,21 +1168,31 @@ class RealSeriesEval:
                 #                                             filter_mode,
                 #                                             "real")
                 # corpus = Corpus(corpus_path)
+
+                if data_set.endswith('_short') or data_set.endswith('_medium') or data_set.endswith('_large'):
+                    splitted = data_set.split('_')
+                    size = splitted[-1]
+                    data_set = '_'.join(splitted[:-1])
+                else:
+                    size = ""
                 corpus = Corpus.fast_load("all",
                                           "no_limit",
                                           data_set,
                                           filter_mode,
                                           "real",
                                           load_entities=False)
+                if size:
+                    corpus = corpus.length_sub_corpora_of_size(size)
                 vec_bar = tqdm(EvalParams.vectorization_algorithms,
                                total=len(EvalParams.vectorization_algorithms),
                                desc=f"Evaluate algorithm")
                 if parallel:
                     tuple_list_results = Parallel(n_jobs=EvalParams.num_cores)(
                         delayed(RealSeriesEval.eval_vec_loop_eff)(corpus,
-                                                                           "all",
-                                                                           "no_limit",
+                                                                  "all",
+                                                                  "no_limit",
                                                                   data_set,
+                                                                  size,
                                                                   filter_mode,
                                                                   vectorization_algorithm)
                         for vectorization_algorithm in vec_bar)
@@ -1158,6 +1201,7 @@ class RealSeriesEval:
                                                                            "all",
                                                                            "no_limit",
                                                                            data_set,
+                                                                           size,
                                                                            filter_mode,
                                                                            vectorization_algorithm)
                                           for vectorization_algorithm in vec_bar]
@@ -1170,8 +1214,8 @@ class RealSeriesEval:
                              desc="Store final results for dataset"):
             for filter_mode in tqdm(EvalParams.filters, total=len(EvalParams.filters),
                                     desc="Store final results for filter"):
+                # print(data_set, res["all"].keys())
                 list_results = res["all"][data_set][filter_mode]
-
                 if isinstance(list(list_results.values())[0], dict):
                     reverted_nesting = defaultdict(lambda: defaultdict(dict))
                     for algorithm_key, task_dict in list_results.items():
@@ -1201,7 +1245,8 @@ class RealSeriesEval:
         #                                                                   "prec03", "prec05", "prec10"]))
 
     @classmethod
-    def eval_vec_loop_eff(cls, corpus, number_of_subparts, corpus_size, data_set, filter_mode, vectorization_algorithm):
+    def eval_vec_loop_eff(cls, corpus: Corpus, number_of_subparts, corpus_size, data_set, data_set_size,
+                          filter_mode, vectorization_algorithm):
         vec_path = Vectorizer.build_vec_file_name(number_of_subparts,
                                                   corpus_size,
                                                   data_set,
@@ -1232,8 +1277,16 @@ class RealSeriesEval:
         else:
             reverted = None
         doctags = vectors.docvecs.doctags.keys()
-        doctags = [doctag for doctag in doctags if doctag[-1].isdigit()]
-
+        # print(len(doctags))
+        doctags = [doctag for doctag in doctags if corpus.vector_doc_id_base_in_corpus(doctag)]
+        # print(len(doctags))
+        if "series" not in data_set:
+            doctags = [doctag for doctag in doctags if doctag[-1].isdigit() and Vectorizer.doctag_filter(doctag)]
+            series = False
+        else:
+            doctags = [doctag for doctag in doctags if doctag[-1].isdigit()]
+            series = True
+        # print('>', len(doctags))
         results = []
         task_results = defaultdict(list)
         # test_results = []
@@ -1243,7 +1296,7 @@ class RealSeriesEval:
         topn = 100
         tasks = [EvaluationTask.create_from_name(task_name, reverted=reverted, corpus=corpus, topn=topn)
                  for task_name in EvalParams.task_names]
-
+        # print(doctags)
         for doc_id in doctags:
             # topn = len(corpus.series_dict[reverted[doc_id]])
 
@@ -1253,20 +1306,20 @@ class RealSeriesEval:
                                                                   positives=[doc_id],
                                                                   feature_to_use=summation_method,
                                                                   topn=topn,
-                                                                  print_results=False)
-
+                                                                  print_results=False,
+                                                                  series=series)
+                # sim_documents = [(sim_document[0], sim_document[1]) for sim_document in sim_documents
+                #                  if doctag_filter(sim_document[0])]
+                # print('sim', len(sim_documents))
                 for task in tasks:
                     # print(task.nr_of_possible_matches(doc_id), task.__class__)
+                    print(doc_id, sim_documents)
                     metric_results = EvalParams.evaluation_metric(sim_documents, doc_id,
                                                                   task,
                                                                   ignore_same=EvalParams.ignore_same)
                     task_results[str(task)].append(metric_results)
                     results.append(metric_results)
-        # test_results = task_results
-        # print('><', results)
-        # print('>><', test_results)
-        # results_avg, _ = Evaluation.similar_docs_avg(vectors, corpus, reverted, doctags, topn)
-        # print(seed, Evaluation.mean(results_avg))
+        # print('res', len(results))
         if isinstance(results[0], dict):
             results = {k: np.array([dic[k] for dic in results]) for k in results[0]}
         else:
@@ -1279,6 +1332,9 @@ class RealSeriesEval:
             else:
                 task_results = np.array(results)
             final_task_results[task_name] = task_results
+
+        if data_set_size:
+            data_set = f'{data_set}_{data_set_size}'
 
         return number_of_subparts, data_set, filter_mode, vectorization_algorithm, final_task_results
 
@@ -1317,7 +1373,7 @@ if __name__ == '__main__':
     # FakeSeriesEval.run_evaluation()
 
     # RealSeriesEval.build_corpora()
-    # RealSeriesEval.train_vecs()
+    RealSeriesEval.train_vecs()
     RealSeriesEval.run_evaluation()
     # print(EvaluationUtils.create_paper_table("results/simple_series_experiment_table.csv", "results/z_table.csv",
     #                                          used_metrics=["ndcg", "prec", "prec01", "prec03", "prec05", "prec10",

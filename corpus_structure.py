@@ -13,7 +13,7 @@ import spacy
 from os import listdir
 from os.path import isfile, join
 import logging
-
+import numpy as np
 from aux_utils import ConfigLoader, Utils
 from gutenberg_meta import load_gutenberg_meta
 
@@ -777,11 +777,11 @@ class Document:
         else:
             sentences = self.sentences
 
-        for sent in sentences:
-            for token in sent.tokens:
+        for sent_id, sent in enumerate(sentences):
+            for token_id, token in enumerate(sent.tokens):
                 if token.ne:
                     # print(token.ne, token.text)
-                    doc_entities[token.ne].append(token)
+                    doc_entities[token.ne].append((sent_id, token_id, token))
         self.doc_entities = doc_entities
 
     def reset_text_based_on_sentences(self):
@@ -889,7 +889,8 @@ class Document:
                                               focus_punctuation: bool = False,
                                               focus_ne: bool = False,
                                               masking: bool = False,
-                                              revert: bool = False):
+                                              revert: bool = False,
+                                              ids: bool = False):
         def filter_condition(token: Token):
             if revert:
                 return (not focus_stopwords or not token.stop) \
@@ -918,10 +919,16 @@ class Document:
         # for doc_id, document in self.documents.items():
         #     print(document.sentences[1].tokens)
         if not masking:
-            tokens = [token.representation(lemma, lower)
-                      for sentence in self.sentences
-                      for token in sentence.tokens
-                      if filter_condition(token)]
+            if ids:
+                tokens = [(sentence_id, token_id)
+                          for sentence_id, sentence in enumerate(self.sentences)
+                          for token_id, token in enumerate(sentence.tokens)
+                          if filter_condition(token)]
+            else:
+                tokens = [token.representation(lemma, lower)
+                          for sentence in self.sentences
+                          for token in sentence.tokens
+                          if filter_condition(token)]
         else:
             tokens = [mask(token).representation(lemma, lower)
                       for sentence in self.sentences
@@ -1088,10 +1095,16 @@ class Document:
                         authors=authors, date=date, genres=genres, sentences=sentences, file_path=doc_path,
                         length=length, vocab_size=vocab_size, sentence_nr=sentence_nr)
 
-    def get_document_entities_representation(self, lemma=False, lower=False):
-        return defaultdict(lambda: [], {entity_type: [token.representation(lemma=lemma, lower=lower)
-                                                      for token in tokens]
-                                        for entity_type, tokens in self.doc_entities.items()})
+    def get_document_entities_representation(self, lemma=False, lower=False, as_id=False):
+        if as_id:
+            return defaultdict(lambda: [], {entity_type: [(sent_id, token_id)
+                                                          for (sent_id, token_id, token) in tokens]
+                                            for entity_type, tokens in self.doc_entities.items()})
+        else:
+            return defaultdict(lambda: [], {entity_type: [token.representation(lemma=lemma, lower=lower)
+                                                          for (sent_id, token_id, token) in tokens]
+                                            for entity_type, tokens in self.doc_entities.items()})
+
 
     def into_chunks(self, chunk_size: int):
 
@@ -2386,6 +2399,45 @@ class Corpus:
 
     def json_representation(self):
         return vars(self)
+
+    def length_sub_corpora(self):
+        lengths = []
+        for document in self.documents.values():
+            lengths.append(document.length)
+
+        lengths = np.array(lengths)
+
+        q1_of_length = int(np.quantile(lengths, q=0.333333333))
+        q3_of_length = int(np.quantile(lengths, q=0.666666666))
+
+        sub_corpora_ids = defaultdict(list)
+        for doc_id, document in self.documents.items():
+            if document.length < q1_of_length:
+                sub_corpora_ids["short"].append(doc_id)
+            if q1_of_length <= document.length < q3_of_length:
+                sub_corpora_ids["medium"].append(doc_id)
+            if document.length >= q3_of_length:
+                sub_corpora_ids["large"].append(doc_id)
+
+        # for key, values in sub_corpora_ids.items():
+        #     print(key, len(values))
+        return sub_corpora_ids
+
+    def length_sub_corpora_of_size(self, size: str):
+        relevant_ids = set(self.length_sub_corpora()[size])
+        sub_corpus = Corpus({doc_id: document for doc_id, document in self.documents.items() if doc_id in relevant_ids},
+                            name=f'{self.name}_{size}', language=self.language)
+        sub_corpus.file_dict = {doc_id: path for doc_id, path in self.file_dict.items() if doc_id in relevant_ids}
+        sub_corpus.root_corpus_path = self.root_corpus_path
+        sub_corpus.series_dict = self.series_dict
+        # print(sub_corpus.documents)
+        return sub_corpus
+
+    def vector_doc_id_base_in_corpus(self, vector_doc_id: str):
+        for corpus_doc_id in self.documents.keys():
+            if vector_doc_id == corpus_doc_id or vector_doc_id.startswith(f'{corpus_doc_id}_'):
+                return True
+        return False
 
 
 class Preprocesser:
