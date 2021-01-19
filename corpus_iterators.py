@@ -126,7 +126,7 @@ def calculate_facets_of_document(document: Document,
                 facet_words.append(sentence.tokens[i].representation(lemma=lemma, lower=lower))
         # print(window_size, facet_words)
         return facet_words
-    print('w', window)
+    # print('w', window)
     document.load_sentences_from_disk()
     if document.doc_entities is None:
         document.set_entities()

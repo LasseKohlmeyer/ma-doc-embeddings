@@ -1256,6 +1256,7 @@ class Corpus:
 
     @staticmethod
     def load_corpus_from_dir_format(corpus_dir: str):
+        # print(corpus_dir)
         meta_path = os.path.join(corpus_dir, "meta_info.json")
         with open(meta_path, 'r', encoding='utf-8') as file:
             meta_data = json.loads(file.read())
