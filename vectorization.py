@@ -88,6 +88,9 @@ class Vectorizer:
         input_str = input_str.replace("_chunk", "")
         if input_str == "avg_wv2doc":
             return Vectorizer.avg_wv2doc(corpus, save_path, return_vecs=return_vecs)
+        elif input_str == "avg_wv2doc_restrict10000":
+            return Vectorizer.avg_wv2doc(corpus, save_path, return_vecs=return_vecs, without_training=True,
+                                         restrict_to=10000)
         elif input_str == "avg_wv2doc_untrained":
             return Vectorizer.avg_wv2doc(corpus, save_path, return_vecs=return_vecs, without_training=True)
         elif input_str == "doc2vec":
@@ -249,7 +252,8 @@ class Vectorizer:
                       preprocessed_sentences: Union[List[List[str]], CorpusSentenceIterator],
                       preprocessed_documents: Union[List[str], CorpusDocumentIterator, CorpusTaggedFacetIterator],
                       doc_ids,
-                      without_training: bool):
+                      without_training: bool,
+                      restrict_to: int = None):
         if cls.pretrained_emb_path:
             model = cls.pretrained_emb
 
@@ -270,6 +274,8 @@ class Vectorizer:
                 # print(doc_id, doc)
             if len(doc) == 0:
                 continue
+            if restrict_to:
+                doc = doc[:restrict_to]
             for token in doc:
                 # print(token, model.wv.vocab[token])
                 try:
@@ -364,7 +370,7 @@ class Vectorizer:
 
     @classmethod
     def avg_wv2doc(cls, corpus: Corpus, save_path: str = "models/", return_vecs: bool = True,
-                   without_training: bool = False):
+                   without_training: bool = False, restrict_to: int = None):
         # Preprocesser.preprocess(return_in_sentence_format=True)
         # print('sents', preprocessed_sentences)
         # print(preprocessed_documents)
@@ -383,7 +389,8 @@ class Vectorizer:
         model, words_dict, docs_dict = cls.word2vec_base(preprocessed_sentences,
                                                          preprocessed_documents,
                                                          doc_ids,
-                                                         without_training)
+                                                         without_training,
+                                                         restrict_to)
 
         return Vectorizer.store_vecs_and_reload(save_path=save_path, docs_dict=docs_dict, words_dict=words_dict,
                                                 return_vecs=return_vecs)
@@ -529,79 +536,6 @@ class Vectorizer:
         if disable_aspects is None:
             disable_aspects = []
 
-        # disable_aspects.extend(["cont", "plot"])
-
-        # documents = [TaggedDocument(doc, [i])
-        #              for i, doc in enumerate(Preprocesser.tokenize(corpus.get_texts_and_doc_ids()))]
-        # documents = [TaggedDocument(Preprocesser.tokenize(document.text), [doc_id])
-        #              for doc_id, document in corpus.documents.items()]
-        # lan_model = corpus.give_spacy_lan_model()
-        # print('>', preprocessed_documents)
-        # _, doc_ids = corpus.get_texts_and_doc_ids()
-        # if corpus.document_entities is None:
-        #     for doc_id, document in corpus.documents.items():
-        #         document.set_entities()
-        #     corpus.set_document_entities()
-        #
-        # if corpus.document_entities is None:
-        #     raise UserWarning("No Entities set!")
-        #
-        # # reverted_entities = Utils.revert_dictionaries(document_entities)
-        # # print('>', reverted_entities)
-        # times, locations = resolve_entities(corpus.get_document_entities_representation())
-        # # print(len(times), times)
-        #
-        # aspects_old = {}
-        #
-        # if "time" not in disable_aspects:
-        #     aspects_old['time'] = Preprocesser.structure_string_texts(times, lan_model, lemma=lemma, lower=lower)
-        #
-        # if "loc" not in disable_aspects:
-        #     aspects_old['loc'] = Preprocesser.structure_string_texts(locations, lan_model, lemma=lemma, lower=lower)
-        #
-        # # preprocessed_times, _, _ = Preprocesser.preprocess(times, lemmatize=False, lower=False,
-        # #                                                    pos_filter=None, remove_stopwords=False,
-        # #                                                    remove_punctuation=False,
-        # #                                                    lan_model=lan_model, ner=False)
-        # #
-        # # preprocessed_locations, _, _ = Preprocesser.preprocess(locations, lemmatize=False, lower=False,
-        # #                                                        pos_filter=None, remove_stopwords=False,
-        # #                                                        remove_punctuation=False,
-        # #                                                        lan_model=lan_model, ner=False)
-        #
-        # # print(preprocessed_times)
-        #
-        # if "raw" not in disable_aspects:
-        #     aspects_old['raw'] = corpus.get_flat_document_tokens(lemma=lemma, lower=lower)
-        #
-        # if "atm" not in disable_aspects:
-        #     aspects_old['atm'] = corpus.get_flat_and_filtered_document_tokens(lemma=lemma,
-        #                                                                   lower=lower,
-        #                                                                   pos=["ADJ", "ADV"])
-        # if "sty" not in disable_aspects:
-        #     aspects_old['sty'] = corpus.get_flat_and_filtered_document_tokens(lemma=lemma,
-        #                                                                   lower=lower,
-        #                                                                   focus_stopwords=True)
-        # # if "cont" not in disable_aspects:
-        # #     _, topic_list = TopicModeller.train_lda(corpus)
-        # #     aspects_old["cont"] = topic_list
-        # #
-        # # if "plot" not in disable_aspects:
-        # #     aspects_old["plot"] = Summarizer.get_corpus_summary_sentence_list(corpus,
-        # #                                                                   lemma=lemma,
-        # #                                                                   lower=lower)
-        # # print(aspects_old.keys(), disable_aspects)
-        # # for key, values in aspects_old.items():
-        # #     for doc_list, doc_id in zip(values, doc_ids):
-        # #         print(key, doc_id, doc_list[:10])
-        # assert set(aspects_old.keys()).union(disable_aspects) == {'time', 'loc', 'raw', 'atm', 'sty'}
-        # aspect_path = os.path.basename(save_path)
-        # write_aspect_frequency_analyzis(aspects_old=aspects_old, doc_ids=doc_ids, save_name=aspect_path)
-        #
-        # documents = []
-        # for aspect_name, aspect_documents in aspects_old.items():
-        #     documents.extend([TaggedDocument(preprocessed_document_text, [f'{doc_id}_{aspect_name}'])
-        #                       for preprocessed_document_text, doc_id in zip(aspect_documents, doc_ids)])
 
         if "cont" not in disable_aspects:
             topic_dict = TopicModeller.topic_modelling(corpus)
@@ -631,7 +565,7 @@ class Vectorizer:
         write_doc_based_aspect_frequency_analyzis(documents.doc_aspects, save_name=aspect_path)
         # write_aspect_frequency_analyzis(doc_aspects=doc_aspects, doc_ids=doc_ids, save_name=aspect_path)
 
-        print(docs_dict.keys())
+        # print(docs_dict.keys())
         docs_dict = Vectorizer.combine_vectors_by_sum(docs_dict)
         # print(path)
 
@@ -1318,6 +1252,35 @@ class Vectorizer:
                                       model.docvecs.similarity(a_facets[facet], b_facets[facet])))
 
         return similarity_tuples
+
+    @staticmethod
+    def vector(model_vectors: Union[Doc2Vec, DocumentKeyedVectors], doc_id: str, facet_name: str,
+               facet_mapping: Dict[str, str] = None):
+        if facet_mapping:
+            facet_name = facet_mapping[facet_name]
+
+        doctag = f'{doc_id}_{facet_name}'
+
+        return model_vectors.docvecs[doctag]
+
+    @staticmethod
+    def facet_sim(model_vectors: Union[Doc2Vec, DocumentKeyedVectors], doc_id_a: str, doc_id_b: str, facet_name: str,
+                  facet_mapping: Dict[str, str] = None):
+        if facet_mapping:
+            facet_name = facet_mapping[facet_name]
+
+        if facet_name == "":
+            doctag_a = doc_id_a
+            doctag_b = doc_id_b
+        else:
+            doctag_a = f'{doc_id_a}_{facet_name}'
+            doctag_b = f'{doc_id_b}_{facet_name}'
+
+        if doctag_a not in model_vectors.docvecs.doctags or doctag_b not in model_vectors.docvecs.doctags:
+            doctag_a = doc_id_a
+            doctag_b = doc_id_b
+
+        return model_vectors.docvecs.similarity(doctag_a, doctag_b)
 
     @staticmethod
     def get_list(input_list: List[str], input_model: Union[Doc2Vec, DocumentKeyedVectors],
