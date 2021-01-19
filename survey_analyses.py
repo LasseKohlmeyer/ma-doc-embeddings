@@ -357,7 +357,7 @@ if __name__ == "__main__":
     triangulation_dict = defaultdict(lambda: defaultdict(list))
     triangulation_tuples = []
     for i, row in df.iterrows():
-        most_sim = -10.0
+        # most_sim = -10.0
         book_tups = []
         for facet, facet_abb in facets.items():
             relevant_facet_columns = generate_facet_column_names(facet_abb)
@@ -367,14 +367,14 @@ if __name__ == "__main__":
                     books = []
                     for book_column in book_columns:
                         if book_column in df.columns:
-                            books.append(row[book_column])
+                            books.append(str(row[book_column]).replace("CP08_", ""))
                     # print(selection_column, row[selection_column], books)
                     selection = selection_map(books[0],
                                               books[1],
                                               books[2],
                                               row[selection_column])
                     triangulation_dict[(books[0], books[1], books[2])][facet].append(selection)
-                    if books[0] != -10:
+                    if books[0] != "-10":
                         triangulation_tuples.append((books[0], books[1], books[2], facet, row["LANGUAGE"], row["CP09"],
                                                      selection))
 
@@ -390,6 +390,7 @@ if __name__ == "__main__":
     group_kappa = group_kappa_for_df(triangulation_df, "Group")
     all_kappa = group_kappa_for_df(triangulation_df)
     facet_kappa = facet_kappa_for_df(triangulation_df)
+
     kappa_dict.update(language_kappa[0])
     kappa_dict.update(group_kappa[0])
     kappa_dict.update(all_kappa[0])
@@ -399,6 +400,12 @@ if __name__ == "__main__":
     print()
     kappa_df = pd.DataFrame([(key, score) for key, score in kappa_dict.items()], columns=["Attribut", "Kappa Score"])
     kappa_df.to_csv('results/human_assessment/kappa_scores.csv', index=False)
+
+    human_assessed_df = pd.DataFrame([(b1, b2, b3, facet, rating)
+                                      for (b1, b2, b3, facet), rating in all_kappa[1].items()
+                                      if rating != "skip" and rating != "unsure"],
+                                     columns=["Book 1", "Book 2", "Book 3", "Facet", "Selection"])
+    human_assessed_df.to_csv('results/human_assessment/human_assessed.csv', index=False)
 
         # for column_name, cell in zip(column_names, row):
         #     if column_name.startswith("GE") and "_" not in column_name:
