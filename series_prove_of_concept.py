@@ -483,9 +483,12 @@ class Evaluation:
                                                               positives=[doc_id],
                                                               feature_to_use="NF",
                                                               topn=topn,
-                                                              print_results=False)
+                                                              print_results=False,
+                                                              series=True)
 
             task = SeriesTask(reverted=reverted, corpus=corpus, topn=topn)
+            # print(task.nr_of_possible_matches(doc_id))
+            # print(doc_id, sim_documents)
             hard_correct = cls.evaluation_metric(sim_documents, doc_id, task=task)
 
             results.append(hard_correct)
@@ -665,11 +668,498 @@ class EvaluationUtils:
         df_table.to_csv(out_path, index=True, encoding="utf-8")
         return df_table
 
+    # @classmethod
+    # def run_evaluation_old(cls, parallel: bool = False):
+    #     tuples = []
+    #     result_dir = "results"
+    #     experiment_table_name = "series_experiment_table"
+    #     final_path = os.path.join(result_dir, f"simple_{experiment_table_name}.csv")
+    #     cache_path = os.path.join(result_dir, f"cache_{experiment_table_name}.csv")
+    #     paper_path = os.path.join(result_dir, f"{experiment_table_name}.csv")
+    #
+    #     res = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: dict())))
+    #     for data_set in tqdm(EvalParams.data_sets, total=len(EvalParams.data_sets), desc=f"Evaluate datasets"):
+    #         for filter_mode in tqdm(EvalParams.filters, total=len(EvalParams.filters), desc=f"Evaluate filters"):
+    #             # corpus_path = Corpus.build_corpus_file_name("all",
+    #             #                                             "no_limit",
+    #             #                                             data_set,
+    #             #                                             filter_mode,
+    #             #                                             "real")
+    #             # corpus = Corpus(corpus_path)
+    #
+    #             if data_set.endswith('_short') or data_set.endswith('_medium') or data_set.endswith('_large'):
+    #                 splitted = data_set.split('_')
+    #                 size = splitted[-1]
+    #                 data_set = '_'.join(splitted[:-1])
+    #             else:
+    #                 size = ""
+    #             corpus = Corpus.fast_load("all",
+    #                                       "no_limit",
+    #                                       data_set,
+    #                                       filter_mode,
+    #                                       "real",
+    #                                       load_entities=False)
+    #             if size:
+    #                 corpus = corpus.length_sub_corpora_of_size(size)
+    #             vec_bar = tqdm(EvalParams.vectorization_algorithms,
+    #                            total=len(EvalParams.vectorization_algorithms),
+    #                            desc=f"Evaluate algorithm")
+    #             if parallel:
+    #                 tuple_list_results = Parallel(n_jobs=EvalParams.num_cores)(
+    #                     delayed(RealSeriesEval.eval_vec_loop_eff)(corpus,
+    #                                                               "all",
+    #                                                               "no_limit",
+    #                                                               data_set,
+    #                                                               size,
+    #                                                               filter_mode,
+    #                                                               vectorization_algorithm)
+    #                     for vectorization_algorithm in vec_bar)
+    #             else:
+    #                 tuple_list_results = [RealSeriesEval.eval_vec_loop_eff(corpus,
+    #                                                                        "all",
+    #                                                                        "no_limit",
+    #                                                                        data_set,
+    #                                                                        size,
+    #                                                                        filter_mode,
+    #                                                                        vectorization_algorithm)
+    #                                       for vectorization_algorithm in vec_bar]
+    #
+    #             for subpart_nr, data, filt_mod, vec_algo, results in tuple_list_results:
+    #                 # results = results[results != np.array(None)]
+    #                 res[subpart_nr][data][filt_mod][vec_algo] = results
+    #
+    #     for data_set in tqdm(EvalParams.data_sets, total=len(EvalParams.data_sets),
+    #                          desc="Store final results for dataset"):
+    #         for filter_mode in tqdm(EvalParams.filters, total=len(EvalParams.filters),
+    #                                 desc="Store final results for filter"):
+    #             # print(data_set, res["all"].keys())
+    #             list_results = res["all"][data_set][filter_mode]
+    #             if isinstance(list(list_results.values())[0], dict):
+    #                 reverted_nesting = defaultdict(lambda: defaultdict(dict))
+    #                 for algorithm_key, task_dict in list_results.items():
+    #                     for task_name, metric_dict in task_dict.items():
+    #                         for metric_name, metric_res in metric_dict.items():
+    #                             reverted_nesting[task_name][metric_name].update({algorithm_key: metric_res})
+    #
+    #                 list_results = reverted_nesting
+    #                 # metric_tuples = defaultdict(list)
+    #                 for task_name, task_dict in list_results.items():
+    #                     for metric, metric_results in task_dict.items():
+    #                         tuples.extend(cls.aggregate_results(data_set, task_name, metric,
+    #                                                             filter_mode, metric_results,
+    #                                                             cache_path))
+    #                 # tuples.extend(metric_tuples)
+    #
+    #             else:
+    #                 tuples.extend(cls.aggregate_results(data_set, "Series", EvalParams.evaluation_metric.__name__,
+    #                                                     filter_mode, list_results, cache_path))
+    #
+    #     df = pd.DataFrame(tuples, columns=['Series_length', 'Dataset', 'Task', 'Metric', 'Algorithm',
+    #                                        'Filter', 'Score', 'Median'])
+    #     print(df)
+    #     df.to_csv(final_path, index=False)
+    #     print(EvaluationUtils.build_paper_table(df, paper_path))
+    #     # print(EvaluationUtils.create_paper_table(df, paper_path, metrics=["prec", "prec01",
+    #     #                                                                   "prec03", "prec05", "prec10"]))
+
+    @staticmethod
+    def attributes_based_on_data(data_set_name: str):
+        if "_fake_series" in data_set_name:
+            subparts = range(EvalParams.min_number_of_subparts, EvalParams.max_number_of_subparts + 1)
+            corpus_size = EvalParams.corpus_size
+            real_or_fake = "fake"
+        else:
+            subparts = ["all"]
+            corpus_size = "no_limit"
+            real_or_fake = "real"
+        return subparts, corpus_size, real_or_fake
+
+    @classmethod
+    def build_corpora(cls, parallel: bool = False):
+
+        data_set_bar = tqdm(EvalParams.data_sets, total=len(EvalParams.data_sets), desc="2 Operate on dataset")
+        for data_set in data_set_bar:
+            data_set_bar.set_description(f'2 Operate on dataset >{data_set}<')
+            data_set_bar.refresh()
+
+            data_set = data_set.replace("_short", "")
+            data_set = data_set.replace("_medium", "")
+            data_set = data_set.replace("_large", "")
+            subparts, corpus_size, real_or_fake = EvaluationUtils.attributes_based_on_data(data_set)
+
+            subparts_bar = tqdm(subparts,
+                                desc='1 Iterating through subpart')
+
+            for number_of_subparts in subparts_bar:
+                subparts_bar.set_description(f'1 Iterating through subpart >{number_of_subparts}<')
+                subparts_bar.refresh()
+
+                corpus = chunk_documents(data_set, number_of_subparts, EvalParams.corpus_size)
+
+                EvaluationUtils.filter_parsing_loop(parallel, corpus, data_set, number_of_subparts,
+                                                    corpus_size, real_or_fake)
+
+    @classmethod
+    def train_vecs(cls, parallel: bool = False):
+        data_set_bar = tqdm(EvalParams.data_sets, total=len(EvalParams.data_sets), desc="1 Operate on dataset")
+        for data_set in data_set_bar:
+            data_set_bar.set_description(f'1 Operate on dataset >{data_set}<')
+            data_set_bar.refresh()
+
+            data_set = data_set.replace("_short", "")
+            data_set = data_set.replace("_medium", "")
+            data_set = data_set.replace("_large", "")
+
+            subparts, corpus_size, real_or_fake = EvaluationUtils.attributes_based_on_data(data_set)
+
+            subparts_bar = tqdm(subparts,
+                                desc='2 Iterating through subpart')
+            for nr_of_subparts in subparts_bar:
+                subparts_bar.set_description(f'2 Iterating through subpart >{nr_of_subparts}<')
+                subparts_bar.refresh()
+
+                filter_bar = tqdm(EvalParams.filters, total=len(EvalParams.filters), desc="3 Apply Filter")
+                for filter_mode in filter_bar:
+                    filter_bar.set_description(f'3 Apply Filter >{filter_mode}<')
+                    filter_bar.refresh()
+                    corpus = Corpus.fast_load(nr_of_subparts,
+                                              corpus_size,
+                                              data_set,
+                                              filter_mode,
+                                              real_or_fake,
+                                              load_entities=False)
+                    EvaluationUtils.vectorization_loop(parallel, corpus, data_set, filter_mode,
+                                                       nr_of_subparts, corpus_size, real_or_fake)
+
+    @classmethod
+    def run_evaluation(cls, parallel: bool = False):
+        tuples = []
+        result_dir = "results"
+        experiment_table_name = "series_experiment_table"
+        final_path = os.path.join(result_dir, f"simple_{experiment_table_name}.csv")
+        cache_path = os.path.join(result_dir, f"cache_{experiment_table_name}.csv")
+        paper_path = os.path.join(result_dir, f"{experiment_table_name}.csv")
+
+        res = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: dict())))
+
+        for data_set in tqdm(EvalParams.data_sets, total=len(EvalParams.data_sets), desc=f"Evaluate datasets"):
+            subparts, corpus_size, real_or_fake = EvaluationUtils.attributes_based_on_data(data_set)
+            if data_set.endswith('_short') or data_set.endswith('_medium') or data_set.endswith('_large'):
+                splitted = data_set.split('_')
+                size = splitted[-1]
+                data_set = '_'.join(splitted[:-1])
+            else:
+                size = ""
+            for number_of_subparts in subparts:
+                for filter_mode in tqdm(EvalParams.filters, total=len(EvalParams.filters), desc=f"Evaluate filters"):
+
+                    corpus = Corpus.fast_load(number_of_subparts,
+                                              corpus_size,
+                                              data_set,
+                                              filter_mode,
+                                              real_or_fake,
+                                              load_entities=False)
+                    if size:
+                        corpus = corpus.length_sub_corpora_of_size(size)
+                    vec_bar = tqdm(EvalParams.vectorization_algorithms,
+                                   total=len(EvalParams.vectorization_algorithms),
+                                   desc=f"Evaluate algorithm")
+
+                    if parallel:
+                        tuple_list_results = Parallel(n_jobs=EvalParams.num_cores)(
+                            delayed(cls.eval_vec_loop_eff)(corpus,
+                                                           number_of_subparts,
+                                                           EvalParams.corpus_size,
+                                                           data_set,
+                                                           size,
+                                                           filter_mode,
+                                                           vectorization_algorithm,
+                                                           real_or_fake)
+                            for vectorization_algorithm in vec_bar)
+                    else:
+                        tuple_list_results = [cls.eval_vec_loop_eff(corpus,
+                                                                    number_of_subparts,
+                                                                    EvalParams.corpus_size,
+                                                                    data_set,
+                                                                    size,
+                                                                    filter_mode,
+                                                                    vectorization_algorithm,
+                                                                    real_or_fake)
+                                              for vectorization_algorithm in vec_bar]
+
+                    for subpart_nr, data, filt_mod, vec_algo, results in tuple_list_results:
+                        # results = results[results != np.array(None)]
+                        res[subpart_nr][data][filt_mod][vec_algo] = results
+
+        for data_set in tqdm(EvalParams.data_sets, total=len(EvalParams.data_sets),
+                             desc="Store final results for dataset"):
+            subparts, _, _ = EvaluationUtils.attributes_based_on_data(data_set)
+            for number_of_subparts in subparts:
+                for filter_mode in tqdm(EvalParams.filters, total=len(EvalParams.filters),
+                                        desc="Store final results for filter"):
+                    # print(data_set, res["all"].keys())
+                    list_results = res[number_of_subparts][data_set][filter_mode]
+                    if isinstance(list(list_results.values())[0], dict):
+                        reverted_nesting = defaultdict(lambda: defaultdict(dict))
+                        for algorithm_key, task_dict in list_results.items():
+                            for task_name, metric_dict in task_dict.items():
+                                for metric_name, metric_res in metric_dict.items():
+                                    reverted_nesting[task_name][metric_name].update({algorithm_key: metric_res})
+
+                        list_results = reverted_nesting
+                        # metric_tuples = defaultdict(list)
+                        for task_name, task_dict in list_results.items():
+                            for metric, metric_results in task_dict.items():
+                                tuples.extend(cls.aggregate_results(number_of_subparts, data_set, task_name, metric,
+                                                                    filter_mode, metric_results,
+                                                                    cache_path))
+                        # tuples.extend(metric_tuples)
+
+                    else:
+                        tuples.extend(cls.aggregate_results(number_of_subparts, data_set, "Series",
+                                                            EvalParams.evaluation_metric.__name__,
+                                                            filter_mode, list_results, cache_path))
+
+        df = pd.DataFrame(tuples, columns=['Series_length', 'Dataset', 'Task', 'Metric', 'Algorithm',
+                                           'Filter', 'Score', 'Median'])
+        print(df)
+        df.to_csv(final_path, index=False)
+        print(EvaluationUtils.build_paper_table(df, paper_path))
+        # print(EvaluationUtils.create_paper_table(df, paper_path, metrics=["prec", "prec01",
+        #                                                                   "prec03", "prec05", "prec10"]))
+
+    @classmethod
+    def eval_vec_loop_eff(cls, corpus: Corpus, number_of_subparts, corpus_size, data_set, data_set_size,
+                          filter_mode, vectorization_algorithm, real_or_fake: str):
+        vec_path = Vectorizer.build_vec_file_name(number_of_subparts,
+                                                  corpus_size,
+                                                  data_set,
+                                                  filter_mode,
+                                                  vectorization_algorithm,
+                                                  real_or_fake)
+        summation_method = "NF"
+        # print('at', vec_path, real_or_fake)
+        try:
+            vectors = Vectorizer.my_load_doc2vec_format(vec_path)
+        except FileNotFoundError:
+            if "_o_" in vectorization_algorithm:
+                vec_splitted = vectorization_algorithm.split("_o_")[0]
+                focus_facette = vectorization_algorithm.split("_o_")[1]
+                base_algorithm = vec_splitted
+                vec_path = Vectorizer.build_vec_file_name(number_of_subparts,
+                                                          corpus_size,
+                                                          data_set,
+                                                          filter_mode,
+                                                          base_algorithm,
+                                                          real_or_fake)
+                vectors = Vectorizer.my_load_doc2vec_format(vec_path)
+                summation_method = focus_facette
+            else:
+                raise FileNotFoundError
+
+        if corpus.series_dict:
+            reverted = Utils.revert_dictionaried_list(corpus.series_dict)
+        else:
+            reverted = None
+        doctags = vectors.docvecs.doctags.keys()
+        # print(len(doctags))
+        doctags = [doctag for doctag in doctags if corpus.vector_doc_id_base_in_corpus(doctag)]
+        # print(len(doctags))
+
+        # data_set = data_set + "_series"
+
+        if "series" not in data_set:
+            doctags = [doctag for doctag in doctags if doctag[-1].isdigit() and Vectorizer.doctag_filter(doctag)]
+            series = False
+        else:
+            doctags = [doctag for doctag in doctags if doctag[-1].isdigit()]
+            series = True
+        # print('>', len(doctags))
+        results = []
+        task_results = defaultdict(list)
+        # test_results = []
+        topn_value = 1
+        if EvalParams.ignore_same:
+            topn_value = 1
+        topn = 100
+        tasks = [EvaluationTask.create_from_name(task_name, reverted=reverted, corpus=corpus, topn=topn)
+                 for task_name in EvalParams.task_names]
+        # print(doctags)
+        for doc_id in doctags:
+            # topn = len(corpus.series_dict[reverted[doc_id]])
+
+            if topn > topn_value:
+                # print('#############', doc_id, len(doctags))
+                sim_documents = Vectorizer.most_similar_documents(vectors, corpus,
+                                                                  positives=[doc_id],
+                                                                  feature_to_use=summation_method,
+                                                                  topn=topn,
+                                                                  print_results=False,
+                                                                  series=series)
+                # sim_documents = [(sim_document[0], sim_document[1]) for sim_document in sim_documents
+                #                  if doctag_filter(sim_document[0])]
+                # print('sim', len(sim_documents))
+                for task in tasks:
+                    # print(task.nr_of_possible_matches(doc_id), task.__class__)
+                    # print(doc_id, sim_documents)
+                    metric_results = EvalParams.evaluation_metric(sim_documents, doc_id,
+                                                                  task,
+                                                                  ignore_same=EvalParams.ignore_same)
+                    task_results[str(task)].append(metric_results)
+                    results.append(metric_results)
+        # print('res', len(results))
+        if isinstance(results[0], dict):
+            results = {k: np.array([dic[k] for dic in results]) for k in results[0]}
+        else:
+            results = np.array(results)
+
+        final_task_results = {}
+        for task_name, task_results in task_results.items():
+            if isinstance(task_results[0], dict):
+                task_results = {k: np.array([dic[k] for dic in task_results]) for k in task_results[0]}
+            else:
+                task_results = np.array(results)
+            final_task_results[task_name] = task_results
+
+        if data_set_size:
+            data_set = f'{data_set}_{data_set_size}'
+        # data_set = data_set.replace('_series', '')
+        return number_of_subparts, data_set, filter_mode, vectorization_algorithm, final_task_results
+
+    @classmethod
+    def aggregate_results(cls, subpart_nr: Union[str, int], data_set: str, task_name: str, metric_name: str,
+                          filter_mode: str,
+                          results_as_dict: Dict[str, np.ndarray],
+                          cache_path: str):
+        tuples = []
+
+        results_as_dict = {key: [result for result in results if result is not None]
+                           for key, results in results_as_dict.items()}
+
+        significance_dict = EvaluationMath.one_way_anova(results_as_dict)
+        vec_bar = tqdm(EvalParams.vectorization_algorithms, total=len(EvalParams.vectorization_algorithms),
+                       desc="Store final results for algorithm")
+        # Scoring
+
+        for vectorization_algorithm in vec_bar:
+            results = results_as_dict[vectorization_algorithm]
+            # print('>|', results)
+            # results = [res for res in results if res is not None]
+            # print('>|', results)
+            sig = significance_dict[vectorization_algorithm]
+            score, deviation = EvaluationMath.mean(results)
+            # vectorization_results[vectorization_algorithm] = score, deviation
+            observation = (subpart_nr, data_set, task_name, metric_name, vectorization_algorithm, filter_mode,
+                           f'{score:.4f} ± {deviation:.4f} [{sig}]',
+                           EvaluationMath.median(results))
+            tuples.append(observation)
+
+            df_obs = pd.DataFrame([observation],
+                                  columns=['Series_length', 'Dataset', 'Task', 'Metric', 'Algorithm',
+                                           'Filter', 'Score', 'Median'])
+            df_obs.to_csv(cache_path, mode='a', header=(not os.path.exists(cache_path)), index=False)
+        return tuples
+
+    @classmethod
+    def filter_parsing_loop(cls, parallel: bool, corpus: Corpus, data_set: str, number_of_subparts: Union[str, int],
+                            corpus_size: str, real_or_fake: str):
+        filter_bar = tqdm(EvalParams.filters, total=len(EvalParams.filters), desc="3 Calculate filter_mode results")
+        if parallel:
+            Parallel(n_jobs=EvalParams.num_cores)(
+                delayed(EvaluationUtils.store_corpus_to_parameters_eff)(corpus,
+                                                                        number_of_subparts,
+                                                                        corpus_size,
+                                                                        data_set,
+                                                                        filter_mode,
+                                                                        real_or_fake)
+                for filter_mode in filter_bar)
+        else:
+            [EvaluationUtils.store_corpus_to_parameters_eff(corpus,
+                                                            number_of_subparts,
+                                                            corpus_size,
+                                                            data_set,
+                                                            filter_mode,
+                                                            real_or_fake)
+             for filter_mode in filter_bar]
+
+    @classmethod
+    def vectorization_loop(cls, parallel: bool, corpus: Corpus, data_set: str, filter_mode: str,
+                           number_of_subparts: Union[str, int], corpus_size: str, real_or_fake: str):
+        vec_bar = tqdm(EvalParams.vectorization_algorithms, total=len(EvalParams.vectorization_algorithms),
+                       desc="4 Vectorize")
+        if parallel:
+            Parallel(n_jobs=EvalParams.num_cores)(delayed(EvaluationUtils.sep_vec_calc_eff)(corpus,
+                                                                                            number_of_subparts,
+                                                                                            corpus_size,
+                                                                                            data_set,
+                                                                                            filter_mode,
+                                                                                            vec_algorithm,
+                                                                                            real_or_fake)
+                                                  for vec_algorithm in vec_bar)
+        else:
+            [EvaluationUtils.sep_vec_calc_eff(corpus,
+                                              number_of_subparts,
+                                              corpus_size,
+                                              data_set,
+                                              filter_mode,
+                                              vectorization_algorithm,
+                                              real_or_fake)
+             for vectorization_algorithm in vec_bar]
+
+    @staticmethod
+    def sep_vec_calc_eff(corpus, number_of_subparts, corpus_size, data_set, filter_mode,
+                         vectorization_algorithm, fake):
+        vec_file_name = Vectorizer.build_vec_file_name(number_of_subparts,
+                                                       corpus_size,
+                                                       data_set,
+                                                       filter_mode,
+                                                       vectorization_algorithm,
+                                                       fake)
+        print(vec_file_name)
+        if not os.path.isfile(vec_file_name):
+            EvaluationUtils.store_vectors_to_parameters(corpus,
+                                                        number_of_subparts,
+                                                        corpus_size,
+                                                        data_set,
+                                                        filter_mode,
+                                                        vectorization_algorithm,
+                                                        fake)
+
+    @staticmethod
+    def store_corpus_to_parameters_eff(corpus, number_of_subparts, corpus_size, data_set,
+                                       filter_mode, fake):
+        filtered_corpus_dir = Corpus.build_corpus_dir(number_of_subparts,
+                                                      corpus_size,
+                                                      data_set,
+                                                      filter_mode,
+                                                      fake)
+
+        if not os.path.isdir(filtered_corpus_dir):
+            corpus.filter_on_copy_mem_eff(filtered_corpus_dir=filtered_corpus_dir, mode=filter_mode)
+            # corpus.save_corpus_adv(filtered_corpus_dir)
+
+    @staticmethod
+    def store_vectors_to_parameters(corpus, number_of_subparts, corpus_size, data_set, filter_mode,
+                                    vectorization_algorithm, fake):
+        vec_file_name = Vectorizer.build_vec_file_name(number_of_subparts,
+                                                       corpus_size,
+                                                       data_set,
+                                                       filter_mode,
+                                                       vectorization_algorithm,
+                                                       fake)
+        if not os.path.isfile(vec_file_name):
+            Vectorizer.algorithm(input_str=vectorization_algorithm,
+                                 corpus=corpus,
+                                 save_path=vec_file_name,
+                                 return_vecs=False)
+        # else:
+        #     logging.info(f'{vec_file_name} already exists, skip')
+
 
 class EvalParams:
     config = ConfigLoader.get_config()
     min_number_of_subparts = 2
-    max_number_of_subparts = 5
+    max_number_of_subparts = 3
     corpus_size = "no_limit"
     num_cores = int(0.75 * multiprocessing.cpu_count())
 
@@ -680,14 +1170,15 @@ class EvalParams:
     evaluation_metric = EvaluationMetric.multi_metric
 
     data_sets = [
-        # "german_series",
+        "classic_gutenberg_fake_series",
+        "german_series",
         # "german_series_short",
         # "german_series_medium",
         # "german_series_large",
         # "german_books",
         # "dta_series"
         # "summaries",
-        "goodreads_genres",
+        # "goodreads_genres",
         # "goodreads_genres_short",
         # "goodreads_genres_medium",
         # "goodreads_genres_large",
@@ -715,14 +1206,14 @@ class EvalParams:
         # # "longformer_untuned"
 
         "book2vec",
-        "book2vec_window",
+        # "book2vec_window",
         # "book2vec_o_raw",
         # "book2vec_o_loc",
         # "book2vec_o_time",
         # "book2vec_o_sty",
         # "book2vec_o_atm",
 
-        "book2vec_chunk",
+        # "book2vec_chunk",
         # "book2vec_chunk_window",
         # "book2vec_chunk_o_raw",
         # "book2vec_chunk_o_loc",
@@ -730,8 +1221,8 @@ class EvalParams:
         # "book2vec_chunk_o_sty",
         # "book2vec_chunk_o_atm",
 
-        "book2vec_chunk_facet",
-        "book2vec_chunk_facet_window",
+        # "book2vec_chunk_facet",
+        # "book2vec_chunk_facet_window",
         # "book2vec_chunk_facet_o_raw",
         # "book2vec_chunk_facet_o_loc",
         # "book2vec_chunk_facet_o_time",
@@ -768,575 +1259,282 @@ class EvalParams:
     ]
 
     task_names = [
-        # "SeriesTask",
+        "SeriesTask",
         "AuthorTask",
         # "GenreTask"
     ]
 
 
-class FakeSeriesEval:
-
-    @staticmethod
-    def sep_vec_calc_eff(corpus, number_of_subparts, corpus_size, data_set, filter_mode,
-                         vectorization_algorithm, fake):
-        vec_file_name = Vectorizer.build_vec_file_name(number_of_subparts,
-                                                       corpus_size,
-                                                       data_set,
-                                                       filter_mode,
-                                                       vectorization_algorithm,
-                                                       fake)
-        # print(vec_file_name)
-        if not os.path.isfile(vec_file_name):
-            FakeSeriesEval.store_vectors_to_parameters(corpus,
-                                                       number_of_subparts,
-                                                       corpus_size,
-                                                       data_set,
-                                                       filter_mode,
-                                                       vectorization_algorithm,
-                                                       fake)
-
-    @staticmethod
-    def store_corpus_to_parameters_eff(corpus, number_of_subparts, corpus_size, data_set,
-                                       filter_mode, fake):
-        filtered_corpus_dir = Corpus.build_corpus_dir(number_of_subparts,
-                                                      corpus_size,
-                                                      data_set,
-                                                      filter_mode,
-                                                      fake)
-
-        if not os.path.isdir(filtered_corpus_dir):
-            corpus.filter_on_copy_mem_eff(filtered_corpus_dir=filtered_corpus_dir, mode=filter_mode)
-            # corpus.save_corpus_adv(filtered_corpus_dir)
-
-    @staticmethod
-    def store_vectors_to_parameters(corpus, number_of_subparts, corpus_size, data_set, filter_mode,
-                                    vectorization_algorithm, fake):
-        vec_file_name = Vectorizer.build_vec_file_name(number_of_subparts,
-                                                       corpus_size,
-                                                       data_set,
-                                                       filter_mode,
-                                                       vectorization_algorithm,
-                                                       fake)
-        if not os.path.isfile(vec_file_name):
-            Vectorizer.algorithm(input_str=vectorization_algorithm,
-                                 corpus=corpus,
-                                 save_path=vec_file_name,
-                                 return_vecs=False)
-        # else:
-        #     logging.info(f'{vec_file_name} already exists, skip')
-
-    @classmethod
-    def build_corpora(cls, parallel: bool = False):
-        subparts_bar = tqdm(range(EvalParams.min_number_of_subparts, EvalParams.max_number_of_subparts + 1),
-                            desc='1 Iterating through subpart')
-        for number_of_subparts in subparts_bar:
-            subparts_bar.set_description(f'1 Iterating through subpart >{number_of_subparts}<')
-            subparts_bar.refresh()
-
-            data_set_bar = tqdm(EvalParams.data_sets, total=len(EvalParams.data_sets), desc="2 Operate on dataset")
-            for data_set in data_set_bar:
-                data_set_bar.set_description(f'2 Operate on dataset >{data_set}<')
-                data_set_bar.refresh()
-
-                corpus = chunk_documents(data_set, number_of_subparts, EvalParams.corpus_size)
-
-                filter_bar = tqdm(EvalParams.filters, total=len(EvalParams.filters),
-                                  desc="3 Calculate filter_mode results")
-                if parallel:
-                    Parallel(n_jobs=EvalParams.num_cores)(
-                        delayed(FakeSeriesEval.store_corpus_to_parameters_eff)(corpus,
-                                                                               number_of_subparts,
-                                                                               EvalParams.corpus_size,
-                                                                               data_set,
-                                                                               filter_mode,
-                                                                               "fake")
-                        for filter_mode in filter_bar)
-                else:
-                    [FakeSeriesEval.store_corpus_to_parameters_eff(corpus,
-                                                                   number_of_subparts,
-                                                                   EvalParams.corpus_size,
-                                                                   data_set,
-                                                                   filter_mode,
-                                                                   "fake")
-                     for filter_mode in filter_bar]
-
-    @classmethod
-    def train_vecs(cls, parallel: bool = False):
-        subparts_bar = tqdm(range(EvalParams.min_number_of_subparts, EvalParams.max_number_of_subparts + 1),
-                            desc='1 Iterating through subpart')
-        for nr_of_subparts in subparts_bar:
-            subparts_bar.set_description(f'1 Iterating through subpart >{nr_of_subparts}<')
-            subparts_bar.refresh()
-
-            data_set_bar = tqdm(EvalParams.data_sets, total=len(EvalParams.data_sets), desc="2 Operate on dataset")
-            for data_set in data_set_bar:
-                data_set_bar.set_description(f'2 Operate on dataset >{data_set}<')
-                data_set_bar.refresh()
-
-                filter_bar = tqdm(EvalParams.filters, total=len(EvalParams.filters), desc="3 Apply Filter")
-                for filter_mode in filter_bar:
-                    filter_bar.set_description(f'3 Apply Filter >{filter_mode}<')
-                    filter_bar.refresh()
-                    # filtered_corpus_file_name = Corpus.build_corpus_file_name(nr_of_subparts,
-                    #                                                           cls.corpus_size,
-                    #                                                           data_set,
-                    #                                                           filter_mode,
-                    #                                                           "fake")
-                    # corpus = Corpus(filtered_corpus_file_name)
-                    corpus = Corpus.fast_load(nr_of_subparts,
-                                              EvalParams.corpus_size,
-                                              data_set,
-                                              filter_mode,
-                                              "fake")
-                    vec_bar = tqdm(EvalParams.vectorization_algorithms, total=len(EvalParams.vectorization_algorithms),
-                                   desc="3 Apply Filter")
-
-                    if parallel:
-                        Parallel(n_jobs=EvalParams.num_cores)(delayed(FakeSeriesEval.sep_vec_calc_eff)(corpus,
-                                                                                                       nr_of_subparts,
-                                                                                                       EvalParams.corpus_size,
-                                                                                                       data_set,
-                                                                                                       filter_mode,
-                                                                                                       vec_algorithm,
-                                                                                                       "fake")
-                                                              for vec_algorithm in vec_bar)
-                    else:
-                        [FakeSeriesEval.sep_vec_calc_eff(corpus,
-                                                         nr_of_subparts,
-                                                         EvalParams.corpus_size,
-                                                         data_set,
-                                                         filter_mode,
-                                                         vectorization_algorithm,
-                                                         "fake")
-                         for vectorization_algorithm in vec_bar]
-
-    @staticmethod
-    def eval_vec_loop_eff(corpus, number_of_subparts, corpus_size, data_set, filter_mode, vectorization_algorithm,
-                          nr_bootstraps, sample_size, series_sample, ensure_no_sample):
-        vec_path = Vectorizer.build_vec_file_name(number_of_subparts,
-                                                  corpus_size,
-                                                  data_set,
-                                                  filter_mode,
-                                                  vectorization_algorithm,
-                                                  "fake")
-
-        vecs = Vectorizer.my_load_doc2vec_format(vec_path)
-        # Scoring:
-        if nr_bootstraps * sample_size < len(vecs.docvecs.doctags) and not ensure_no_sample:
-            results = Evaluation.series_eval_bootstrap(vecs, corpus.series_dict, corpus,
-                                                       topn=number_of_subparts,
-                                                       sample_size=sample_size,
-                                                       nr_bootstraps=nr_bootstraps,
-                                                       series_sample=series_sample)
-        else:
-            if not ensure_no_sample:
-                logging.info(f'{nr_bootstraps} bootstraps and {sample_size} samples more work '
-                             f'as actual data {len(vecs.docvecs.doctags)} < {nr_bootstraps * sample_size}')
-            results = Evaluation.series_eval_full_data(vecs, corpus.series_dict, corpus,
-                                                       topn=number_of_subparts)
-        return number_of_subparts, data_set, filter_mode, vectorization_algorithm, results
-
-    @classmethod
-    def run_evaluation(cls, parallel: bool = False):
-        nr_bootstraps = 2
-        sample_size = 10
-        series_sample = True
-        ensure_no_sample = True
-        tuples = []
-        result_dir = "results"
-        experiment_table_name = "series_experiment_table"
-        final_path = os.path.join(result_dir, f"simple_{experiment_table_name}.csv")
-        cache_path = os.path.join(result_dir, f"cache_{experiment_table_name}.csv")
-        paper_path = os.path.join(result_dir, f"{experiment_table_name}.csv")
-
-        res = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: dict())))
-        for number_of_subparts in range(EvalParams.min_number_of_subparts, EvalParams.max_number_of_subparts + 1):
-            for data_set in EvalParams.data_sets:
-                for filter_mode in EvalParams.filters:
-                    # corpus_path = Corpus.build_corpus_file_name(number_of_subparts,
-                    #                                             cls.corpus_size,
-                    #                                             data_set,
-                    #                                             filter_mode,
-                    #                                             "fake")
-                    # corpus = Corpus(corpus_path)
-                    corpus = Corpus.fast_load(number_of_subparts,
-                                              EvalParams.corpus_size,
-                                              data_set,
-                                              filter_mode,
-                                              "fake")
-                    if parallel:
-                        tuple_list_results = Parallel(n_jobs=EvalParams.num_cores)(
-                            delayed(FakeSeriesEval.eval_vec_loop_eff)(corpus,
-                                                                      number_of_subparts,
-                                                                      EvalParams.corpus_size,
-                                                                      data_set,
-                                                                      filter_mode,
-                                                                      vectorization_algorithm,
-                                                                      nr_bootstraps,
-                                                                      sample_size,
-                                                                      series_sample,
-                                                                      ensure_no_sample)
-                            for vectorization_algorithm in EvalParams.vectorization_algorithms)
-                    else:
-                        tuple_list_results = [FakeSeriesEval.eval_vec_loop_eff(corpus,
-                                                                               number_of_subparts,
-                                                                               EvalParams.corpus_size,
-                                                                               data_set,
-                                                                               filter_mode,
-                                                                               vectorization_algorithm,
-                                                                               nr_bootstraps,
-                                                                               sample_size,
-                                                                               series_sample,
-                                                                               ensure_no_sample)
-                                              for vectorization_algorithm in EvalParams.vectorization_algorithms]
-
-                    for subpart_nr, data, filt_mod, vec_algo, results in tuple_list_results:
-                        res[subpart_nr][data][filt_mod][vec_algo] = results
-        # print(res[10]['summaries']['common_words']['book2vec'])
-        # print(res)
-        for number_of_subparts in range(EvalParams.min_number_of_subparts, EvalParams.max_number_of_subparts + 1):
-            for data_set in EvalParams.data_sets:
-                for filter_mode in EvalParams.filters:
-                    list_results = res[number_of_subparts][data_set][filter_mode]
-
-                    # Evaluation.t_test(list_results)
-                    significance_dict = EvaluationMath.one_way_anova(list_results)
-
-                    # Scoring
-                    for vectorization_algorithm in EvalParams.vectorization_algorithms:
-                        results = list_results[vectorization_algorithm]
-                        sig = significance_dict[vectorization_algorithm]
-                        score, deviation = EvaluationMath.mean(results)
-                        # vectorization_results[vectorization_algorithm] = score, deviation
-                        observation = (number_of_subparts, data_set, vectorization_algorithm, filter_mode,
-                                       f'{score:.4f} ± {deviation:.4f} [{sig}]',
-                                       EvaluationMath.median(results))
-                        tuples.append(observation)
-
-                        df_obs = pd.DataFrame([observation],
-                                              columns=['Series_length', 'Dataset', 'Algorithm',
-                                                       'Filter', 'Score', 'Median'])
-                        df_obs.to_csv(cache_path, mode='a', header=(not os.path.exists(cache_path)), index=False)
-
-        df = pd.DataFrame(tuples, columns=['Series_length', 'Dataset', 'Algorithm', 'Filter', 'Score', 'Median'])
-        print(df)
-        df.to_csv(final_path, index=False)
-        print(EvaluationUtils.build_paper_table(df, paper_path))
-
-
-class RealSeriesEval:
-    @classmethod
-    def build_corpora(cls, parallel: bool = False):
-        data_set_bar = tqdm(EvalParams.data_sets, total=len(EvalParams.data_sets), desc="2 Operate on dataset")
-        for data_set in data_set_bar:
-            data_set_bar.set_description(f'2 Operate on dataset >{data_set}<')
-            data_set_bar.refresh()
-            data_set = data_set.replace("_short", "")
-            data_set = data_set.replace("_medium", "")
-            data_set = data_set.replace("_large", "")
-            annotated_corpus_path = os.path.join(EvalParams.config["system_storage"]["corpora"], data_set)
-            try:
-                # check if general corpus exists
-                # corpus = Corpus(annotated_corpus_path)
-                corpus = Corpus.fast_load(path=annotated_corpus_path, load_entities=False)
-            except FileNotFoundError:
-                # load from raw data
-                corpus = DataHandler.load_corpus(data_set)
-                Preprocesser.annotate_and_save(corpus, corpus_dir=annotated_corpus_path, without_spacy=False)
-                print('annotated corpus')
-                del corpus
-                corpus = Corpus.fast_load(path=annotated_corpus_path, load_entities=False)
-                # corpus = Preprocesser.annotate_corpus(corpus)
-                # # corpus.save_corpus(annotated_corpus_path)
-                # corpus.save_corpus_adv(annotated_corpus_path)
-
-            filter_bar = tqdm(EvalParams.filters, total=len(EvalParams.filters), desc="3 Calculate filter_mode results")
-            if parallel:
-                Parallel(n_jobs=EvalParams.num_cores)(
-                    delayed(FakeSeriesEval.store_corpus_to_parameters_eff)(corpus,
-                                                                           "all",
-                                                                           "no_limit",
-                                                                           data_set,
-                                                                           filter_mode,
-                                                                           "real")
-                    for filter_mode in filter_bar)
-            else:
-                [FakeSeriesEval.store_corpus_to_parameters_eff(corpus,
-                                                               "all",
-                                                               "no_limit",
-                                                               data_set,
-                                                               filter_mode,
-                                                               "real")
-                 for filter_mode in filter_bar]
-
-    @classmethod
-    def train_vecs(cls, parallel: bool = False):
-        data_set_bar = tqdm(EvalParams.data_sets, total=len(EvalParams.data_sets), desc="2 Operate on dataset")
-        for data_set in data_set_bar:
-            data_set_bar.set_description(f'2 Operate on dataset >{data_set}<')
-            data_set_bar.refresh()
-
-            data_set = data_set.replace("_short", "")
-            data_set = data_set.replace("_medium", "")
-            data_set = data_set.replace("_large", "")
-            filter_bar = tqdm(EvalParams.filters, total=len(EvalParams.filters), desc="3 Apply Filter")
-            for filter_mode in filter_bar:
-                filter_bar.set_description(f'3 Apply Filter >{filter_mode}<')
-                filter_bar.refresh()
-                # filtered_corpus_file_name = Corpus.build_corpus_file_name("all",
-                #                                                           "no_limit",
-                #                                                           data_set,
-                #                                                           filter_mode,
-                #                                                           "real")
-                # corpus = Corpus(filtered_corpus_file_name)
-                corpus = Corpus.fast_load("all",
-                                          "no_limit",
-                                          data_set,
-                                          filter_mode,
-                                          "real",
-                                          load_entities=False)
-
-                vec_bar = tqdm(EvalParams.vectorization_algorithms, total=len(EvalParams.vectorization_algorithms),
-                               desc="4 Vectorize")
-                if parallel:
-                    Parallel(n_jobs=EvalParams.num_cores)(delayed(FakeSeriesEval.sep_vec_calc_eff)(corpus,
-                                                                                                   "all",
-                                                                                                   "no_limit",
-                                                                                                   data_set,
-                                                                                                   filter_mode,
-                                                                                                   vec_algorithm,
-                                                                                                   "real")
-                                                          for vec_algorithm in vec_bar)
-                else:
-                    [FakeSeriesEval.sep_vec_calc_eff(corpus,
-                                                     "all",
-                                                     "no_limit",
-                                                     data_set,
-                                                     filter_mode,
-                                                     vectorization_algorithm,
-                                                     "real")
-                     for vectorization_algorithm in vec_bar]
-
-    @classmethod
-    def aggregate_results(cls, data_set: str, task_name: str, metric_name: str, filter_mode: str,
-                          results_as_dict: Dict[str, np.ndarray],
-                          cache_path: str):
-        tuples = []
-
-        results_as_dict = {key: [result for result in results if result is not None]
-                           for key, results in results_as_dict.items()}
-
-        significance_dict = EvaluationMath.one_way_anova(results_as_dict)
-        vec_bar = tqdm(EvalParams.vectorization_algorithms, total=len(EvalParams.vectorization_algorithms),
-                       desc="Store final results for algorithm")
-        # Scoring
-
-        for vectorization_algorithm in vec_bar:
-            results = results_as_dict[vectorization_algorithm]
-            # print('>|', results)
-            # results = [res for res in results if res is not None]
-            # print('>|', results)
-            sig = significance_dict[vectorization_algorithm]
-            score, deviation = EvaluationMath.mean(results)
-            # vectorization_results[vectorization_algorithm] = score, deviation
-            observation = ("all", data_set, task_name, metric_name, vectorization_algorithm, filter_mode,
-                           f'{score:.4f} ± {deviation:.4f} [{sig}]',
-                           EvaluationMath.median(results))
-            tuples.append(observation)
-
-            df_obs = pd.DataFrame([observation],
-                                  columns=['Series_length', 'Dataset', 'Task', 'Metric', 'Algorithm',
-                                           'Filter', 'Score', 'Median'])
-            df_obs.to_csv(cache_path, mode='a', header=(not os.path.exists(cache_path)), index=False)
-        return tuples
-
-    @classmethod
-    def run_evaluation(cls, parallel: bool = False):
-        tuples = []
-        result_dir = "results"
-        experiment_table_name = "series_experiment_table"
-        final_path = os.path.join(result_dir, f"simple_{experiment_table_name}.csv")
-        cache_path = os.path.join(result_dir, f"cache_{experiment_table_name}.csv")
-        paper_path = os.path.join(result_dir, f"{experiment_table_name}.csv")
-
-        res = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: dict())))
-        for data_set in tqdm(EvalParams.data_sets, total=len(EvalParams.data_sets), desc=f"Evaluate datasets"):
-            for filter_mode in tqdm(EvalParams.filters, total=len(EvalParams.filters), desc=f"Evaluate filters"):
-                # corpus_path = Corpus.build_corpus_file_name("all",
-                #                                             "no_limit",
-                #                                             data_set,
-                #                                             filter_mode,
-                #                                             "real")
-                # corpus = Corpus(corpus_path)
-
-                if data_set.endswith('_short') or data_set.endswith('_medium') or data_set.endswith('_large'):
-                    splitted = data_set.split('_')
-                    size = splitted[-1]
-                    data_set = '_'.join(splitted[:-1])
-                else:
-                    size = ""
-                corpus = Corpus.fast_load("all",
-                                          "no_limit",
-                                          data_set,
-                                          filter_mode,
-                                          "real",
-                                          load_entities=False)
-                if size:
-                    corpus = corpus.length_sub_corpora_of_size(size)
-                vec_bar = tqdm(EvalParams.vectorization_algorithms,
-                               total=len(EvalParams.vectorization_algorithms),
-                               desc=f"Evaluate algorithm")
-                if parallel:
-                    tuple_list_results = Parallel(n_jobs=EvalParams.num_cores)(
-                        delayed(RealSeriesEval.eval_vec_loop_eff)(corpus,
-                                                                  "all",
-                                                                  "no_limit",
-                                                                  data_set,
-                                                                  size,
-                                                                  filter_mode,
-                                                                  vectorization_algorithm)
-                        for vectorization_algorithm in vec_bar)
-                else:
-                    tuple_list_results = [RealSeriesEval.eval_vec_loop_eff(corpus,
-                                                                           "all",
-                                                                           "no_limit",
-                                                                           data_set,
-                                                                           size,
-                                                                           filter_mode,
-                                                                           vectorization_algorithm)
-                                          for vectorization_algorithm in vec_bar]
-
-                for subpart_nr, data, filt_mod, vec_algo, results in tuple_list_results:
-                    # results = results[results != np.array(None)]
-                    res[subpart_nr][data][filt_mod][vec_algo] = results
-
-        for data_set in tqdm(EvalParams.data_sets, total=len(EvalParams.data_sets),
-                             desc="Store final results for dataset"):
-            for filter_mode in tqdm(EvalParams.filters, total=len(EvalParams.filters),
-                                    desc="Store final results for filter"):
-                # print(data_set, res["all"].keys())
-                list_results = res["all"][data_set][filter_mode]
-                if isinstance(list(list_results.values())[0], dict):
-                    reverted_nesting = defaultdict(lambda: defaultdict(dict))
-                    for algorithm_key, task_dict in list_results.items():
-                        for task_name, metric_dict in task_dict.items():
-                            for metric_name, metric_res in metric_dict.items():
-                                reverted_nesting[task_name][metric_name].update({algorithm_key: metric_res})
-
-                    list_results = reverted_nesting
-                    # metric_tuples = defaultdict(list)
-                    for task_name, task_dict in list_results.items():
-                        for metric, metric_results in task_dict.items():
-                            tuples.extend(cls.aggregate_results(data_set, task_name, metric,
-                                                                filter_mode, metric_results,
-                                                                cache_path))
-                    # tuples.extend(metric_tuples)
-
-                else:
-                    tuples.extend(cls.aggregate_results(data_set, "Series", EvalParams.evaluation_metric.__name__,
-                                                        filter_mode, list_results, cache_path))
-
-        df = pd.DataFrame(tuples, columns=['Series_length', 'Dataset', 'Task', 'Metric', 'Algorithm',
-                                           'Filter', 'Score', 'Median'])
-        print(df)
-        df.to_csv(final_path, index=False)
-        print(EvaluationUtils.build_paper_table(df, paper_path))
-        # print(EvaluationUtils.create_paper_table(df, paper_path, metrics=["prec", "prec01",
-        #                                                                   "prec03", "prec05", "prec10"]))
-
-    @classmethod
-    def eval_vec_loop_eff(cls, corpus: Corpus, number_of_subparts, corpus_size, data_set, data_set_size,
-                          filter_mode, vectorization_algorithm):
-        vec_path = Vectorizer.build_vec_file_name(number_of_subparts,
-                                                  corpus_size,
-                                                  data_set,
-                                                  filter_mode,
-                                                  vectorization_algorithm,
-                                                  "real")
-        summation_method = "NF"
-        try:
-            vectors = Vectorizer.my_load_doc2vec_format(vec_path)
-        except FileNotFoundError:
-            if "_o_" in vectorization_algorithm:
-                vec_splitted = vectorization_algorithm.split("_o_")[0]
-                focus_facette = vectorization_algorithm.split("_o_")[1]
-                base_algorithm = vec_splitted
-                vec_path = Vectorizer.build_vec_file_name(number_of_subparts,
-                                                          corpus_size,
-                                                          data_set,
-                                                          filter_mode,
-                                                          base_algorithm,
-                                                          "real")
-                vectors = Vectorizer.my_load_doc2vec_format(vec_path)
-                summation_method = focus_facette
-            else:
-                raise FileNotFoundError
-
-        if corpus.series_dict:
-            reverted = Utils.revert_dictionaried_list(corpus.series_dict)
-        else:
-            reverted = None
-        doctags = vectors.docvecs.doctags.keys()
-        # print(len(doctags))
-        doctags = [doctag for doctag in doctags if corpus.vector_doc_id_base_in_corpus(doctag)]
-        # print(len(doctags))
-        if "series" not in data_set:
-            doctags = [doctag for doctag in doctags if doctag[-1].isdigit() and Vectorizer.doctag_filter(doctag)]
-            series = False
-        else:
-            doctags = [doctag for doctag in doctags if doctag[-1].isdigit()]
-            series = True
-        # print('>', len(doctags))
-        results = []
-        task_results = defaultdict(list)
-        # test_results = []
-        topn_value = 1
-        if EvalParams.ignore_same:
-            topn_value = 1
-        topn = 100
-        tasks = [EvaluationTask.create_from_name(task_name, reverted=reverted, corpus=corpus, topn=topn)
-                 for task_name in EvalParams.task_names]
-        # print(doctags)
-        for doc_id in doctags:
-            # topn = len(corpus.series_dict[reverted[doc_id]])
-
-            if topn > topn_value:
-                # print('#############', doc_id, len(doctags))
-                sim_documents = Vectorizer.most_similar_documents(vectors, corpus,
-                                                                  positives=[doc_id],
-                                                                  feature_to_use=summation_method,
-                                                                  topn=topn,
-                                                                  print_results=False,
-                                                                  series=series)
-                # sim_documents = [(sim_document[0], sim_document[1]) for sim_document in sim_documents
-                #                  if doctag_filter(sim_document[0])]
-                # print('sim', len(sim_documents))
-                for task in tasks:
-                    # print(task.nr_of_possible_matches(doc_id), task.__class__)
-                    print(doc_id, sim_documents)
-                    metric_results = EvalParams.evaluation_metric(sim_documents, doc_id,
-                                                                  task,
-                                                                  ignore_same=EvalParams.ignore_same)
-                    task_results[str(task)].append(metric_results)
-                    results.append(metric_results)
-        # print('res', len(results))
-        if isinstance(results[0], dict):
-            results = {k: np.array([dic[k] for dic in results]) for k in results[0]}
-        else:
-            results = np.array(results)
-
-        final_task_results = {}
-        for task_name, task_results in task_results.items():
-            if isinstance(task_results[0], dict):
-                task_results = {k: np.array([dic[k] for dic in task_results]) for k in task_results[0]}
-            else:
-                task_results = np.array(results)
-            final_task_results[task_name] = task_results
-
-        if data_set_size:
-            data_set = f'{data_set}_{data_set_size}'
-
-        return number_of_subparts, data_set, filter_mode, vectorization_algorithm, final_task_results
+# class FakeSeriesEval:
+#     # @staticmethod
+#     # def eval_vec_loop_eff(corpus, number_of_subparts, corpus_size, data_set, filter_mode, vectorization_algorithm,
+#     #                       nr_bootstraps, sample_size, series_sample, ensure_no_sample):
+#     #     vec_path = Vectorizer.build_vec_file_name(number_of_subparts,
+#     #                                               corpus_size,
+#     #                                               data_set,
+#     #                                               filter_mode,
+#     #                                               vectorization_algorithm,
+#     #                                               "fake")
+#     #
+#     #     vecs = Vectorizer.my_load_doc2vec_format(vec_path)
+#     #     # Scoring:
+#     #     if nr_bootstraps * sample_size < len(vecs.docvecs.doctags) and not ensure_no_sample:
+#     #         results = Evaluation.series_eval_bootstrap(vecs, corpus.series_dict, corpus,
+#     #                                                    topn=number_of_subparts,
+#     #                                                    sample_size=sample_size,
+#     #                                                    nr_bootstraps=nr_bootstraps,
+#     #                                                    series_sample=series_sample)
+#     #     else:
+#     #         if not ensure_no_sample:
+#     #             logging.info(f'{nr_bootstraps} bootstraps and {sample_size} samples more work '
+#     #                          f'as actual data {len(vecs.docvecs.doctags)} < {nr_bootstraps * sample_size}')
+#     #         results = Evaluation.series_eval_full_data(vecs, corpus.series_dict, corpus,
+#     #                                                    topn=number_of_subparts)
+#     #     return number_of_subparts, data_set, filter_mode, vectorization_algorithm, results
+#     # @staticmethod
+#     # def run_evaluation(parallel: bool = False, real_or_fake: str = "fake"):
+#     #     EvaluationUtils.run_evaluation(parallel, real_or_fake)
+#     # @classmethod
+#     # def run_evaluation(cls, parallel: bool = False):
+#     #     nr_bootstraps = 2
+#     #     sample_size = 10
+#     #     series_sample = True
+#     #     ensure_no_sample = True
+#     #     tuples = []
+#     #     result_dir = "results"
+#     #     experiment_table_name = "series_experiment_table"
+#     #     final_path = os.path.join(result_dir, f"simple_{experiment_table_name}.csv")
+#     #     cache_path = os.path.join(result_dir, f"cache_{experiment_table_name}.csv")
+#     #     paper_path = os.path.join(result_dir, f"{experiment_table_name}.csv")
+#     #
+#     #     res = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: dict())))
+#     #     for number_of_subparts in range(EvalParams.min_number_of_subparts, EvalParams.max_number_of_subparts + 1):
+#     #         for data_set in EvalParams.data_sets:
+#     #             for filter_mode in EvalParams.filters:
+#     #                 # corpus_path = Corpus.build_corpus_file_name(number_of_subparts,
+#     #                 #                                             cls.corpus_size,
+#     #                 #                                             data_set,
+#     #                 #                                             filter_mode,
+#     #                 #                                             "fake")
+#     #                 # corpus = Corpus(corpus_path)
+#     #                 corpus = Corpus.fast_load(number_of_subparts,
+#     #                                           EvalParams.corpus_size,
+#     #                                           data_set,
+#     #                                           filter_mode,
+#     #                                           "fake",
+#     #                                           load_entities=False)
+#     #                 if parallel:
+#     #                     tuple_list_results = Parallel(n_jobs=EvalParams.num_cores)(
+#     #                         delayed(FakeSeriesEval.eval_vec_loop_eff)(corpus,
+#     #                                                                   number_of_subparts,
+#     #                                                                   EvalParams.corpus_size,
+#     #                                                                   data_set,
+#     #                                                                   filter_mode,
+#     #                                                                   vectorization_algorithm,
+#     #                                                                   nr_bootstraps,
+#     #                                                                   sample_size,
+#     #                                                                   series_sample,
+#     #                                                                   ensure_no_sample)
+#     #                         for vectorization_algorithm in EvalParams.vectorization_algorithms)
+#     #                 else:
+#     #                     tuple_list_results = [FakeSeriesEval.eval_vec_loop_eff(corpus,
+#     #                                                                            number_of_subparts,
+#     #                                                                            EvalParams.corpus_size,
+#     #                                                                            data_set,
+#     #                                                                            data_set_size,
+#     #                                                                            filter_mode,
+#     #                                                                            vectorization_algorithm,
+#     #                                                                            # nr_bootstraps,
+#     #                                                                            # sample_size,
+#     #                                                                            # series_sample,
+#     #                                                                            # ensure_no_sample
+#     #                                                                            )
+#     #                                           for vectorization_algorithm in EvalParams.vectorization_algorithms]
+#     #                 for subpart_nr, data, filt_mod, vec_algo, results in tuple_list_results:
+#     #                     res[subpart_nr][data][filt_mod][vec_algo] = results
+#     #     # print(res[10]['summaries']['common_words']['book2vec'])
+#     #     # print(res)
+#     #
+#     #     for number_of_subparts in range(EvalParams.min_number_of_subparts, EvalParams.max_number_of_subparts + 1):
+#     #         for data_set in EvalParams.data_sets:
+#     #             for filter_mode in EvalParams.filters:
+#     #                 list_results = res[number_of_subparts][data_set][filter_mode]
+#     #
+#     #                 # Evaluation.t_test(list_results)
+#     #                 significance_dict = EvaluationMath.one_way_anova(list_results)
+#     #
+#     #                 # Scoring
+#     #                 for vectorization_algorithm in EvalParams.vectorization_algorithms:
+#     #                     results = list_results[vectorization_algorithm]
+#     #                     sig = significance_dict[vectorization_algorithm]
+#     #                     score, deviation = EvaluationMath.mean(results)
+#     #                     # vectorization_results[vectorization_algorithm] = score, deviation
+#     #                     observation = (number_of_subparts, data_set, task, metric, vectorization_algorithm, 
+#     #                                    filter_mode,
+#     #                                    f'{score:.4f} ± {deviation:.4f} [{sig}]',
+#     #                                    EvaluationMath.median(results))
+#     #                     tuples.append(observation)
+#     #
+#     #                     df_obs = pd.DataFrame([observation],
+#     #                                           columns=['Series_length', 'Dataset', 'Algorithm',
+#     #                                                    'Filter', 'Score', 'Median'])
+#     #
+#     #                     df_obs.to_csv(cache_path, mode='a', header=(not os.path.exists(cache_path)), index=False)
+#     #
+#     #     # df = pd.DataFrame(tuples, columns=['Series_length', 'Dataset', 'Algorithm', 'Filter', 'Score', 'Median'])
+#     #     df = pd.DataFrame(tuples, columns=['Series_length', 'Dataset', 'Task', 'Metric', 'Algorithm',
+#     #                                        'Filter', 'Score', 'Median'])
+#     #
+#     #     print(df)
+#     #     df.to_csv(final_path, index=False)
+#     #     print(EvaluationUtils.build_paper_table(df, paper_path))
+# class RealSeriesEval:
+#     # @classmethod
+#     # def build_corpora(cls, parallel: bool = False):
+#     #     data_set_bar = tqdm(EvalParams.data_sets, total=len(EvalParams.data_sets), desc="2 Operate on dataset")
+#     #     for data_set in data_set_bar:
+#     #         data_set_bar.set_description(f'2 Operate on dataset >{data_set}<')
+#     #         data_set_bar.refresh()
+#     #         data_set = data_set.replace("_short", "")
+#     #         data_set = data_set.replace("_medium", "")
+#     #         data_set = data_set.replace("_large", "")
+#     #         annotated_corpus_path = os.path.join(EvalParams.config["system_storage"]["corpora"], data_set)
+#     #         try:
+#     #             # check if general corpus exists
+#     #             # corpus = Corpus(annotated_corpus_path)
+#     #             corpus = Corpus.fast_load(path=annotated_corpus_path, load_entities=False)
+#     #         except FileNotFoundError:
+#     #             # load from raw data
+#     #             corpus = DataHandler.load_corpus(data_set)
+#     #             Preprocesser.annotate_and_save(corpus, corpus_dir=annotated_corpus_path, without_spacy=False)
+#     #             del corpus
+#     #             corpus = Corpus.fast_load(path=annotated_corpus_path, load_entities=False)
+#     #
+#     #         EvaluationUtils.filter_parsing_loop(parallel, corpus, data_set, "all",
+#     #                                             "no_limit", "real")
+#
+#     # @classmethod
+#     # def train_vecs(cls, parallel: bool = False):
+#     #     data_set_bar = tqdm(EvalParams.data_sets, total=len(EvalParams.data_sets), desc="2 Operate on dataset")
+#     #     for data_set in data_set_bar:
+#     #         data_set_bar.set_description(f'2 Operate on dataset >{data_set}<')
+#     #         data_set_bar.refresh()
+#     #
+#     #         data_set = data_set.replace("_short", "")
+#     #         data_set = data_set.replace("_medium", "")
+#     #         data_set = data_set.replace("_large", "")
+#     #
+#     #         filter_bar = tqdm(EvalParams.filters, total=len(EvalParams.filters), desc="3 Apply Filter")
+#     #         for filter_mode in filter_bar:
+#     #             filter_bar.set_description(f'3 Apply Filter >{filter_mode}<')
+#     #             filter_bar.refresh()
+#     #             corpus = Corpus.fast_load("all",
+#     #                                       "no_limit",
+#     #                                       data_set,
+#     #                                       filter_mode,
+#     #                                       "real",
+#     #                                       load_entities=False)
+#     #             EvaluationUtils.vectorization_loop(parallel, corpus, data_set, filter_mode,
+#     #                                                "all", "no_limit", "real")
+#
+#
+#     # @staticmethod
+#     # def run_evaluation(parallel: bool = False, real_or_fake: str = "real"):
+#     #     EvaluationUtils.run_evaluation(parallel, real_or_fake)
+#
+#     # @classmethod
+#     # def eval_vec_loop_eff(cls, corpus: Corpus, number_of_subparts, corpus_size, data_set, data_set_size,
+#     #                       filter_mode, vectorization_algorithm):
+#     #     vec_path = Vectorizer.build_vec_file_name(number_of_subparts,
+#     #                                               corpus_size,
+#     #                                               data_set,
+#     #                                               filter_mode,
+#     #                                               vectorization_algorithm,
+#     #                                               "real")
+#     #     summation_method = "NF"
+#     #     try:
+#     #         vectors = Vectorizer.my_load_doc2vec_format(vec_path)
+#     #     except FileNotFoundError:
+#     #         if "_o_" in vectorization_algorithm:
+#     #             vec_splitted = vectorization_algorithm.split("_o_")[0]
+#     #             focus_facette = vectorization_algorithm.split("_o_")[1]
+#     #             base_algorithm = vec_splitted
+#     #             vec_path = Vectorizer.build_vec_file_name(number_of_subparts,
+#     #                                                       corpus_size,
+#     #                                                       data_set,
+#     #                                                       filter_mode,
+#     #                                                       base_algorithm,
+#     #                                                       "real")
+#     #             vectors = Vectorizer.my_load_doc2vec_format(vec_path)
+#     #             summation_method = focus_facette
+#     #         else:
+#     #             raise FileNotFoundError
+#     #
+#     #     if corpus.series_dict:
+#     #         reverted = Utils.revert_dictionaried_list(corpus.series_dict)
+#     #     else:
+#     #         reverted = None
+#     #     doctags = vectors.docvecs.doctags.keys()
+#     #     # print(len(doctags))
+#     #     doctags = [doctag for doctag in doctags if corpus.vector_doc_id_base_in_corpus(doctag)]
+#     #     # print(len(doctags))
+#     #     if "series" not in data_set:
+#     #         doctags = [doctag for doctag in doctags if doctag[-1].isdigit() and Vectorizer.doctag_filter(doctag)]
+#     #         series = False
+#     #     else:
+#     #         doctags = [doctag for doctag in doctags if doctag[-1].isdigit()]
+#     #         series = True
+#     #     # print('>', len(doctags))
+#     #     results = []
+#     #     task_results = defaultdict(list)
+#     #     # test_results = []
+#     #     topn_value = 1
+#     #     if EvalParams.ignore_same:
+#     #         topn_value = 1
+#     #     topn = 100
+#     #     tasks = [EvaluationTask.create_from_name(task_name, reverted=reverted, corpus=corpus, topn=topn)
+#     #              for task_name in EvalParams.task_names]
+#     #     # print(doctags)
+#     #     for doc_id in doctags:
+#     #         # topn = len(corpus.series_dict[reverted[doc_id]])
+#     #
+#     #         if topn > topn_value:
+#     #             # print('#############', doc_id, len(doctags))
+#     #             sim_documents = Vectorizer.most_similar_documents(vectors, corpus,
+#     #                                                               positives=[doc_id],
+#     #                                                               feature_to_use=summation_method,
+#     #                                                               topn=topn,
+#     #                                                               print_results=False,
+#     #                                                               series=series)
+#     #             # sim_documents = [(sim_document[0], sim_document[1]) for sim_document in sim_documents
+#     #             #                  if doctag_filter(sim_document[0])]
+#     #             # print('sim', len(sim_documents))
+#     #             for task in tasks:
+#     #                 # print(task.nr_of_possible_matches(doc_id), task.__class__)
+#     #                 print(doc_id, sim_documents)
+#     #                 metric_results = EvalParams.evaluation_metric(sim_documents, doc_id,
+#     #                                                               task,
+#     #                                                               ignore_same=EvalParams.ignore_same)
+#     #                 task_results[str(task)].append(metric_results)
+#     #                 results.append(metric_results)
+#     #     # print('res', len(results))
+#     #     if isinstance(results[0], dict):
+#     #         results = {k: np.array([dic[k] for dic in results]) for k in results[0]}
+#     #     else:
+#     #         results = np.array(results)
+#     #
+#     #     final_task_results = {}
+#     #     for task_name, task_results in task_results.items():
+#     #         if isinstance(task_results[0], dict):
+#     #             task_results = {k: np.array([dic[k] for dic in task_results]) for k in task_results[0]}
+#     #         else:
+#     #             task_results = np.array(results)
+#     #         final_task_results[task_name] = task_results
+#     #
+#     #     if data_set_size:
+#     #         data_set = f'{data_set}_{data_set_size}'
+#     #
+#     #     return number_of_subparts, data_set, filter_mode, vectorization_algorithm, final_task_results
 
 
 # check corpus serialization:        X
@@ -1367,14 +1565,10 @@ if __name__ == '__main__':
     # logger.setLevel(logging.INFO)
     # formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     # logging.confi
-
-    # FakeSeriesEval.build_corpora()
-    # FakeSeriesEval.train_vecs()
-    # FakeSeriesEval.run_evaluation()
-
-    # RealSeriesEval.build_corpora()
-    RealSeriesEval.train_vecs()
-    RealSeriesEval.run_evaluation()
+    EvalParams
+    EvaluationUtils.build_corpora()
+    EvaluationUtils.train_vecs()
+    EvaluationUtils.run_evaluation()
     # print(EvaluationUtils.create_paper_table("results/simple_series_experiment_table.csv", "results/z_table.csv",
     #                                          used_metrics=["ndcg", "prec", "prec01", "prec03", "prec05", "prec10",
     #                                                        "length_metric"],
@@ -1388,8 +1582,8 @@ if __name__ == '__main__':
                                                            "f_prec10",
                                                            "length_metric"],
                                              filters=["no_filter"]))
-    print(EvaluationUtils.create_paper_table("results/simple_series_experiment_table.csv", "results/z_2table.csv",
-                                             used_metrics=["ndcg", "prec", "prec01", "prec03", "prec05",
-                                                           "prec10",
-                                                           "length_metric"],
-                                             filters=["no_filter"]))
+    # print(EvaluationUtils.create_paper_table("results/simple_series_experiment_table.csv", "results/z_2table.csv",
+    #                                          used_metrics=["ndcg", "prec", "prec01", "prec03", "prec05",
+    #                                                        "prec10",
+    #                                                        "length_metric"],
+    #                                          filters=["no_filter"]))
