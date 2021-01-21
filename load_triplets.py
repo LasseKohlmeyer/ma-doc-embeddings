@@ -38,5 +38,5 @@ if __name__ == "__main__":
     df = pd.DataFrame(triplets, columns=["A", "B", "C"])
     df.to_csv('book_comparison_data/triplets.csv', index=False)
 
-    for x in range(1,21):
+    for x in range(1, 21):
         print(d[x])

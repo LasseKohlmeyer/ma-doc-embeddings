@@ -517,7 +517,6 @@ class DataHandler:
         # print(len(not_found))
         return Corpus(source=documents, name="litrec", language=Language.EN)
 
-
     @staticmethod
     def load_maharjan_goodreads(corpus_dir: str = None) -> "Corpus":
         def load_textfile_book(prefix_path, text_genre, success_status, suffix_path, document_id, ):
@@ -890,7 +889,7 @@ class Document:
                                               focus_ne: bool = False,
                                               masking: bool = False,
                                               revert: bool = False,
-                                              ids: bool = False):
+                                              ids: bool = False) -> Union[List[str], List[Tuple[str, int]]]:
         def filter_condition(token: Token):
             if revert:
                 return (not focus_stopwords or not token.stop) \
@@ -1105,9 +1104,7 @@ class Document:
                                                           for (sent_id, token_id, token) in tokens]
                                             for entity_type, tokens in self.doc_entities.items()})
 
-
     def into_chunks(self, chunk_size: int):
-
         def flush_chunk():
             chunk_tokens = [token for current_sentence in current_sentences for token in current_sentence.tokens]
             # print(chunk_tokens)
@@ -2728,7 +2725,6 @@ class Preprocesser:
         # entities_of_documents_dict = {doc_id: doc_ents for doc_id, doc_ents in zip(doc_ids, entities_of_documents)}
         # print(nested_sentences_dict)
         # print(entities_of_documents_dict)
-
         # for doc_id, d in nested_sentences_dict.items():
         #     print(doc_id, d[0])
         print('dict')

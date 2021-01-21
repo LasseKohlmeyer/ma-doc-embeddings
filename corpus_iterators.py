@@ -187,6 +187,23 @@ def calculate_facets_of_document(document: Document,
     return doc_aspects
 
 
+class TokenIterator(object):
+    def __init__(self, corpus: Corpus,
+                 lemma: bool = False, lower: bool = False):
+        self.corpus = corpus
+        self.lemma = lemma
+        self.lower = lower
+
+    def __len__(self):
+        return len(self.corpus.get_corpus_vocab())
+
+    def __iter__(self):
+        for doc_id, document in self.corpus.documents.items():
+            for token in document.get_vocab(from_disk=True, lemma=self.lemma, lower=self.lower, lda_mode=True):
+                if token != 'del':
+                    yield token
+
+
 class TopicModellingIterator(object):
     def __init__(self, corpus: Corpus, id2word_dict: Dictionary,
                  lemma: bool = False, lower: bool = False,
@@ -200,6 +217,7 @@ class TopicModellingIterator(object):
         self.bigram_min = bigram_min
         self.bigram_max = bigram_max
         self.trigram_max = trigram_max
+        self.doc_ids = []
 
     def __len__(self):
         return len(self.corpus.documents)
@@ -219,6 +237,8 @@ class TopicModellingIterator(object):
             data_lemmatized = trigram_mod[bigram_mod[document_tokens]]
 
             # print('>', data_lemmatized)
+            if doc_id not in self.doc_ids:
+                self.doc_ids.append(doc_id)
             yield self.id2word_dict.doc2bow(data_lemmatized)
 
 

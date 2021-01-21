@@ -2,12 +2,14 @@ import json
 import os
 from collections import defaultdict
 
+import numpy as np
 import gensim
 from gensim import corpora
 from gensim.models import CoherenceModel
 
 from corpus_iterators import TopicModellingIterator
 from corpus_structure import Corpus
+from vectorization_utils import Vectorization
 
 
 class TopicModeller:
@@ -173,16 +175,22 @@ class TopicModeller:
         id2doc_id = {i: doc_id for i, doc_id in enumerate(corpus.documents.keys())}
         lemma = True
         lower = False
+        # print('vocab_start')
+        # vocab = set(TokenIterator(corpus, lemma=lemma, lower=lower))
+        # print(len(list(vocab)))
+        # print('vocab gen end')
         vocab = [[token for token in document.get_vocab(from_disk=True, lemma=lemma, lower=lower, lda_mode=True)
                   if token != 'del']
                  for doc_id, document in corpus.documents.items()]
-
+        # print(len(list(vocab)))
+        # print('vocab end')
         # vocab = corpus.get_corpus_vocab(lemma=lemma, lower=lower,
         #                                 lda_mode=True)
 
         id2word_dict = corpora.Dictionary(list(vocab))
-        corpus = TopicModellingIterator(corpus, id2word_dict, lemma=lemma, lower=lower)
 
+        corpus = TopicModellingIterator(corpus, id2word_dict, lemma=lemma, lower=lower)
+        # print(corpus)
         # data_words = [document.get_flat_document_tokens(lemma=True, lower=True)
         #               for doc_id, document in c.documents.items()]
         # data_words = corpus.get_flat_document_tokens(lemma=True, lower=True)
@@ -213,13 +221,13 @@ class TopicModeller:
                                                     num_topics=15,
                                                     random_state=100,
                                                     update_every=1,
-                                                    iterations=100,
+                                                    iterations=50,
                                                     chunksize=100,
                                                     passes=50,
                                                     alpha='auto',
                                                     minimum_probability=0.0,
                                                     per_word_topics=True)
-
+        # print('calc')
         # os.environ.update({'MALLET_HOME': r'C:/mallet_new/mallet-2.0.8'})
         # mallet_path = "bin\\mallet"
         # print(mallet_path)
@@ -239,13 +247,13 @@ class TopicModeller:
         content_aspect_list = [texts for doc_id, texts in content_aspect_dict.items()]
         # print(content_aspect_list)
         # print(content_aspect_dict)
-        return content_aspect_dict, content_aspect_list
+        return content_aspect_dict, content_aspect_list, lda_model, list(corpus), corpus.doc_ids
 
     @staticmethod
     def topic_modelling(corpus: Corpus):
         topic_dict_path = os.path.join(corpus.corpus_path, "topic_ids.json")
         if not os.path.isfile(topic_dict_path):
-            topic_dict, _ = TopicModeller.train_lda_mem_eff(corpus)
+            topic_dict, _, _, _, _ = TopicModeller.train_lda_mem_eff(corpus)
 
             with open(topic_dict_path, 'w', encoding='utf-8') as fp:
                 json.dump(topic_dict, fp, indent=1)
@@ -255,7 +263,36 @@ class TopicModeller:
 
         return topic_dict
 
+    @staticmethod
+    def get_topic_distribution(corpus: Corpus, dataset: str, overwrite: bool = False):
+        if overwrite or not os.path.isfile(f'D:/models/topic_vectors/{dataset}.kv'):
+            _, _, topic_model, lda_corpus, doc_ids = TopicModeller.train_lda_mem_eff(corpus)
+            topic_vectors = {}
+            # print(len(lda_corpus))
+            # print(doc_ids)
+            for i, doc_id in enumerate(doc_ids):
+                doc = lda_corpus[i]
+                topic_vectors[doc_id] = np.array([score for (topic, score) in topic_model[doc][0]])
+
+            # print(topic_vectors)
+            Vectorization.my_save_doc2vec_format(fname=f'D:/models/topic_vectors/{dataset}.kv',
+                                                 doctag_vec=topic_vectors)
+
+        topic_vecs = Vectorization.my_load_doc2vec_format(f'D:/models/topic_vectors/{dataset}.kv')
+
+        # print(topic_vecs.docvecs.doctags)
+        # for doctag in topic_vecs.docvecs.doctags:
+        #     print(doctag, topic_vecs.docvecs.most_similar(doctag, topn=None))
+        # print(topic_model[lda_corpus[0]])
+        # for document in topic_model:
+        #     doc_id = ...
+        #     gensim_doc_id = ...
+        #     topic_vectors[doc_id] = topic_model[lda_corpus[gensim_doc_id]]
+        return topic_vecs
+
 
 if __name__ == "__main__":
-    c = Corpus.load_corpus_from_dir_format(os.path.join("corpora/german_series"))
-    d = TopicModeller.train_lda(c)
+    data_set_name = "classic_gutenberg"
+    c = Corpus.load_corpus_from_dir_format(os.path.join(f"corpora/{data_set_name}"))
+    # d = TopicModeller.train_lda(c)
+    TopicModeller.get_topic_distribution(c, data_set_name, overwrite=True)

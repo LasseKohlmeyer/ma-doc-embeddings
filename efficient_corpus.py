@@ -33,7 +33,7 @@ config = ConfigLoader.get_config()
 
 
 class Document:
-    __slots__ = 'doc_id', 'text', 'lemma', 'pos', 'ne', 'punctuation', 'alpha', 'stop', 'absolute_positions',\
+    __slots__ = 'doc_id', 'text', 'lemma', 'pos', 'ne', 'punctuation', 'alpha', 'stop', 'absolute_positions', \
                 'title', 'language', 'authors', 'date', 'genres', 'sentences', \
                 'absolute_positions', 'file_path'
 
@@ -201,7 +201,8 @@ class Document:
 
 
 # class Corpus:
-#     __slots__ = 'name', 'language', 'document_entities', 'series_dict', 'root_corpus_path', 'shared_attributes_dict', \
+#     __slots__ = 'name', 'language', 'document_entities', 'series_dict',
+#     'root_corpus_path', 'shared_attributes_dict', \
 #                 'reversed_attributes_dict', 'success_dict', 'documents', 'file_dict'
 #
 #     def __init__(self, source: Union[Dict[Union[str, int], Document], List[Document], str],
@@ -293,7 +294,8 @@ class Document:
 #
 #         document_paths = [file_path for file_path in os.listdir(corpus_dir) if file_path.endswith('.txt')][:1000]
 #
-#         documents = [Document.create_document_from_doc_file(os.path.join(corpus_dir, doc_path), disable_sentences=False)
+#         documents = [Document.create_document_from_doc_file(os.path.join(corpus_dir, doc_path),
+#         disable_sentences=False)
 #                      for doc_path in tqdm(document_paths, desc="load_file", disable=False)]
 #
 #         corpus = Corpus(source=documents, name=meta_data["name"], language=meta_data["language"])
@@ -508,7 +510,8 @@ class Document:
 #             documents = [' '.join(document.get_flat_document_tokens(lemma, lower))
 #                          for doc_id, document in self.documents.items()]
 #         else:
-#             documents = [document.get_flat_document_tokens(lemma, lower) for doc_id, document in self.documents.items()]
+#             documents = [document.get_flat_document_tokens(lemma, lower)
+#             for doc_id, document in self.documents.items()]
 #         if len(documents) == 0:
 #             raise UserWarning("No sentences set")
 #
@@ -1132,6 +1135,8 @@ class Document:
 # # print(d.get_corpus_vocab())
 
 
-ds = [Document.create_document_from_doc_file('E:\ma-doc-embeddings\corpora\german_series\gs_20_1_-_Karl_Bleibtreu_-_BismarckBand2_-_de_-_None_-_1915.txt') for i in tqdm(range(100))]
+ds = [Document.create_document_from_doc_file(
+    'E:\ma-doc-embeddings\corpora\german_series\gs_20_1_-_Karl_Bleibtreu_-_BismarckBand2_-_de_-_None_-_1915.txt') for i
+      in tqdm(range(100))]
 print(ds[0].get_sentence_nr())
 # print(d.lemma)

@@ -15,6 +15,8 @@ import matplotlib as mpl
 from matplotlib import cm
 from sklearn.preprocessing import minmax_scale
 
+from vectorization_utils import Vectorization
+
 
 def get_short_mid_long(df, column):
     q1_of_length = int(df[[column]].quantile(q=0.333333333))
@@ -88,7 +90,6 @@ class HistScatter:
 
     def plot_distribution(self, axes, x, y, hist_nbins=50, title="",
                           x0_label="", x1_label=""):
-
         ax, hist_x1, hist_x0 = axes
 
         ax.set_title(title)
@@ -186,7 +187,7 @@ def histogram(data: Dict[str, Union[int, float]]):
 
 class TextLengthExperiment:
     config = ConfigLoader.get_config()
-    num_cores = int(0.75*multiprocessing.cpu_count())
+    num_cores = int(0.75 * multiprocessing.cpu_count())
 
     ignore_same = True
 
@@ -303,7 +304,7 @@ class TextLengthExperiment:
     def length_abs(length_lookup, doc_id_a, doc_id_b):
         a = length_lookup[doc_id_a]
         b = length_lookup[doc_id_b]
-        return abs(a-b)
+        return abs(a - b)
 
     @staticmethod
     def combined_sim(vectors, length_lookup, doc_id_a, doc_id_b):
@@ -334,27 +335,27 @@ class TextLengthExperiment:
 
     @classmethod
     def eval_vec_loop_eff(cls, corpus, number_of_subparts, corpus_size, data_set, filter_mode, vectorization_algorithm):
-        vec_path = Vectorizer.build_vec_file_name(number_of_subparts,
-                                                  corpus_size,
-                                                  data_set,
-                                                  filter_mode,
-                                                  vectorization_algorithm,
-                                                  "real")
+        vec_path = Vectorization.build_vec_file_name(number_of_subparts,
+                                                     corpus_size,
+                                                     data_set,
+                                                     filter_mode,
+                                                     vectorization_algorithm,
+                                                     "real")
         summation_method = "NF"
         try:
-            vectors = Vectorizer.my_load_doc2vec_format(vec_path)
+            vectors = Vectorization.my_load_doc2vec_format(vec_path)
         except FileNotFoundError:
             if "_o_" in vectorization_algorithm:
                 vec_splitted = vectorization_algorithm.split("_o_")[0]
                 focus_facette = vectorization_algorithm.split("_o_")[1]
                 base_algorithm = vec_splitted
-                vec_path = Vectorizer.build_vec_file_name(number_of_subparts,
-                                                          corpus_size,
-                                                          data_set,
-                                                          filter_mode,
-                                                          base_algorithm,
-                                                          "real")
-                vectors = Vectorizer.my_load_doc2vec_format(vec_path)
+                vec_path = Vectorization.build_vec_file_name(number_of_subparts,
+                                                             corpus_size,
+                                                             data_set,
+                                                             filter_mode,
+                                                             base_algorithm,
+                                                             "real")
+                vectors = Vectorization.my_load_doc2vec_format(vec_path)
                 summation_method = focus_facette
             else:
                 raise FileNotFoundError

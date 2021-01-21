@@ -3,11 +3,12 @@ from collections import defaultdict
 from scipy.stats import stats
 
 from corpus_structure import Corpus
-from vectorization import Vectorizer
 import pandas as pd
 
 import matplotlib.pyplot as plt
 from math import pi
+
+from vectorization_utils import Vectorization
 
 
 def radar_chart(df):
@@ -55,7 +56,7 @@ def radar_chart(df):
 
 
 def get_facet_sims_of_books(vectors, corpus: Corpus, doc_id_a: str, doc_id_b: str):
-    tuples = Vectorizer.get_facet_sims(vectors, corpus, doc_id_a, doc_id_b)
+    tuples = Vectorization.get_facet_sims(vectors, corpus, doc_id_a, doc_id_b)
     df = pd.DataFrame(tuples, columns=["Facet", "ID_A", "ID_B", "Similarity"])
     df = df.pivot(index=["ID_A", "ID_B"], columns="Facet", values="Similarity")
     return df
@@ -66,20 +67,20 @@ def loop_facets(vectors, corpus: Corpus):
     for i, doc_id_a in enumerate(corpus.documents.keys()):
         for j, doc_id_b in enumerate(corpus.documents.keys()):
             if j > i:
-                tuples.extend(Vectorizer.get_facet_sims(vectors, corpus, doc_id_a, doc_id_b))
+                tuples.extend(Vectorization.get_facet_sims(vectors, corpus, doc_id_a, doc_id_b))
     df = pd.DataFrame(tuples, columns=["Facet", "ID_A", "ID_B", "Similarity"])
     df.to_csv('results/facet_evaluation/facet_sims.csv')
     print(df)
     return df
 
 
-def correlation(human_df, vectors):
+def correlation(human_df, vectors, corpus):
     all_values = defaultdict(list)
     facet_human_vals = defaultdict(list)
     facet_pred_vals = defaultdict(list)
 
     for i, row in human_df.iterrows():
-        pred_df = get_facet_sims_of_books(vectors, row['ID_A'], row['ID_B'])
+        pred_df = get_facet_sims_of_books(vectors, corpus, row['ID_A'], row['ID_B'])
 
         real_val = row["Similarity"]
         pred_val = pred_df[row["Facet"]].values[0]
@@ -113,16 +114,16 @@ if __name__ == '__main__':
 
     c = Corpus.fast_load(path="corpora/classic_gutenberg", load_entities=False)
 
-    vec_path = Vectorizer.build_vec_file_name("",
-                                              "",
-                                              "classic_gutenberg",
-                                              "no_filter",
-                                              "book2vec_adv",
-                                              "real")
+    vec_path = Vectorization.build_vec_file_name("",
+                                                 "",
+                                                 "classic_gutenberg",
+                                                 "no_filter",
+                                                 "book2vec_adv",
+                                                 "real")
 
-    vecs = Vectorizer.my_load_doc2vec_format(vec_path)
+    vecs = Vectorization.my_load_doc2vec_format(vec_path)
 
-    Vectorizer.most_similar_documents(vecs, c, positives="cb_18", feature_to_use="atm")
+    Vectorization.most_similar_documents(vecs, c, positives="cb_18", feature_to_use="atm")
 
     big_df = loop_facets(vecs, c)
 
@@ -134,7 +135,6 @@ if __name__ == '__main__':
     # get_facet_sims_of_books(vecs, corpus[0].doc_id, corpus[2].doc_id)
     # get_facet_sims_of_books(vecs, corpus[0].doc_id, corpus[3].doc_id)
     # get_facet_sims_of_books(vecs, corpus[0].doc_id, corpus[10].doc_id)
-
 
     # fake_df = pd.DataFrame([('gs_0_0', 'gs_0_1', 'time', 0.9), ('gs_0_0', 'gs_0_1', 'sty', 0.91),
     #                         ('gs_0_0', 'gs_10_0', 'time', 0.4), ('gs_0_0', 'gs_10_0', 'sty', 0.5),

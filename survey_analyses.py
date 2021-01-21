@@ -337,9 +337,12 @@ if __name__ == "__main__":
     book_tuples = []
     for language, language_books in language_books_dict.items():
         for book_id, book_answers in language_books.items():
-            book_tuples.append((book_id, book_id2english_title[book_id], language, book_answers["unknown"], book_answers["known"]))
-    book_familarity_df = pd.DataFrame(book_tuples, columns=["Book ID", "Description", "Language", "Unknown", "Known"])
-    book_familarity_df = book_familarity_df.sort_values(by=['Book ID']).set_index(["Book ID", "Description", "Language"])
+            book_tuples.append((book_id, book_id2english_title[book_id], language, book_answers["unknown"],
+                                book_answers["known"]))
+    book_familarity_df = pd.DataFrame(book_tuples,
+                                      columns=["Book ID", "Description", "Language", "Unknown", "Known"])
+    book_familarity_df = book_familarity_df.sort_values(by=['Book ID']).set_index(["Book ID", "Description",
+                                                                                   "Language"])
     # print(book_familarity_df)
     book_familarity_df.to_csv('results/human_assessment/book_familarity.csv')
 
@@ -407,15 +410,14 @@ if __name__ == "__main__":
                                      columns=["Book 1", "Book 2", "Book 3", "Facet", "Selection"])
     human_assessed_df.to_csv('results/human_assessment/human_assessed.csv', index=False)
 
-        # for column_name, cell in zip(column_names, row):
-        #     if column_name.startswith("GE") and "_" not in column_name:
-        #         most_sim = int(cell)
-        #         print(column_name, cell)
-        #
-        #     if column_name.startswith("GE") and "_" in column_name:
-        #         book_tups.append((cell.replace("CP08_")))
-        #     print(cell, book_tups)
-
+    # for column_name, cell in zip(column_names, row):
+    #     if column_name.startswith("GE") and "_" not in column_name:
+    #         most_sim = int(cell)
+    #         print(column_name, cell)
+    #
+    #     if column_name.startswith("GE") and "_" in column_name:
+    #         book_tups.append((cell.replace("CP08_")))
+    #     print(cell, book_tups)
 
     # language_answer_dict = defaultdict(lambda: defaultdict(list))
     # for column in df.columns:
@@ -469,7 +471,3 @@ if __name__ == "__main__":
     #
     # # print(comparison_results_df)
     # comparison_results_df.to_csv('results/human_assessment/book_comparison.csv', index=False)
-
-
-
-

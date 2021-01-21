@@ -21,6 +21,8 @@ import random
 import pandas as pd
 import numpy as np
 
+from vectorization_utils import Vectorization
+
 
 class EvaluationMath:
     @staticmethod
@@ -479,12 +481,12 @@ class Evaluation:
                                     sample: List[str], topn: int):
         results = []
         for doc_id in sample:
-            sim_documents = Vectorizer.most_similar_documents(vectors, corpus,
-                                                              positives=[doc_id],
-                                                              feature_to_use="NF",
-                                                              topn=topn,
-                                                              print_results=False,
-                                                              series=True)
+            sim_documents = Vectorization.most_similar_documents(vectors, corpus,
+                                                                 positives=[doc_id],
+                                                                 feature_to_use="NF",
+                                                                 topn=topn,
+                                                                 print_results=False,
+                                                                 series=True)
 
             task = SeriesTask(reverted=reverted, corpus=corpus, topn=topn)
             # print(task.nr_of_possible_matches(doc_id))
@@ -504,7 +506,7 @@ class Evaluation:
     #         hard_it_results = []
     #         soft_it_results = []
     #         for i in range(1, topn+1):
-    #             sim_documents = Vectorizer.most_similar_documents(vectors, corpus,
+    #             sim_documents = Vectorization.most_similar_documents(vectors, corpus,
     #                                                               positives=[doc_id],
     #                                                               feature_to_use="NF",
     #                                                               topn=topn,
@@ -667,100 +669,6 @@ class EvaluationUtils:
         df_table = df_table.pivot(columns=pivot_column)['Score']
         df_table.to_csv(out_path, index=True, encoding="utf-8")
         return df_table
-
-    # @classmethod
-    # def run_evaluation_old(cls, parallel: bool = False):
-    #     tuples = []
-    #     result_dir = "results"
-    #     experiment_table_name = "series_experiment_table"
-    #     final_path = os.path.join(result_dir, f"simple_{experiment_table_name}.csv")
-    #     cache_path = os.path.join(result_dir, f"cache_{experiment_table_name}.csv")
-    #     paper_path = os.path.join(result_dir, f"{experiment_table_name}.csv")
-    #
-    #     res = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: dict())))
-    #     for data_set in tqdm(EvalParams.data_sets, total=len(EvalParams.data_sets), desc=f"Evaluate datasets"):
-    #         for filter_mode in tqdm(EvalParams.filters, total=len(EvalParams.filters), desc=f"Evaluate filters"):
-    #             # corpus_path = Corpus.build_corpus_file_name("all",
-    #             #                                             "no_limit",
-    #             #                                             data_set,
-    #             #                                             filter_mode,
-    #             #                                             "real")
-    #             # corpus = Corpus(corpus_path)
-    #
-    #             if data_set.endswith('_short') or data_set.endswith('_medium') or data_set.endswith('_large'):
-    #                 splitted = data_set.split('_')
-    #                 size = splitted[-1]
-    #                 data_set = '_'.join(splitted[:-1])
-    #             else:
-    #                 size = ""
-    #             corpus = Corpus.fast_load("all",
-    #                                       "no_limit",
-    #                                       data_set,
-    #                                       filter_mode,
-    #                                       "real",
-    #                                       load_entities=False)
-    #             if size:
-    #                 corpus = corpus.length_sub_corpora_of_size(size)
-    #             vec_bar = tqdm(EvalParams.vectorization_algorithms,
-    #                            total=len(EvalParams.vectorization_algorithms),
-    #                            desc=f"Evaluate algorithm")
-    #             if parallel:
-    #                 tuple_list_results = Parallel(n_jobs=EvalParams.num_cores)(
-    #                     delayed(RealSeriesEval.eval_vec_loop_eff)(corpus,
-    #                                                               "all",
-    #                                                               "no_limit",
-    #                                                               data_set,
-    #                                                               size,
-    #                                                               filter_mode,
-    #                                                               vectorization_algorithm)
-    #                     for vectorization_algorithm in vec_bar)
-    #             else:
-    #                 tuple_list_results = [RealSeriesEval.eval_vec_loop_eff(corpus,
-    #                                                                        "all",
-    #                                                                        "no_limit",
-    #                                                                        data_set,
-    #                                                                        size,
-    #                                                                        filter_mode,
-    #                                                                        vectorization_algorithm)
-    #                                       for vectorization_algorithm in vec_bar]
-    #
-    #             for subpart_nr, data, filt_mod, vec_algo, results in tuple_list_results:
-    #                 # results = results[results != np.array(None)]
-    #                 res[subpart_nr][data][filt_mod][vec_algo] = results
-    #
-    #     for data_set in tqdm(EvalParams.data_sets, total=len(EvalParams.data_sets),
-    #                          desc="Store final results for dataset"):
-    #         for filter_mode in tqdm(EvalParams.filters, total=len(EvalParams.filters),
-    #                                 desc="Store final results for filter"):
-    #             # print(data_set, res["all"].keys())
-    #             list_results = res["all"][data_set][filter_mode]
-    #             if isinstance(list(list_results.values())[0], dict):
-    #                 reverted_nesting = defaultdict(lambda: defaultdict(dict))
-    #                 for algorithm_key, task_dict in list_results.items():
-    #                     for task_name, metric_dict in task_dict.items():
-    #                         for metric_name, metric_res in metric_dict.items():
-    #                             reverted_nesting[task_name][metric_name].update({algorithm_key: metric_res})
-    #
-    #                 list_results = reverted_nesting
-    #                 # metric_tuples = defaultdict(list)
-    #                 for task_name, task_dict in list_results.items():
-    #                     for metric, metric_results in task_dict.items():
-    #                         tuples.extend(cls.aggregate_results(data_set, task_name, metric,
-    #                                                             filter_mode, metric_results,
-    #                                                             cache_path))
-    #                 # tuples.extend(metric_tuples)
-    #
-    #             else:
-    #                 tuples.extend(cls.aggregate_results(data_set, "Series", EvalParams.evaluation_metric.__name__,
-    #                                                     filter_mode, list_results, cache_path))
-    #
-    #     df = pd.DataFrame(tuples, columns=['Series_length', 'Dataset', 'Task', 'Metric', 'Algorithm',
-    #                                        'Filter', 'Score', 'Median'])
-    #     print(df)
-    #     df.to_csv(final_path, index=False)
-    #     print(EvaluationUtils.build_paper_table(df, paper_path))
-    #     # print(EvaluationUtils.create_paper_table(df, paper_path, metrics=["prec", "prec01",
-    #     #                                                                   "prec03", "prec05", "prec10"]))
 
     @staticmethod
     def attributes_based_on_data(data_set_name: str):
@@ -931,28 +839,28 @@ class EvaluationUtils:
     @classmethod
     def eval_vec_loop_eff(cls, corpus: Corpus, number_of_subparts, corpus_size, data_set, data_set_size,
                           filter_mode, vectorization_algorithm, real_or_fake: str):
-        vec_path = Vectorizer.build_vec_file_name(number_of_subparts,
-                                                  corpus_size,
-                                                  data_set,
-                                                  filter_mode,
-                                                  vectorization_algorithm,
-                                                  real_or_fake)
+        vec_path = Vectorization.build_vec_file_name(number_of_subparts,
+                                                     corpus_size,
+                                                     data_set,
+                                                     filter_mode,
+                                                     vectorization_algorithm,
+                                                     real_or_fake)
         summation_method = "NF"
         # print('at', vec_path, real_or_fake)
         try:
-            vectors = Vectorizer.my_load_doc2vec_format(vec_path)
+            vectors = Vectorization.my_load_doc2vec_format(vec_path)
         except FileNotFoundError:
             if "_o_" in vectorization_algorithm:
                 vec_splitted = vectorization_algorithm.split("_o_")[0]
                 focus_facette = vectorization_algorithm.split("_o_")[1]
                 base_algorithm = vec_splitted
-                vec_path = Vectorizer.build_vec_file_name(number_of_subparts,
-                                                          corpus_size,
-                                                          data_set,
-                                                          filter_mode,
-                                                          base_algorithm,
-                                                          real_or_fake)
-                vectors = Vectorizer.my_load_doc2vec_format(vec_path)
+                vec_path = Vectorization.build_vec_file_name(number_of_subparts,
+                                                             corpus_size,
+                                                             data_set,
+                                                             filter_mode,
+                                                             base_algorithm,
+                                                             real_or_fake)
+                vectors = Vectorization.my_load_doc2vec_format(vec_path)
                 summation_method = focus_facette
             else:
                 raise FileNotFoundError
@@ -969,7 +877,7 @@ class EvaluationUtils:
         # data_set = data_set + "_series"
 
         if "series" not in data_set:
-            doctags = [doctag for doctag in doctags if doctag[-1].isdigit() and Vectorizer.doctag_filter(doctag)]
+            doctags = [doctag for doctag in doctags if doctag[-1].isdigit() and Vectorization.doctag_filter(doctag)]
             series = False
         else:
             doctags = [doctag for doctag in doctags if doctag[-1].isdigit()]
@@ -990,12 +898,12 @@ class EvaluationUtils:
 
             if topn > topn_value:
                 # print('#############', doc_id, len(doctags))
-                sim_documents = Vectorizer.most_similar_documents(vectors, corpus,
-                                                                  positives=[doc_id],
-                                                                  feature_to_use=summation_method,
-                                                                  topn=topn,
-                                                                  print_results=False,
-                                                                  series=series)
+                sim_documents = Vectorization.most_similar_documents(vectors, corpus,
+                                                                     positives=[doc_id],
+                                                                     feature_to_use=summation_method,
+                                                                     topn=topn,
+                                                                     print_results=False,
+                                                                     series=series)
                 # sim_documents = [(sim_document[0], sim_document[1]) for sim_document in sim_documents
                 #                  if doctag_filter(sim_document[0])]
                 # print('sim', len(sim_documents))
@@ -1109,12 +1017,12 @@ class EvaluationUtils:
     @staticmethod
     def sep_vec_calc_eff(corpus, number_of_subparts, corpus_size, data_set, filter_mode,
                          vectorization_algorithm, fake):
-        vec_file_name = Vectorizer.build_vec_file_name(number_of_subparts,
-                                                       corpus_size,
-                                                       data_set,
-                                                       filter_mode,
-                                                       vectorization_algorithm,
-                                                       fake)
+        vec_file_name = Vectorization.build_vec_file_name(number_of_subparts,
+                                                          corpus_size,
+                                                          data_set,
+                                                          filter_mode,
+                                                          vectorization_algorithm,
+                                                          fake)
         # print(vec_file_name)
         if not os.path.isfile(vec_file_name):
             EvaluationUtils.store_vectors_to_parameters(corpus,
@@ -1141,12 +1049,12 @@ class EvaluationUtils:
     @staticmethod
     def store_vectors_to_parameters(corpus, number_of_subparts, corpus_size, data_set, filter_mode,
                                     vectorization_algorithm, fake):
-        vec_file_name = Vectorizer.build_vec_file_name(number_of_subparts,
-                                                       corpus_size,
-                                                       data_set,
-                                                       filter_mode,
-                                                       vectorization_algorithm,
-                                                       fake)
+        vec_file_name = Vectorization.build_vec_file_name(number_of_subparts,
+                                                          corpus_size,
+                                                          data_set,
+                                                          filter_mode,
+                                                          vectorization_algorithm,
+                                                          fake)
         if not os.path.isfile(vec_file_name):
             Vectorizer.algorithm(input_str=vectorization_algorithm,
                                  corpus=corpus,
@@ -1171,7 +1079,8 @@ class EvalParams:
 
     data_sets = [
         "classic_gutenberg_fake_series",
-        "german_series",
+        # "german_series",
+        "classic_gutenberg"
         # "german_series_short",
         # "german_series_medium",
         # "german_series_large",
@@ -1259,7 +1168,7 @@ class EvalParams:
     ]
 
     task_names = [
-        "SeriesTask",
+        # "SeriesTask",
         "AuthorTask",
         # "GenreTask"
     ]

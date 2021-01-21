@@ -5,11 +5,8 @@ from typing import Dict, List
 import pandas as pd
 
 from corpus_structure import Corpus, DataHandler, Preprocesser
-from doc2vec_structures import DocumentKeyedVectors
 from vectorization import Vectorizer
-
-
-
+from vectorization_utils import Vectorization
 
 
 def get_percentage_of_correctly_labeled(vectors, human_assessment_df: pd.DataFrame, doc_id_mapping: Dict[str, str],
@@ -24,9 +21,9 @@ def get_percentage_of_correctly_labeled(vectors, human_assessment_df: pd.DataFra
         facet = facet_mapping[row["Facet"]]
         selection = row["Selection"]
 
-        sim_1 = Vectorizer.facet_sim(model_vectors=vectors, doc_id_a=book1, doc_id_b=book2, facet_name=facet)
-        sim_2 = Vectorizer.facet_sim(model_vectors=vectors, doc_id_a=book1, doc_id_b=book3, facet_name=facet)
-        sim_3 = Vectorizer.facet_sim(model_vectors=vectors, doc_id_a=book2, doc_id_b=book3, facet_name=facet)
+        sim_1 = Vectorization.facet_sim(model_vectors=vectors, doc_id_a=book1, doc_id_b=book2, facet_name=facet)
+        sim_2 = Vectorization.facet_sim(model_vectors=vectors, doc_id_a=book1, doc_id_b=book3, facet_name=facet)
+        sim_3 = Vectorization.facet_sim(model_vectors=vectors, doc_id_a=book2, doc_id_b=book3, facet_name=facet)
 
         if selection.split('|')[0] == "1" and sim_1 > sim_2 and sim_1 > sim_3:
             correctly_assessed.append(1)
@@ -41,20 +38,21 @@ def get_percentage_of_correctly_labeled(vectors, human_assessment_df: pd.DataFra
             correctly_assessed.append(0)
             facet_wise[row["Facet"]].append(0)
 
-    result_scores = {facet: sum(scores) / len (scores) for facet, scores in facet_wise.items()}
+    result_scores = {facet: sum(scores) / len(scores) for facet, scores in facet_wise.items()}
     result_scores["all"] = sum(correctly_assessed) / len(correctly_assessed)
     return result_scores
 
+
 def load_vectors_from_properties(number_of_subparts, corpus_size, data_set,
                                  filter_mode, vectorization_algorithm):
-    vec_path = Vectorizer.build_vec_file_name(number_of_subparts,
-                                              corpus_size,
-                                              data_set,
-                                              filter_mode,
-                                              vectorization_algorithm,
-                                              "real")
+    vec_path = Vectorization.build_vec_file_name(number_of_subparts,
+                                                 corpus_size,
+                                                 data_set,
+                                                 filter_mode,
+                                                 vectorization_algorithm,
+                                                 "real")
     # print(vec_path)
-    vectors = Vectorizer.my_load_doc2vec_format(vec_path)
+    vectors = Vectorization.my_load_doc2vec_format(vec_path)
     return vectors
 
 
@@ -67,12 +65,12 @@ def calculate_vectors(data_set_name: str, vec_algorithms: List[str], ):
         corpus = Corpus.fast_load(path=os.path.join('corpora', data_set_name), load_entities=False)
 
     for vectorization_algorithm in vec_algorithms:
-        vec_file_name = Vectorizer.build_vec_file_name('',
-                                                       '',
-                                                       data_set_name,
-                                                       'no_filter',
-                                                       vectorization_algorithm,
-                                                       'real')
+        vec_file_name = Vectorization.build_vec_file_name('',
+                                                          '',
+                                                          data_set_name,
+                                                          'no_filter',
+                                                          vectorization_algorithm,
+                                                          'real')
 
         Vectorizer.algorithm(input_str=vectorization_algorithm,
                              corpus=corpus,
@@ -132,6 +130,3 @@ if __name__ == '__main__':
 
     # calculate_vectors(data_set, algorithms)
     evaluate(data_set, algorithms)
-
-
-
