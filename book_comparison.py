@@ -50,7 +50,8 @@ def load_vectors_from_properties(number_of_subparts, corpus_size, data_set,
                                                  data_set,
                                                  filter_mode,
                                                  vectorization_algorithm,
-                                                 "real")
+                                                 "real",
+                                                 allow_combination=True)
     # print(vec_path)
     vectors = Vectorization.my_load_doc2vec_format(vec_path)
     return vectors
@@ -126,7 +127,7 @@ def evaluate(data_set_name: str, vec_algorithms: List[str]):
 
 if __name__ == '__main__':
     data_set = "classic_gutenberg"
-    algorithms = ["book2vec_adv", "doc2vec", "avg_wv2doc"]
+    algorithms = ["book2vec", "book2vec_adv", "doc2vec", "avg_wv2doc"]
 
     # calculate_vectors(data_set, algorithms)
     evaluate(data_set, algorithms)

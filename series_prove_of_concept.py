@@ -22,6 +22,7 @@ import pandas as pd
 import numpy as np
 
 from vectorization_utils import Vectorization
+from word_movers_distance import WordMoversDistance
 
 
 class EvaluationMath:
@@ -134,6 +135,8 @@ class EvaluationTask(ABC):
     @staticmethod
     def create_from_name(task_name: str, reverted: Dict[str, str], corpus: Corpus, topn: int):
         if task_name.lower() == "seriestask" or task_name.lower() == "series_task" or task_name.lower() == "series":
+            if corpus.series_dict is None:
+                raise UserWarning("No series dictionary found for corpus!")
             return SeriesTask(reverted, corpus, topn)
         elif task_name.lower() == "authortask" or task_name.lower() == "author_task" or task_name.lower() == "author":
             return AuthorTask(reverted, corpus, topn)
@@ -145,13 +148,25 @@ class EvaluationTask(ABC):
 
 class SeriesTask(EvaluationTask):
     def has_passed(self, doc_id: str, sim_doc_id: str):
-        return self.reverted[doc_id] == self.reverted[sim_doc_id]
+        try:
+            return self.reverted[doc_id] == self.reverted[sim_doc_id]
+        except KeyError:
+            if sim_doc_id not  in self.reverted:
+                return False
+            else:
+                print(doc_id, sim_doc_id, self.reverted)
+                raise UserWarning("No proper series handling")
+            # return True
 
     def nr_of_possible_matches(self, doc_id: str):
-        real_matches = len(self.corpus.series_dict[self.reverted[doc_id]]) - 1
-        if real_matches > self.topn:
-            return self.topn
-        return real_matches
+        try:
+            real_matches = len(self.corpus.series_dict[self.reverted[doc_id]]) - 1
+            if real_matches > self.topn:
+                return self.topn
+            return real_matches
+        except KeyError:
+            raise UserWarning("No proper series handling")
+            # return 0
 
 
 class AuthorTask(EvaluationTask):
@@ -839,49 +854,68 @@ class EvaluationUtils:
     @classmethod
     def eval_vec_loop_eff(cls, corpus: Corpus, number_of_subparts, corpus_size, data_set, data_set_size,
                           filter_mode, vectorization_algorithm, real_or_fake: str):
-        vec_path = Vectorization.build_vec_file_name(number_of_subparts,
-                                                     corpus_size,
-                                                     data_set,
-                                                     filter_mode,
-                                                     vectorization_algorithm,
-                                                     real_or_fake)
+
+        topn = 100
         summation_method = "NF"
         # print('at', vec_path, real_or_fake)
-        try:
-            vectors = Vectorization.my_load_doc2vec_format(vec_path)
-        except FileNotFoundError:
-            if "_o_" in vectorization_algorithm:
-                vec_splitted = vectorization_algorithm.split("_o_")[0]
-                focus_facette = vectorization_algorithm.split("_o_")[1]
-                base_algorithm = vec_splitted
-                vec_path = Vectorization.build_vec_file_name(number_of_subparts,
-                                                             corpus_size,
-                                                             data_set,
-                                                             filter_mode,
-                                                             base_algorithm,
-                                                             real_or_fake)
-                vectors = Vectorization.my_load_doc2vec_format(vec_path)
-                summation_method = focus_facette
-            else:
-                raise FileNotFoundError
 
         if corpus.series_dict:
             reverted = Utils.revert_dictionaried_list(corpus.series_dict)
         else:
             reverted = None
-        doctags = vectors.docvecs.doctags.keys()
-        # print(len(doctags))
-        doctags = [doctag for doctag in doctags if corpus.vector_doc_id_base_in_corpus(doctag)]
-        # print(len(doctags))
-
-        # data_set = data_set + "_series"
-
-        if "series" not in data_set:
-            doctags = [doctag for doctag in doctags if doctag[-1].isdigit() and Vectorization.doctag_filter(doctag)]
+        # print(vectorization_algorithm)
+        wmd_sims = None
+        if "wmd".lower() == vectorization_algorithm or "WordMoversDistance".lower() == vectorization_algorithm.lower():
+            # wmd = WordMoversDistance(corpus=corpus, embedding_path='E:/embeddings/glove.6B.100d.txt', top_n_docs=topn,
+            #                          top_n_words=100)
+            WordMoversDistance.embedding_path = 'E:/embeddings/glove.6B.300d.txt'
+            topn_words = 100
+            wmd_sims = WordMoversDistance.similarities(path=f"D:/models/wmd/{data_set}_{topn}d_{topn_words}w.json",
+                                                       corpus=corpus,
+                                                       top_n_docs=topn,
+                                                       top_n_words=topn_words)
+            doctags = corpus.documents.keys()
             series = False
+            vectors = None
         else:
-            doctags = [doctag for doctag in doctags if doctag[-1].isdigit()]
-            series = True
+            vec_path = Vectorization.build_vec_file_name(number_of_subparts,
+                                                         corpus_size,
+                                                         data_set,
+                                                         filter_mode,
+                                                         vectorization_algorithm,
+                                                         real_or_fake,
+                                                         allow_combination=True)
+            try:
+                vectors = Vectorization.my_load_doc2vec_format(vec_path)
+            except FileNotFoundError:
+                if "_o_" in vectorization_algorithm:
+                    vec_splitted = vectorization_algorithm.split("_o_")[0]
+                    focus_facette = vectorization_algorithm.split("_o_")[1]
+                    base_algorithm = vec_splitted
+                    vec_path = Vectorization.build_vec_file_name(number_of_subparts,
+                                                                 corpus_size,
+                                                                 data_set,
+                                                                 filter_mode,
+                                                                 base_algorithm,
+                                                                 real_or_fake,
+                                                                 allow_combination=True)
+                    vectors = Vectorization.my_load_doc2vec_format(vec_path)
+                    summation_method = focus_facette
+                else:
+                    raise FileNotFoundError
+            doctags = vectors.docvecs.doctags.keys()
+            # print(len(doctags))
+            doctags = [doctag for doctag in doctags if corpus.vector_doc_id_base_in_corpus(doctag)]
+            # print(len(doctags))
+
+            # data_set = data_set + "_series"
+
+            if "series" not in data_set:
+                doctags = [doctag for doctag in doctags if doctag[-1].isdigit() and Vectorization.doctag_filter(doctag)]
+                series = False
+            else:
+                doctags = [doctag for doctag in doctags if doctag[-1].isdigit()]
+                series = True
         # print('>', len(doctags))
         results = []
         task_results = defaultdict(list)
@@ -889,27 +923,36 @@ class EvaluationUtils:
         topn_value = 1
         if EvalParams.ignore_same:
             topn_value = 1
-        topn = 100
+
         tasks = [EvaluationTask.create_from_name(task_name, reverted=reverted, corpus=corpus, topn=topn)
                  for task_name in EvalParams.task_names]
         # print(doctags)
+
         for doc_id in doctags:
             # topn = len(corpus.series_dict[reverted[doc_id]])
 
             if topn > topn_value:
                 # print('#############', doc_id, len(doctags))
-                sim_documents = Vectorization.most_similar_documents(vectors, corpus,
-                                                                     positives=[doc_id],
-                                                                     feature_to_use=summation_method,
-                                                                     topn=topn,
-                                                                     print_results=False,
-                                                                     series=series)
+                if wmd_sims:
+                    sim_documents = wmd_sims[doc_id]
+                else:
+                    sim_documents = Vectorization.most_similar_documents(vectors, corpus,
+                                                                         positives=[doc_id],
+                                                                         feature_to_use=summation_method,
+                                                                         topn=topn,
+                                                                         print_results=False,
+                                                                         series=series)
+
                 # sim_documents = [(sim_document[0], sim_document[1]) for sim_document in sim_documents
                 #                  if doctag_filter(sim_document[0])]
                 # print('sim', len(sim_documents))
                 for task in tasks:
                     # print(task.nr_of_possible_matches(doc_id), task.__class__)
-                    # print(doc_id, sim_documents)
+                    print(doc_id, sim_documents)
+                    if isinstance(task, SeriesTask):
+                        if doc_id not in task.reverted:
+                            print(doc_id)
+                            continue
                     metric_results = EvalParams.evaluation_metric(sim_documents, doc_id,
                                                                   task,
                                                                   ignore_same=EvalParams.ignore_same)
@@ -1017,6 +1060,9 @@ class EvaluationUtils:
     @staticmethod
     def sep_vec_calc_eff(corpus, number_of_subparts, corpus_size, data_set, filter_mode,
                          vectorization_algorithm, fake):
+        print(vectorization_algorithm)
+        if vectorization_algorithm.lower() == "wmd" or vectorization_algorithm.lower() == "wordmoversdistance":
+            return
         vec_file_name = Vectorization.build_vec_file_name(number_of_subparts,
                                                           corpus_size,
                                                           data_set,
@@ -1078,9 +1124,9 @@ class EvalParams:
     evaluation_metric = EvaluationMetric.multi_metric
 
     data_sets = [
-        "classic_gutenberg_fake_series",
-        # "german_series",
-        "classic_gutenberg"
+        # "classic_gutenberg_fake_series",
+        "german_series",
+        # "classic_gutenberg"
         # "german_series_short",
         # "german_series_medium",
         # "german_series_large",
@@ -1109,12 +1155,20 @@ class EvalParams:
         # "avn"
     ]
     vectorization_algorithms = [
+        # "wmd",
         "avg_wv2doc",
         "doc2vec",
         # "doc2vec_chunk",
         # # "longformer_untuned"
 
         "book2vec",
+        # "book2vec_avg",
+        # "book2vec_auto",
+        # "book2vec_concat",
+        # "book2vec_pca",
+
+
+        # "topic2vec",
         # "book2vec_window",
         # "book2vec_o_raw",
         # "book2vec_o_loc",
@@ -1144,7 +1198,11 @@ class EvalParams:
         # "book2vec_wo_sty",
         # "book2vec_wo_atm",
         # "book2vec_w2v",
-        # "book2vec_adv",
+        "book2vec_adv",
+        # "book2vec_adv_avg",
+        # "book2vec_adv_concat",
+        # "book2vec_adv_pca",
+
         # "book2vec_adv_o_raw",
         # "book2vec_adv_o_loc",
         # "book2vec_adv_o_time",
@@ -1168,7 +1226,7 @@ class EvalParams:
     ]
 
     task_names = [
-        # "SeriesTask",
+        "SeriesTask",
         "AuthorTask",
         # "GenreTask"
     ]
@@ -1199,7 +1257,7 @@ if __name__ == '__main__':
     # EvalParams
     EvaluationUtils.build_corpora()
     EvaluationUtils.train_vecs()
-    EvaluationUtils.run_evaluation()
+    # EvaluationUtils.run_evaluation()
     # print(EvaluationUtils.create_paper_table("results/simple_series_experiment_table.csv", "results/z_table.csv",
     #                                          used_metrics=["ndcg", "prec", "prec01", "prec03", "prec05", "prec10",
     #                                                        "length_metric"],
@@ -1216,5 +1274,11 @@ if __name__ == '__main__':
     # print(EvaluationUtils.create_paper_table("results/simple_series_experiment_table.csv", "results/z_2table.csv",
     #                                          used_metrics=["ndcg", "prec", "prec01", "prec03", "prec05",
     #                                                        "prec10",
+    #                                                        "length_metric"],
+    #                                          filters=["no_filter"]))
+
+    # print(EvaluationUtils.create_paper_table("results/simple_series_experiment_table.csv", "results/z_table.csv",
+    #                                          used_metrics=["ndcg", "f1", "f101", "f103", "f105",
+    #                                                        "f110",
     #                                                        "length_metric"],
     #                                          filters=["no_filter"]))

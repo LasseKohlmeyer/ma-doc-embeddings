@@ -28,6 +28,7 @@ class DocumentKeyedVectors:
                  prefix='*dt_'):
         wv = {}
         docvecs = {}
+        self.concat_vecs = None
         for key in kv.vocab:
             if key.startswith(prefix):
                 docvecs[key.replace(prefix, "")] = kv[key]

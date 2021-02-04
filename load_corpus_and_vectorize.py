@@ -4,21 +4,34 @@ import time
 from collections import defaultdict
 from bs4 import BeautifulSoup
 import spacy
+from gensim import corpora
 from sklearn import metrics
 import numpy as np
 from tqdm import tqdm
 
+from corpus_iterators import CorpusTaggedDocumentIterator, CorpusDocumentIterator
 from corpus_structure import DataHandler, Preprocesser, Corpus, Document
 import timeit
 
 from vectorization import Vectorizer
 from vectorization_utils import Vectorization
 
+
+def graph_experiment(corpus: Corpus):
+    for doc_id, document in corpus:
+        document.load_sentences_from_disk()
+        for sentence in document.sentences:
+            for token in sentence.tokens:
+                raise NotImplementedError
+
+
 if __name__ == "__main__":
     # corpus = DataHandler.load_maharjan_goodreads()
     # Preprocesser.annotate_and_save(corpus, corpus_dir="corpora/goodreads_genres")
     data_set_name = "classic_gutenberg"
     corpus = Corpus.fast_load(path=os.path.join('corpora', data_set_name), load_entities=False)
+
+    # graph_experiment(corpus)
     # corpus.length_sub_corpora()
     # for doc_id, document in corpus.documents.items():
     #     print(document.genres)
@@ -37,8 +50,9 @@ if __name__ == "__main__":
     # for doc_id, doc in corpus.documents.items():
     #     doc.load_sentences_from_disk()
     #     print(doc_id, doc.length)
-    vectorization_algorithm = "book2vec_adv"
-    vec_file_name = Vectorization.build_vec_file_name('all',
+
+    vectorization_algorithm = "book2vec"
+    vec_file_name = Vectorization.build_vec_file_name('tall',
                                                       'no_limit',
                                                       data_set_name,
                                                       'no_filter',
@@ -55,3 +69,9 @@ if __name__ == "__main__":
                              corpus=corpus,
                              save_path=vec_file_name,
                              return_vecs=False)
+
+    vecs = Vectorization.my_load_doc2vec_format(vec_file_name, combination="concat")
+    print(vecs.docvecs.most_similar("cb_0"))
+    print(vecs.docvecs.most_similar("cb_4"))
+    print(vecs.docvecs.most_similar("cb_18"))
+    print(len(vecs.docvecs["cb_0"]))

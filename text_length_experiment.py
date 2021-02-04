@@ -340,7 +340,8 @@ class TextLengthExperiment:
                                                      data_set,
                                                      filter_mode,
                                                      vectorization_algorithm,
-                                                     "real")
+                                                     "real",
+                                                     allow_combination=True)
         summation_method = "NF"
         try:
             vectors = Vectorization.my_load_doc2vec_format(vec_path)
@@ -354,7 +355,8 @@ class TextLengthExperiment:
                                                              data_set,
                                                              filter_mode,
                                                              base_algorithm,
-                                                             "real")
+                                                             "real",
+                                                             allow_combination=True)
                 vectors = Vectorization.my_load_doc2vec_format(vec_path)
                 summation_method = focus_facette
             else:

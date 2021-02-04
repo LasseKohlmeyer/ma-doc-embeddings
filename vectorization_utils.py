@@ -15,11 +15,35 @@ config = ConfigLoader.get_config()
 class Vectorization:
     @staticmethod
     def build_vec_file_name(number_of_subparts: Union[int, str], size: Union[int, str], dataset: str, filter_mode: str,
-                            vectorization_algorithm: str, fake_series: str) \
+                            vectorization_algorithm: str, fake_series: str, allow_combination: bool = False) \
             -> str:
+
+        combination = None
+        if "_concat" in vectorization_algorithm:
+            vectorization_algorithm = vectorization_algorithm.replace("_concat", "")
+            combination = "con"
+        elif "_pca" in vectorization_algorithm :
+            vectorization_algorithm = vectorization_algorithm.replace("_pca", "")
+            combination = "pca"
+        elif "_tsne" in vectorization_algorithm :
+            vectorization_algorithm = vectorization_algorithm.replace("_tsne", "")
+            combination = "tsne"
+        elif "_umap" in vectorization_algorithm :
+            vectorization_algorithm = vectorization_algorithm.replace("_umap", "")
+            combination = "umap"
+        elif "_avg" in vectorization_algorithm :
+            vectorization_algorithm = vectorization_algorithm.replace("_avg", "")
+            combination = "avg"
+        elif "_auto" in vectorization_algorithm:
+            vectorization_algorithm = vectorization_algorithm.replace("_auto", "")
+            combination = "auto"
+
         sub_path = DataHandler.build_config_str(number_of_subparts, size, dataset, filter_mode,
                                                 vectorization_algorithm, fake_series)
-        return os.path.join(config["system_storage"]["models"], f'{sub_path}.model')
+        vec_path = os.path.join(config["system_storage"]["models"], f'{sub_path}.model')
+        if allow_combination and combination:
+            return f'{vec_path}_{combination}'
+        return vec_path
 
     @staticmethod
     def my_save_word2vec_format(fname: str, vocab: Dict[str, np.ndarray], vectors: np.ndarray, binary: bool = True,
@@ -164,8 +188,23 @@ class Vectorization:
                                                          write_first_line)
 
     @staticmethod
-    def my_load_doc2vec_format(fname: str, binary: bool = False):
-        return DocumentKeyedVectors(KeyedVectors.load_word2vec_format(fname=fname, binary=binary))
+    def my_load_doc2vec_format(fname: str, binary: bool = False, combination: str = None):
+        vecs = DocumentKeyedVectors(KeyedVectors.load_word2vec_format(fname=fname, binary=binary))
+        if combination == "concat":
+            vecs = DocumentKeyedVectors(KeyedVectors.load_word2vec_format(fname=f'{fname}_con', binary=binary))
+        elif combination == "pca":
+            vecs = DocumentKeyedVectors(KeyedVectors.load_word2vec_format(fname=f'{fname}_pca', binary=binary))
+        elif combination == "tsne":
+            vecs = DocumentKeyedVectors(KeyedVectors.load_word2vec_format(fname=f'{fname}_tsne', binary=binary))
+        elif combination == "umap":
+            vecs = DocumentKeyedVectors(KeyedVectors.load_word2vec_format(fname=f'{fname}_umap', binary=binary))
+        elif combination == "avg":
+            vecs = DocumentKeyedVectors(KeyedVectors.load_word2vec_format(fname=f'{fname}_avg', binary=binary))
+        elif combination == "auto_encoder":
+            vecs = DocumentKeyedVectors(KeyedVectors.load_word2vec_format(fname=f'{fname}_auto', binary=binary))
+        else:
+            pass
+        return vecs
 
     # @staticmethod
     # def show_results(model: Union[Doc2Vec, DocumentKeyedVectors], corpus: Corpus):
@@ -554,7 +593,8 @@ class Vectorization:
                               docs_dict: Dict,
                               words_dict: Union[None, Dict],
                               return_vecs: bool,
-                              binary: bool = False):
+                              binary: bool = False,
+                              concat: bool = None):
         Vectorization.my_save_doc2vec_format(fname=save_path,
                                              doctag_vec=docs_dict,
                                              word_vec=words_dict,
@@ -563,7 +603,10 @@ class Vectorization:
                                              binary=binary)
 
         if return_vecs:
-            vecs = Vectorization.my_load_doc2vec_format(fname=save_path, binary=binary)
+            vecs = Vectorization.my_load_doc2vec_format(fname=save_path, binary=binary, combination=concat)
+            # if concat:
+            #     concat_vecs = Vectorization.my_load_doc2vec_format(fname=f'{save_path}_concat', binary=binary)
+            #     return vecs, concat_vecs
             return vecs
         else:
             return True

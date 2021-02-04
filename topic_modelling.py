@@ -67,8 +67,9 @@ class TopicModeller:
         for d_id, doc in enumerate(corpus):
             # topic_dist = [topic_dist for topic_dist in lda_model[doc][0]]
             topic_dist = sorted(lda_model[doc][0], key=lambda x: (x[1]), reverse=True)
-            topics = [tup[0] for tup in topic_dist[:1]]
-            # print(topics)
+            print(topic_dist)
+            topics = [tup[0] for tup in topic_dist[:5] if tup[1] > 0.05]
+            print(topics)
             for topic_num in topics:
                 words_in_topics = lda_model.show_topic(topic_num, 100)
                 words_in_topics = [word for (word, perc) in words_in_topics]
@@ -253,6 +254,7 @@ class TopicModeller:
     def topic_modelling(corpus: Corpus):
         topic_dict_path = os.path.join(corpus.corpus_path, "topic_ids.json")
         if not os.path.isfile(topic_dict_path):
+            print("train topic model")
             topic_dict, _, _, _, _ = TopicModeller.train_lda_mem_eff(corpus)
 
             with open(topic_dict_path, 'w', encoding='utf-8') as fp:

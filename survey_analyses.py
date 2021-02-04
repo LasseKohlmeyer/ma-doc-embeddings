@@ -210,7 +210,7 @@ def facet_kappa_for_df(tri_df: pd.DataFrame):
 
 if __name__ == "__main__":
 
-    df = pd.read_csv("data_websci_2021-01-15_10-57.csv", delimiter='\t', encoding="utf-16")
+    df = pd.read_csv("data_websci_2021-02-04_14-21.csv", delimiter='\t', encoding="utf-16")
     df = df.fillna(-10)
 
     comparison_suffix_mapping = {

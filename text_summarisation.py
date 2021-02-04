@@ -195,10 +195,14 @@ class Summarizer:
         return res, sent_ids
 
     @staticmethod
-    def get_summary(corpus_root_path: str):
+    def get_summary(corpus: Corpus):
+        if corpus.root_corpus_path is None:
+            raise UserWarning("No root corpus set!")
+        corpus_root_path = corpus.root_corpus_path
         summary_dict_path = os.path.join(corpus_root_path, "sent_ids.json")
         if not os.path.isfile(summary_dict_path):
             summary_dict = {}
+            print("train summary")
             root_corpus = Corpus.fast_load(path=corpus_root_path, load_entities=False)
             for doc_id, doc in root_corpus.documents.items():
                 sents, ids = Summarizer.generate_summary_of_corpus_doc(doc, 20)
@@ -224,10 +228,7 @@ class Summarizer:
     @staticmethod
     def get_corpus_summary_sentence_list(corpus: Corpus, lemma: bool, lower: bool):
         corpus_summary = []
-        if corpus.root_corpus_path is None:
-            raise UserWarning("No root corpus set!")
-        summary_corpus_path = corpus.root_corpus_path
-        corpus_summary_dict = Summarizer.get_summary(summary_corpus_path)
+        corpus_summary_dict = Summarizer.get_summary(corpus)
         _, doc_ids = corpus.get_texts_and_doc_ids()
         for doc_id in doc_ids:
             document = corpus.documents[doc_id]

@@ -119,7 +119,8 @@ if __name__ == '__main__':
                                                  "classic_gutenberg",
                                                  "no_filter",
                                                  "book2vec_adv",
-                                                 "real")
+                                                 "real",
+                                                 allow_combination=True)
 
     vecs = Vectorization.my_load_doc2vec_format(vec_path)
 

@@ -9,10 +9,14 @@ from gensim.models.doc2vec import Doc2Vec, TaggedDocument
 import numpy as np
 from gensim.scripts.glove2word2vec import glove2word2vec
 from gensim.test.utils import get_tmpfile, datapath
+from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
 from tqdm import tqdm
 import torch
 from transformers import TFAutoModel, AutoTokenizer, AdamW, AutoModel
+from umap import UMAP
 
+from auto_encoding import SimpleAutoEncoder
 from corpus_iterators import CorpusSentenceIterator, \
     CorpusDocumentIterator, CorpusTaggedDocumentIterator, CorpusTaggedFacetIterator, \
     write_doc_based_aspect_frequency_analyzis, FlairDocumentIterator, FlairFacetIterator
@@ -56,6 +60,11 @@ class Vectorizer:
                   return_vecs: bool = False, chunk_len: int = None):
         if "_o_" in input_str:
             return
+
+        concat = False
+        if "_concat" in input_str:
+            concat = True
+            input_str = input_str.replace("_concat", "")
 
         facets_of_chunks = False
         if chunk_len is None and "_chunk" in input_str:
@@ -234,6 +243,8 @@ class Vectorizer:
         elif input_str == "stacked_flair":
             return Vectorizer.flair(corpus, None, "stacked_flair", save_path, return_vecs=return_vecs,
                                     chunk_len=chunk_len)
+        elif input_str == "topic_vec" or input_str == "topic_vecs" or input_str == "topic2vec":
+            Vectorizer.topiv_vecs(corpus, save_path=save_path, return_vecs=return_vecs)
         else:
             raise UserWarning(f"fUnknown input string {input_str}!")
 
@@ -518,7 +529,8 @@ class Vectorizer:
                         disable_aspects: List[str] = None, return_vecs: bool = True, without_training: bool = False,
                         chunk_len: int = None,
                         facets_of_chunks: bool = True,
-                        window_size: int = 0):
+                        window_size: int = 0,
+                        concat: bool = False):
 
         lemma = False
         lower = False
@@ -533,10 +545,7 @@ class Vectorizer:
             topic_dict = None
 
         if "plot" not in disable_aspects:
-
-            if corpus.root_corpus_path is None:
-                raise UserWarning("No root corpus set!")
-            summary_dict = Summarizer.get_summary(corpus.root_corpus_path)
+            summary_dict = Summarizer.get_summary(corpus)
         else:
             summary_dict = None
 
@@ -555,7 +564,21 @@ class Vectorizer:
         # write_aspect_frequency_analyzis(doc_aspects=doc_aspects, doc_ids=doc_ids, save_name=aspect_path)
 
         # print(docs_dict.keys())
-        docs_dict = Vectorizer.combine_vectors_by_sum(docs_dict)
+
+        # concat_vecs = Vectorizer.combine_vectors_by_concat(docs_dict)
+        # Vectorization.store_vecs_and_reload(save_path=f'{save_path}_con', docs_dict=concat_vecs, words_dict=None,
+        #                                     return_vecs=False)
+        #
+        # pca_vecs = Vectorizer.pca_on_vectors(concat_vecs)
+        # Vectorization.store_vecs_and_reload(save_path=f'{save_path}_pca', docs_dict=pca_vecs, words_dict=None,
+        #                                     return_vecs=False)
+        #
+        # docs_dict = Vectorizer.combine_vectors_by_sum(docs_dict)
+
+        docs_dict = Vectorizer.combine_vectors(save_path=save_path, document_dictionary=docs_dict, dim_size=None)
+
+
+
         # print(path)
 
         return Vectorization.store_vecs_and_reload(save_path=save_path, docs_dict=docs_dict, words_dict=words_dict,
@@ -572,6 +595,20 @@ class Vectorizer:
         return sentence_aspect
 
     @classmethod
+    def topiv_vecs(cls, corpus: Corpus, save_path: str = "models/", return_vecs: bool = True):
+        _, _, topic_model, lda_corpus, doc_ids = TopicModeller.train_lda_mem_eff(corpus)
+        docs_dict = {}
+        words_dict = None
+        # print(len(lda_corpus))
+        # print(doc_ids)
+        for i, doc_id in enumerate(doc_ids):
+            doc = lda_corpus[i]
+            docs_dict[doc_id] = np.array([score for (topic, score) in topic_model[doc][0]])
+
+        return Vectorization.store_vecs_and_reload(save_path=save_path, docs_dict=docs_dict, words_dict=None,
+                                                   return_vecs=return_vecs)
+
+    @classmethod
     def book2vec_adv(cls, corpus: Corpus, save_path: str = "models/",
                      disable_aspects: List[str] = None, return_vecs: bool = True, algorithm="doc2vec",
                      without_training: bool = False,
@@ -583,7 +620,7 @@ class Vectorizer:
 
         if disable_aspects is None:
             disable_aspects = []
-        disable_aspects.extend(["cont", "plot"])
+        # disable_aspects.extend(["cont", "plot"])
         if "cont" not in disable_aspects:
             topic_dict = TopicModeller.topic_modelling(corpus)
             # topic_dict, _ = TopicModeller.train_lda_mem_eff(corpus)
@@ -591,9 +628,7 @@ class Vectorizer:
             topic_dict = None
 
         if "plot" not in disable_aspects:
-            if corpus.root_corpus_path is None:
-                raise UserWarning("No root corpus set!")
-            summary_dict = Summarizer.get_summary(corpus.root_corpus_path)
+            summary_dict = Summarizer.get_summary(corpus)
         else:
             summary_dict = None
 
@@ -623,7 +658,17 @@ class Vectorizer:
         aspect_path = os.path.basename(save_path)
         write_doc_based_aspect_frequency_analyzis(documents.doc_aspects, save_name=aspect_path)
 
-        docs_dict = Vectorizer.combine_vectors_by_sum(docs_dict)
+        # concat_vecs = Vectorizer.combine_vectors_by_concat(docs_dict)
+        # Vectorization.store_vecs_and_reload(save_path=f'{save_path}_con', docs_dict=concat_vecs, words_dict=None,
+        #                                     return_vecs=False)
+        #
+        # pca_vecs = Vectorizer.pca_on_vectors(concat_vecs)
+        # Vectorization.store_vecs_and_reload(save_path=f'{save_path}_pca', docs_dict=pca_vecs, words_dict=None,
+        #                                     return_vecs=False)
+        #
+        # docs_dict = Vectorizer.combine_vectors_by_sum(docs_dict)
+
+        docs_dict = Vectorizer.combine_vectors(save_path=save_path, document_dictionary=docs_dict, dim_size=None)
 
         return Vectorization.store_vecs_and_reload(save_path=save_path, docs_dict=docs_dict, words_dict=words_dict,
                                                    return_vecs=return_vecs)
@@ -822,6 +867,185 @@ class Vectorizer:
             # print(model.docvecs[tag])
         summed_vecs.update(document_dictionary)
         return summed_vecs
+
+    @staticmethod
+    def combine_vectors_by_avg(document_dictionary: Dict[str, np.array]):
+        summed_vecs = {}
+        # print(document_dictionary.keys())
+
+        if list(document_dictionary.keys())[0][-1].isdigit():
+            element_pointer = -2
+        else:
+            element_pointer = -1
+        base_ending_candidates = set([f"_{tag.split('_')[element_pointer]}" for tag in document_dictionary.keys()])
+        print(base_ending_candidates, document_dictionary.keys())
+        candidate_counter_dict = defaultdict(int)
+        plain_doc_ids = set()
+        for base_ending_candidate in base_ending_candidates:
+            for doc_id in document_dictionary.keys():
+                splitted_id = doc_id.split('_')
+                if doc_id[-1].isdigit():
+                    pass
+                else:
+                    prefix = '_'.join(splitted_id[:-1])
+                    suffix = f"_{splitted_id[-1]}"
+                    plain_doc_ids.add(prefix)
+
+                    if base_ending_candidate == suffix:
+                        candidate_counter_dict[base_ending_candidate] += 1
+        print(len(plain_doc_ids), candidate_counter_dict)
+        final_candidates = [candidate for candidate, count in candidate_counter_dict.items()
+                            if count == len(plain_doc_ids)]
+
+        if len(final_candidates) == 0:
+            raise UserWarning("No aspect found for all documents")
+        base_ending = final_candidates[0]
+
+        id_groups = set([tag.split('_')[-1] for tag in document_dictionary.keys() if not tag.endswith(base_ending)])
+        # print(base_ending, id_groups, document_dictionary.keys())
+        c = 0
+        for tag in document_dictionary.keys():
+            if tag.endswith(base_ending):
+                new_vec = document_dictionary[tag]
+                c += 1
+                base_tag = tag.replace(base_ending, '')
+                for group in id_groups:
+                    try:
+                        new_vec += document_dictionary[f'{base_tag}_{group}']
+                        c += 1
+                    except KeyError:
+                        pass
+                summed_vecs[f'{base_tag}'] = new_vec / c
+                c = 0
+
+        return summed_vecs
+
+    @staticmethod
+    def combine_vectors_by_concat(document_dictionary: Dict[str, np.array]):
+        concat_vecs = {}
+        # print(document_dictionary.keys())
+
+        if list(document_dictionary.keys())[0][-1].isdigit():
+            element_pointer = -2
+        else:
+            element_pointer = -1
+        base_ending_candidates = set([f"_{tag.split('_')[element_pointer]}" for tag in document_dictionary.keys()])
+        print(base_ending_candidates, document_dictionary.keys())
+        candidate_counter_dict = defaultdict(int)
+        plain_doc_ids = set()
+        for base_ending_candidate in base_ending_candidates:
+            for doc_id in document_dictionary.keys():
+                splitted_id = doc_id.split('_')
+                if doc_id[-1].isdigit():
+                    pass
+                else:
+                    prefix = '_'.join(splitted_id[:-1])
+                    suffix = f"_{splitted_id[-1]}"
+                    plain_doc_ids.add(prefix)
+
+                    if base_ending_candidate == suffix:
+                        candidate_counter_dict[base_ending_candidate] += 1
+        print(len(plain_doc_ids), candidate_counter_dict)
+        final_candidates = [candidate for candidate, count in candidate_counter_dict.items()
+                            if count == len(plain_doc_ids)]
+
+        if len(final_candidates) == 0:
+            raise UserWarning("No aspect found for all documents")
+        base_ending = final_candidates[0]
+
+        id_groups = set([tag.split('_')[-1] for tag in document_dictionary.keys() if not tag.endswith(base_ending)])
+        # print(base_ending, id_groups, document_dictionary.keys())
+
+        for tag in document_dictionary.keys():
+            if tag.endswith(base_ending):
+                new_vec = [e for e in document_dictionary[tag].tolist()]
+                base_tag = tag.replace(base_ending, '')
+                for group in id_groups:
+                    try:
+                        for e in document_dictionary[f'{base_tag}_{group}'].tolist():
+                            new_vec.append(e)
+                    except KeyError:
+                        pass
+                # print(new_vec)
+                concat_vecs[f'{base_tag}'] = np.array(new_vec, dtype="object")
+            # print(model.docvecs[tag])
+        # concat_vecs.update(document_dictionary)
+        return concat_vecs
+
+    @staticmethod
+    def pca_on_vectors(concat_vecs: Dict[str, np.ndarray], dim_size: int = 300):
+        numpy_concat_vecs = np.array([vec for doc_id, vec in concat_vecs.items()])
+        try:
+            pca = PCA(n_components=dim_size, random_state=42)
+            reduced = [vector for vector in pca.fit_transform(numpy_concat_vecs)]
+        except ValueError:
+            pca = PCA(n_components=len(concat_vecs), random_state=42)
+            reduced = [vector for vector in pca.fit_transform(numpy_concat_vecs)]
+
+        return {doc_id: vector for doc_id, vector in zip(concat_vecs.keys(), reduced)}
+
+    # @staticmethod
+    # def tsne_on_vectors(concat_vecs: Dict[str, np.ndarray], dim_size: int = 300):
+    #     numpy_concat_vecs = np.array([vec for doc_id, vec in concat_vecs.items()])
+    #     try:
+    #         tsne = TSNE(n_components=dim_size, random_state=42)
+    #         reduced = [vector for vector in tsne.fit_transform(numpy_concat_vecs)]
+    #     except ValueError:
+    #         tsne = TSNE(n_components=len(concat_vecs), random_state=42)
+    #         reduced = [vector for vector in tsne.fit_transform(numpy_concat_vecs)]
+    #
+    #     return {doc_id: vector for doc_id, vector in zip(concat_vecs.keys(), reduced)}
+    #
+    # @staticmethod
+    # def umap_on_vectors(concat_vecs: Dict[str, np.ndarray], dim_size: int = 300):
+    #     numpy_concat_vecs = np.array([vec for doc_id, vec in concat_vecs.items()])
+    #     try:
+    #         umap = UMAP(n_components=dim_size, random_state=42)
+    #         reduced = [vector for vector in umap.fit_transform(numpy_concat_vecs)]
+    #     except TypeError:
+    #         umap = UMAP(n_components=3, random_state=42)
+    #         reduced = [vector for vector in umap.fit_transform(numpy_concat_vecs)]
+    #
+    #     return {doc_id: vector for doc_id, vector in zip(concat_vecs.keys(), reduced)}
+
+    @staticmethod
+    def autoencoder_on_vectors(concat_vecs: Dict[str, np.ndarray], dim_size: int = 300):
+        numpy_concat_vecs = np.array([vec for doc_id, vec in concat_vecs.items()])
+        auto_encoder = SimpleAutoEncoder(latent_dim=dim_size, input_data=numpy_concat_vecs, epochs=50)
+        reduced = auto_encoder.get_latent_representation()
+
+        return {doc_id: vector for doc_id, vector in zip(concat_vecs.keys(), reduced)}
+
+    @staticmethod
+    def combine_vectors(save_path: str, document_dictionary: Dict[str, np.array], dim_size: int = None):
+        concat_vecs = Vectorizer.combine_vectors_by_concat(document_dictionary)
+        if dim_size is None:
+            dim_size = len(list(document_dictionary.values())[0])
+        Vectorization.store_vecs_and_reload(save_path=f'{save_path}_con', docs_dict=concat_vecs, words_dict=None,
+                                            return_vecs=False)
+
+        pca_vecs = Vectorizer.pca_on_vectors(concat_vecs, dim_size=dim_size)
+        Vectorization.store_vecs_and_reload(save_path=f'{save_path}_pca', docs_dict=pca_vecs, words_dict=None,
+                                            return_vecs=False)
+
+        # tsne_vecs = Vectorizer.tsne_on_vectors(concat_vecs, dim_size=dim_size)
+        # Vectorization.store_vecs_and_reload(save_path=f'{save_path}_tsne', docs_dict=tsne_vecs, words_dict=None,
+        #                                     return_vecs=False)
+
+        # umap_vecs = Vectorizer.umap_on_vectors(concat_vecs, dim_size=dim_size)
+        # Vectorization.store_vecs_and_reload(save_path=f'{save_path}_umap', docs_dict=umap_vecs, words_dict=None,
+        #                                     return_vecs=False)
+
+        simple_auto_vecs = Vectorizer.autoencoder_on_vectors(concat_vecs, dim_size=dim_size)
+        Vectorization.store_vecs_and_reload(save_path=f'{save_path}_auto', docs_dict=simple_auto_vecs, words_dict=None,
+                                            return_vecs=False)
+
+        avg_vecs = Vectorizer.combine_vectors_by_avg(document_dictionary)
+        Vectorization.store_vecs_and_reload(save_path=f'{save_path}_avg', docs_dict=avg_vecs, words_dict=None,
+                                            return_vecs=False)
+
+        docs_dict = Vectorizer.combine_vectors_by_sum(document_dictionary)
+        return docs_dict
 
     @staticmethod
     def model2dict(model: Doc2Vec):

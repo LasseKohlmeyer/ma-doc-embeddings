@@ -109,7 +109,7 @@ def calculate_facets_of_document(document: Document,
                                  topic_dict: Union[None, Dict[str, List[str]]],
                                  summary_dict: Union[None, Dict[str, List[Union[str, int]]]],
                                  window: int = 0):
-    def windowing(facet_ids: List[int], doc: Document, window_size: int):
+    def windowing(facet_ids, doc: Document, window_size: int):
         facet_words = []
         for (sentence_id, token_id) in facet_ids:
             # print(sentence_id, token_id, facet_ids)
@@ -266,6 +266,7 @@ class CorpusDocumentIterator(object):
         self.corpus = corpus
         self.lemma = lemma
         self.lower = lower
+        self.doc_ids = []
 
     def __len__(self):
         return len(self.corpus.documents)
@@ -273,6 +274,8 @@ class CorpusDocumentIterator(object):
     def __iter__(self):
         for doc_id, document in self.corpus.documents.items():
             yield document.get_flat_tokens_from_disk(lemma=self.lemma, lower=self.lower)
+            if doc_id not in self.doc_ids:
+                self.doc_ids.append(doc_id)
 
 
 class CorpusTaggedDocumentIterator(object):
