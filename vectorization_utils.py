@@ -1,13 +1,17 @@
 import os
+from collections import defaultdict
 from typing import Union, List, Dict
 
+import numpy as np
+from gensim import utils
 from gensim.models import KeyedVectors
 from gensim.models.doc2vec import Doc2Vec
-from gensim import utils
-import numpy as np
 from numpy import float32 as real
-from doc2vec_structures import DocumentKeyedVectors
+from sklearn.decomposition import PCA
+
+from auto_encoding import SimpleAutoEncoder
 from corpus_structure import Corpus, ConfigLoader, DataHandler
+from doc2vec_structures import DocumentKeyedVectors
 
 config = ConfigLoader.get_config()
 
@@ -189,22 +193,60 @@ class Vectorization:
 
     @staticmethod
     def my_load_doc2vec_format(fname: str, binary: bool = False, combination: str = None):
-        vecs = DocumentKeyedVectors(KeyedVectors.load_word2vec_format(fname=fname, binary=binary))
-        if combination == "concat":
-            vecs = DocumentKeyedVectors(KeyedVectors.load_word2vec_format(fname=f'{fname}_con', binary=binary))
-        elif combination == "pca":
-            vecs = DocumentKeyedVectors(KeyedVectors.load_word2vec_format(fname=f'{fname}_pca', binary=binary))
-        elif combination == "tsne":
-            vecs = DocumentKeyedVectors(KeyedVectors.load_word2vec_format(fname=f'{fname}_tsne', binary=binary))
-        elif combination == "umap":
-            vecs = DocumentKeyedVectors(KeyedVectors.load_word2vec_format(fname=f'{fname}_umap', binary=binary))
-        elif combination == "avg":
-            vecs = DocumentKeyedVectors(KeyedVectors.load_word2vec_format(fname=f'{fname}_avg', binary=binary))
-        elif combination == "auto_encoder":
-            vecs = DocumentKeyedVectors(KeyedVectors.load_word2vec_format(fname=f'{fname}_auto', binary=binary))
-        else:
-            pass
-        return vecs
+        summation_method = None
+        if "_o_" in fname:
+            focus_facette = fname.split("_o_")[1].replace('.model', '')
+            fname = fname.replace(f'_o_{focus_facette}', '')
+            summation_method = focus_facette
+
+        try:
+            vecs = DocumentKeyedVectors(KeyedVectors.load_word2vec_format(fname=fname, binary=binary))
+            if combination == "concat":
+                vecs = DocumentKeyedVectors(KeyedVectors.load_word2vec_format(fname=f'{fname}_con', binary=binary))
+            elif combination == "pca":
+                vecs = DocumentKeyedVectors(KeyedVectors.load_word2vec_format(fname=f'{fname}_pca', binary=binary))
+            elif combination == "tsne":
+                vecs = DocumentKeyedVectors(KeyedVectors.load_word2vec_format(fname=f'{fname}_tsne', binary=binary))
+            elif combination == "umap":
+                vecs = DocumentKeyedVectors(KeyedVectors.load_word2vec_format(fname=f'{fname}_umap', binary=binary))
+            elif combination == "avg":
+                vecs = DocumentKeyedVectors(KeyedVectors.load_word2vec_format(fname=f'{fname}_avg', binary=binary))
+            elif combination == "auto_encoder":
+                vecs = DocumentKeyedVectors(KeyedVectors.load_word2vec_format(fname=f'{fname}_auto', binary=binary))
+            else:
+                pass
+        except FileNotFoundError:
+            if "_concat" in fname:
+                combination = "con"
+                fname = fname.replace("_concat", "")
+            elif "_pca" in fname:
+                combination = "pca"
+                fname = fname.replace("_pca", "")
+            elif"_tsne" in fname:
+                combination = "tsne"
+                fname = fname.replace("_stne", "")
+            elif "_umap" in fname:
+                combination = "umap"
+                fname = fname.replace("_umap", "")
+            elif "_avg" in fname:
+                combination = "avg"
+                fname = fname.replace("_avg", "")
+            elif "_auto" in fname:
+                combination = "auto"
+                fname = fname.replace("_auto", "")
+            else:
+                raise FileNotFoundError
+
+            vecs = DocumentKeyedVectors(KeyedVectors.load_word2vec_format(fname=f'{fname}', binary=binary))
+
+            docs_dict = {doctag: vecs.docvecs[doctag]
+                         for doctag in vecs.docvecs.doctags if not str(doctag)[-1].isdigit()}
+            # print(doc_dict)
+            concat_vecs = Vectorization.combine_vectors(save_path=fname, document_dictionary=docs_dict, dim_size=None)
+            vecs = Vectorization.store_vecs_and_reload(save_path=f'{fname}_{combination}', docs_dict=concat_vecs,
+                                                       words_dict=None,
+                                                       return_vecs=True)
+        return vecs, summation_method
 
     # @staticmethod
     # def show_results(model: Union[Doc2Vec, DocumentKeyedVectors], corpus: Corpus):
@@ -603,10 +645,239 @@ class Vectorization:
                                              binary=binary)
 
         if return_vecs:
-            vecs = Vectorization.my_load_doc2vec_format(fname=save_path, binary=binary, combination=concat)
+            vecs, _ = Vectorization.my_load_doc2vec_format(fname=save_path, binary=binary, combination=concat)
             # if concat:
             #     concat_vecs = Vectorization.my_load_doc2vec_format(fname=f'{save_path}_concat', binary=binary)
             #     return vecs, concat_vecs
             return vecs
         else:
             return True
+
+    @staticmethod
+    def combine_vectors_by_sum(document_dictionary: Dict[str, np.array]):
+        summed_vecs = {}
+        # print(document_dictionary.keys())
+
+        if list(document_dictionary.keys())[0][-1].isdigit():
+            element_pointer = -2
+        else:
+            element_pointer = -1
+        base_ending_candidates = set([f"_{tag.split('_')[element_pointer]}" for tag in document_dictionary.keys()])
+        print(base_ending_candidates, document_dictionary.keys())
+        candidate_counter_dict = defaultdict(int)
+        plain_doc_ids = set()
+        for base_ending_candidate in base_ending_candidates:
+            for doc_id in document_dictionary.keys():
+                splitted_id = doc_id.split('_')
+                if doc_id[-1].isdigit():
+                    pass
+                else:
+                    prefix = '_'.join(splitted_id[:-1])
+                    suffix = f"_{splitted_id[-1]}"
+                    plain_doc_ids.add(prefix)
+
+                    if base_ending_candidate == suffix:
+                        candidate_counter_dict[base_ending_candidate] += 1
+        print(len(plain_doc_ids), candidate_counter_dict)
+        final_candidates = [candidate for candidate, count in candidate_counter_dict.items()
+                            if count == len(plain_doc_ids)]
+
+        if len(final_candidates) == 0:
+            raise UserWarning("No aspect found for all documents")
+        base_ending = final_candidates[0]
+
+        id_groups = set([tag.split('_')[-1] for tag in document_dictionary.keys() if not tag.endswith(base_ending)])
+        # print(base_ending, id_groups, document_dictionary.keys())
+
+        for tag in document_dictionary.keys():
+            if tag.endswith(base_ending):
+                new_vec = document_dictionary[tag]
+                base_tag = tag.replace(base_ending, '')
+                for group in id_groups:
+                    try:
+                        new_vec += document_dictionary[f'{base_tag}_{group}']
+                    except KeyError:
+                        pass
+                summed_vecs[f'{base_tag}'] = new_vec
+            # print(model.docvecs[tag])
+        summed_vecs.update(document_dictionary)
+        return summed_vecs
+
+    @staticmethod
+    def combine_vectors_by_avg(document_dictionary: Dict[str, np.array]):
+        summed_vecs = {}
+        # print(document_dictionary.keys())
+
+        if list(document_dictionary.keys())[0][-1].isdigit():
+            element_pointer = -2
+        else:
+            element_pointer = -1
+        base_ending_candidates = set([f"_{tag.split('_')[element_pointer]}" for tag in document_dictionary.keys()])
+        print(base_ending_candidates, document_dictionary.keys())
+        candidate_counter_dict = defaultdict(int)
+        plain_doc_ids = set()
+        for base_ending_candidate in base_ending_candidates:
+            for doc_id in document_dictionary.keys():
+                splitted_id = doc_id.split('_')
+                if doc_id[-1].isdigit():
+                    pass
+                else:
+                    prefix = '_'.join(splitted_id[:-1])
+                    suffix = f"_{splitted_id[-1]}"
+                    plain_doc_ids.add(prefix)
+
+                    if base_ending_candidate == suffix:
+                        candidate_counter_dict[base_ending_candidate] += 1
+        print(len(plain_doc_ids), candidate_counter_dict)
+        final_candidates = [candidate for candidate, count in candidate_counter_dict.items()
+                            if count == len(plain_doc_ids)]
+
+        if len(final_candidates) == 0:
+            raise UserWarning("No aspect found for all documents")
+        base_ending = final_candidates[0]
+
+        id_groups = set([tag.split('_')[-1] for tag in document_dictionary.keys() if not tag.endswith(base_ending)])
+        # print(base_ending, id_groups, document_dictionary.keys())
+        c = 0
+        for tag in document_dictionary.keys():
+            if tag.endswith(base_ending):
+                new_vec = document_dictionary[tag]
+                c += 1
+                base_tag = tag.replace(base_ending, '')
+                for group in id_groups:
+                    try:
+                        new_vec += document_dictionary[f'{base_tag}_{group}']
+                        c += 1
+                    except KeyError:
+                        pass
+                summed_vecs[f'{base_tag}'] = new_vec / c
+                c = 0
+
+        return summed_vecs
+
+    @staticmethod
+    def combine_vectors_by_concat(document_dictionary: Dict[str, np.array]):
+        concat_vecs = {}
+        # print(document_dictionary.keys())
+
+        if list(document_dictionary.keys())[0][-1].isdigit():
+            element_pointer = -2
+        else:
+            element_pointer = -1
+        base_ending_candidates = set([f"_{tag.split('_')[element_pointer]}" for tag in document_dictionary.keys()])
+        print(base_ending_candidates)
+        candidate_counter_dict = defaultdict(int)
+        plain_doc_ids = set()
+        for base_ending_candidate in base_ending_candidates:
+            for doc_id in document_dictionary.keys():
+                splitted_id = doc_id.split('_')
+                if doc_id[-1].isdigit():
+                    pass
+                else:
+                    prefix = '_'.join(splitted_id[:-1])
+                    suffix = f"_{splitted_id[-1]}"
+                    plain_doc_ids.add(prefix)
+
+                    if base_ending_candidate == suffix:
+                        candidate_counter_dict[base_ending_candidate] += 1
+        print(len(plain_doc_ids), candidate_counter_dict)
+        final_candidates = [candidate for candidate, count in candidate_counter_dict.items()
+                            if count == len(plain_doc_ids)]
+
+        if len(final_candidates) == 0:
+            raise UserWarning("No aspect found for all documents")
+        base_ending = final_candidates[0]
+
+        id_groups = set([tag.split('_')[-1] for tag in document_dictionary.keys() if not tag.endswith(base_ending)])
+        # print(base_ending, id_groups, document_dictionary.keys())
+
+        for tag in document_dictionary.keys():
+            if tag.endswith(base_ending):
+                new_vec = [e for e in document_dictionary[tag].tolist()]
+                base_tag = tag.replace(base_ending, '')
+                for group in id_groups:
+                    try:
+                        for e in document_dictionary[f'{base_tag}_{group}'].tolist():
+                            new_vec.append(e)
+                    except KeyError:
+                        pass
+                # print(new_vec)
+                concat_vecs[f'{base_tag}'] = np.array(new_vec, dtype="object")
+            # print(model.docvecs[tag])
+        # concat_vecs.update(document_dictionary)
+        return concat_vecs
+
+    @staticmethod
+    def pca_on_vectors(concat_vecs: Dict[str, np.ndarray], dim_size: int = 300):
+        numpy_concat_vecs = np.array([vec for doc_id, vec in concat_vecs.items()])
+        try:
+            pca = PCA(n_components=dim_size, random_state=42)
+            reduced = [vector for vector in pca.fit_transform(numpy_concat_vecs)]
+        except ValueError:
+            pca = PCA(n_components=len(concat_vecs), random_state=42)
+            reduced = [vector for vector in pca.fit_transform(numpy_concat_vecs)]
+
+        return {doc_id: vector for doc_id, vector in zip(concat_vecs.keys(), reduced)}
+
+    # @staticmethod
+    # def tsne_on_vectors(concat_vecs: Dict[str, np.ndarray], dim_size: int = 300):
+    #     numpy_concat_vecs = np.array([vec for doc_id, vec in concat_vecs.items()])
+    #     try:
+    #         tsne = TSNE(n_components=dim_size, random_state=42)
+    #         reduced = [vector for vector in tsne.fit_transform(numpy_concat_vecs)]
+    #     except ValueError:
+    #         tsne = TSNE(n_components=len(concat_vecs), random_state=42)
+    #         reduced = [vector for vector in tsne.fit_transform(numpy_concat_vecs)]
+    #
+    #     return {doc_id: vector for doc_id, vector in zip(concat_vecs.keys(), reduced)}
+    #
+    # @staticmethod
+    # def umap_on_vectors(concat_vecs: Dict[str, np.ndarray], dim_size: int = 300):
+    #     numpy_concat_vecs = np.array([vec for doc_id, vec in concat_vecs.items()])
+    #     try:
+    #         umap = UMAP(n_components=dim_size, random_state=42)
+    #         reduced = [vector for vector in umap.fit_transform(numpy_concat_vecs)]
+    #     except TypeError:
+    #         umap = UMAP(n_components=3, random_state=42)
+    #         reduced = [vector for vector in umap.fit_transform(numpy_concat_vecs)]
+    #
+    #     return {doc_id: vector for doc_id, vector in zip(concat_vecs.keys(), reduced)}
+
+    @staticmethod
+    def autoencoder_on_vectors(concat_vecs: Dict[str, np.ndarray], dim_size: int = 300):
+        numpy_concat_vecs = np.array([vec for doc_id, vec in concat_vecs.items()])
+        auto_encoder = SimpleAutoEncoder(latent_dim=dim_size, input_data=numpy_concat_vecs, epochs=50)
+        reduced = auto_encoder.get_latent_representation()
+
+        return {doc_id: vector for doc_id, vector in zip(concat_vecs.keys(), reduced)}
+
+    @staticmethod
+    def combine_vectors(save_path: str, document_dictionary: Dict[str, np.array], dim_size: int = None):
+        concat_vecs = Vectorization.combine_vectors_by_concat(document_dictionary)
+        if dim_size is None:
+            dim_size = len(list(document_dictionary.values())[0])
+        Vectorization.store_vecs_and_reload(save_path=f'{save_path}_con', docs_dict=concat_vecs, words_dict=None,
+                                            return_vecs=False)
+
+        pca_vecs = Vectorization.pca_on_vectors(concat_vecs, dim_size=dim_size)
+        Vectorization.store_vecs_and_reload(save_path=f'{save_path}_pca', docs_dict=pca_vecs, words_dict=None,
+                                            return_vecs=False)
+
+        # tsne_vecs = Vectorizer.tsne_on_vectors(concat_vecs, dim_size=dim_size)
+        # Vectorization.store_vecs_and_reload(save_path=f'{save_path}_tsne', docs_dict=tsne_vecs, words_dict=None,
+        #                                     return_vecs=False)
+
+        # umap_vecs = Vectorizer.umap_on_vectors(concat_vecs, dim_size=dim_size)
+        # Vectorization.store_vecs_and_reload(save_path=f'{save_path}_umap', docs_dict=umap_vecs, words_dict=None,
+        #                                     return_vecs=False)
+
+        simple_auto_vecs = Vectorization.autoencoder_on_vectors(concat_vecs, dim_size=dim_size)
+        Vectorization.store_vecs_and_reload(save_path=f'{save_path}_auto', docs_dict=simple_auto_vecs, words_dict=None,
+                                            return_vecs=False)
+
+        avg_vecs = Vectorization.combine_vectors_by_avg(document_dictionary)
+        Vectorization.store_vecs_and_reload(save_path=f'{save_path}_avg', docs_dict=avg_vecs, words_dict=None,
+                                            return_vecs=False)
+
+        docs_dict = Vectorization.combine_vectors_by_sum(document_dictionary)
+        return docs_dict

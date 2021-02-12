@@ -1,3 +1,4 @@
+import json
 import logging
 import logging.config
 import multiprocessing
@@ -118,9 +119,16 @@ class EvaluationTask(ABC):
         self.reverted = reverted
         self.corpus = corpus
         self.topn = topn - 1
+        self.correct = []
+        self.uncorrect = []
+        self.truth = {}
 
     @abstractmethod
     def has_passed(self, doc_id: str, sim_doc_id: str):
+        pass
+
+    @abstractmethod
+    def ground_truth(self, doc_id: str):
         pass
 
     @abstractmethod
@@ -131,6 +139,16 @@ class EvaluationTask(ABC):
         return self.__class__.__name__
 
     __repr__ = __str__
+
+    def store_passed_results(self, passed, doc_id, sim_doc_id):
+        if passed:
+            self.correct.append((doc_id, sim_doc_id))
+        else:
+            self.uncorrect.append((doc_id, sim_doc_id))
+
+        if doc_id not in self.truth:
+            self.truth = self.ground_truth(doc_id)
+
 
     @staticmethod
     def create_from_name(task_name: str, reverted: Dict[str, str], corpus: Corpus, topn: int):
@@ -147,11 +165,16 @@ class EvaluationTask(ABC):
 
 
 class SeriesTask(EvaluationTask):
+    def ground_truth(self, doc_id):
+        return self.corpus.series_dict[self.reverted[doc_id]]
+
     def has_passed(self, doc_id: str, sim_doc_id: str):
         try:
-            return self.reverted[doc_id] == self.reverted[sim_doc_id]
+            passed = self.reverted[doc_id] == self.reverted[sim_doc_id]
+            self.store_passed_results(passed, doc_id, sim_doc_id)
+            return passed
         except KeyError:
-            if sim_doc_id not  in self.reverted:
+            if sim_doc_id not in self.reverted:
                 return False
             else:
                 print(doc_id, sim_doc_id, self.reverted)
@@ -160,7 +183,7 @@ class SeriesTask(EvaluationTask):
 
     def nr_of_possible_matches(self, doc_id: str):
         try:
-            real_matches = len(self.corpus.series_dict[self.reverted[doc_id]]) - 1
+            real_matches = len(self.ground_truth(doc_id)) - 1
             if real_matches > self.topn:
                 return self.topn
             return real_matches
@@ -170,11 +193,16 @@ class SeriesTask(EvaluationTask):
 
 
 class AuthorTask(EvaluationTask):
+    def ground_truth(self, doc_id):
+        return self.corpus.get_other_doc_ids_by_same_author(doc_id)
+
     def has_passed(self, doc_id: str, sim_doc_id: str):
-        return self.corpus.documents[doc_id].authors == self.corpus.documents[sim_doc_id].authors
+        passed = self.corpus.documents[doc_id].authors == self.corpus.documents[sim_doc_id].authors
+        self.store_passed_results(passed, doc_id, sim_doc_id)
+        return passed
 
     def nr_of_possible_matches(self, doc_id: str):
-        real_matches = len(self.corpus.get_other_doc_ids_by_same_author(doc_id))
+        real_matches = len(self.ground_truth(doc_id))
         # print(real_matches, doc_id, self.corpus.get_other_doc_ids_by_same_author(doc_id))
         if real_matches > self.topn:
             return self.topn
@@ -182,11 +210,17 @@ class AuthorTask(EvaluationTask):
 
 
 class GenreTask(EvaluationTask):
+    def ground_truth(self, doc_id):
+        return self.corpus.get_other_doc_ids_by_same_genres(doc_id)
+
     def has_passed(self, doc_id: str, sim_doc_id: str):
-        return self.corpus.documents[doc_id].genres == self.corpus.documents[sim_doc_id].genres
+        passed = self.corpus.documents[doc_id].genres == self.corpus.documents[sim_doc_id].genres
+        self.store_passed_results(passed, doc_id, sim_doc_id)
+        return passed
 
     def nr_of_possible_matches(self, doc_id: str):
-        real_matches = len(self.corpus.get_other_doc_ids_by_same_genres(doc_id))
+        real_matches = len(self.ground_truth(doc_id))
+        # real_matches = len(self.corpus.get_other_doc_ids_by_same_genres(doc_id))
         if real_matches > self.topn:
             return self.topn
         return real_matches
@@ -361,12 +395,13 @@ class EvaluationMetric:
         # print(task, doc_id, task.corpus.get_other_doc_ids_by_same_author(doc_id), task.nr_of_possible_matches(doc_id))
         if task.nr_of_possible_matches(doc_id) == 0:
             # print('zero devision fix at ndcg')
-            return None
+            return None, {}, {}
         # print(reverted)
         ground_truth_values = []
         predicted_values = []
 
         replaced_doc_id = doc_id
+        id_annontation = defaultdict(list)
         if doc_id[-1].isalpha():
             replaced_doc_id = '_'.join(doc_id.split('_')[:-1])
         for c, (sim_doc_id, sim) in enumerate(sim_documents):
@@ -383,8 +418,10 @@ class EvaluationMetric:
                     ground_truth_values.append(0)
                 if task.has_passed(replaced_doc_id, replaced_sim_doc_id):
                     predicted_values.append(1)
+                    id_annontation[replaced_doc_id].append((replaced_sim_doc_id, 1))
                 else:
                     predicted_values.append(0)
+                    id_annontation[replaced_doc_id].append((replaced_sim_doc_id, 0))
             else:
                 if c != 0:
                     print(f'First match ({c}) is not lookup document {doc_id} but {sim_doc_id}!')
@@ -395,11 +432,19 @@ class EvaluationMetric:
             #       task.corpus.series_dict[task.reverted[doc_id]])
         # print(ground_truth_values, predicted_values)
         # print(doc_id, sim_documents, sum(ground_truth_values),  task.nr_of_possible_matches(doc_id))
+
+        found_ids = set([found_id[0] for found_id in id_annontation[doc_id]])
+
+        print(doc_id, len(set(task.ground_truth(doc_id))), set(task.ground_truth(doc_id)))
+        print(doc_id, len(found_ids), found_ids)
+        print(doc_id, len(set(task.ground_truth(doc_id)).difference(found_ids)), set(task.ground_truth(doc_id)).difference(found_ids))
+        print()
+        missed = {doc_id: list(set(task.ground_truth(doc_id)).difference(found_ids))}
         assert sum(ground_truth_values) == task.nr_of_possible_matches(doc_id)
         # print(doc_id, ground_truth_values, predicted_values)
         ndcg = metrics.ndcg_score(np.array([ground_truth_values]),
                                   np.array([predicted_values]))
-        return ndcg
+        return ndcg, id_annontation, missed
 
     @staticmethod
     def f1(sim_documents, doc_id: str, task: EvaluationTask,
@@ -420,6 +465,8 @@ class EvaluationMetric:
     @staticmethod
     def multi_metric(sim_documents, doc_id: str, task: EvaluationTask,
                      ignore_same: bool = False, k: int = None):
+        ndcg, doc_id_dict, missed = EvaluationMetric.ndcg(sim_documents, doc_id,
+                                                          task, ignore_same)
         metric_dict = {
             "prec": EvaluationMetric.precision(sim_documents, doc_id,
                                                task, ignore_same),
@@ -461,8 +508,7 @@ class EvaluationMetric:
                                         task, ignore_same, k=5),
             "f110": EvaluationMetric.f1(sim_documents, doc_id,
                                         task, ignore_same, k=10),
-            "ndcg": EvaluationMetric.ndcg(sim_documents, doc_id,
-                                          task, ignore_same),
+            "ndcg": ndcg,
             "mrr": EvaluationMetric.mrr(sim_documents, doc_id,
                                         task, ignore_same),
             "ap": EvaluationMetric.ap(sim_documents, doc_id,
@@ -470,7 +516,7 @@ class EvaluationMetric:
             "length_metric": EvaluationMetric.length_metric(sim_documents, doc_id,
                                                             task, ignore_same)
         }
-        return metric_dict
+        return metric_dict, doc_id_dict, missed
 
 
 class Evaluation:
@@ -885,24 +931,26 @@ class EvaluationUtils:
                                                          vectorization_algorithm,
                                                          real_or_fake,
                                                          allow_combination=True)
-            try:
-                vectors = Vectorization.my_load_doc2vec_format(vec_path)
-            except FileNotFoundError:
-                if "_o_" in vectorization_algorithm:
-                    vec_splitted = vectorization_algorithm.split("_o_")[0]
-                    focus_facette = vectorization_algorithm.split("_o_")[1]
-                    base_algorithm = vec_splitted
-                    vec_path = Vectorization.build_vec_file_name(number_of_subparts,
-                                                                 corpus_size,
-                                                                 data_set,
-                                                                 filter_mode,
-                                                                 base_algorithm,
-                                                                 real_or_fake,
-                                                                 allow_combination=True)
-                    vectors = Vectorization.my_load_doc2vec_format(vec_path)
-                    summation_method = focus_facette
-                else:
-                    raise FileNotFoundError
+            vectors, summation_method = Vectorization.my_load_doc2vec_format(vec_path)
+            # try:
+            #     vectors = Vectorization.my_load_doc2vec_format(vec_path)
+            # except FileNotFoundError:
+            #     if "_o_" in vectorization_algorithm:
+            #         vec_splitted = vectorization_algorithm.split("_o_")
+            #         base_algorithm = vec_splitted[0]
+            #         focus_facette = vec_splitted[1]
+            #
+            #         vec_path = Vectorization.build_vec_file_name(number_of_subparts,
+            #                                                      corpus_size,
+            #                                                      data_set,
+            #                                                      filter_mode,
+            #                                                      base_algorithm,
+            #                                                      real_or_fake,
+            #                                                      allow_combination=True)
+            #         vectors = Vectorization.my_load_doc2vec_format(vec_path)
+            #         summation_method = focus_facette
+            #     else:
+            #         raise FileNotFoundError
             doctags = vectors.docvecs.doctags.keys()
             # print(len(doctags))
             doctags = [doctag for doctag in doctags if corpus.vector_doc_id_base_in_corpus(doctag)]
@@ -927,7 +975,8 @@ class EvaluationUtils:
         tasks = [EvaluationTask.create_from_name(task_name, reverted=reverted, corpus=corpus, topn=topn)
                  for task_name in EvalParams.task_names]
         # print(doctags)
-
+        all_doc_id_dict = defaultdict(dict)
+        missed_dict = defaultdict(dict)
         for doc_id in doctags:
             # topn = len(corpus.series_dict[reverted[doc_id]])
 
@@ -948,16 +997,45 @@ class EvaluationUtils:
                 # print('sim', len(sim_documents))
                 for task in tasks:
                     # print(task.nr_of_possible_matches(doc_id), task.__class__)
-                    print(doc_id, sim_documents)
+                    # print(doc_id, sim_documents)
                     if isinstance(task, SeriesTask):
                         if doc_id not in task.reverted:
-                            print(doc_id)
+                            # print(doc_id)
                             continue
-                    metric_results = EvalParams.evaluation_metric(sim_documents, doc_id,
-                                                                  task,
-                                                                  ignore_same=EvalParams.ignore_same)
+                    metric_results, doc_id_dict, missed = EvalParams.evaluation_metric(sim_documents, doc_id,
+                                                                                       task,
+                                                                                       ignore_same=EvalParams.ignore_same)
+                    all_doc_id_dict[str(task)].update(doc_id_dict)
+                    missed_dict[str(task)].update(missed)
                     task_results[str(task)].append(metric_results)
                     results.append(metric_results)
+
+        # task_dict = {}
+        # for task in tasks:
+        #     print(str(task), task.correct)
+        #     print(str(task), task.uncorrect)
+        #     task_dict[str(task)] = {"correct": task.correct, "uncorrect": task.uncorrect, "ground_truth": task.truth}
+        # with open(f'results/logged_decisions/{number_of_subparts}_{corpus_size}_{data_set}_{data_set_size}'
+        #           f'_{filter_mode}_{vectorization_algorithm}_{real_or_fake}_res.json', 'w') as fp:
+        #     json.dump(task_dict, fp, indent=1)
+
+        log = []
+        for task, doc_id_dict in all_doc_id_dict.items():
+            for doc_id, sim_docs in doc_id_dict.items():
+                for sim_doc in sim_docs:
+                    log.append((vectorization_algorithm, task, doc_id, corpus.documents[doc_id], sim_doc[0],
+                                corpus.documents[sim_doc[0]], sim_doc[1]))
+        log_df = pd.DataFrame(log, columns=["Algorithm", "Task", "doc_id", "Doc", "sim_doc_id", "Sim Doc", "Correct"])
+        log_df.to_csv(f'results/logged_decisions/{vectorization_algorithm}_neighbors.csv')
+        missed_log = []
+        for task, doc_id_dict in missed_dict.items():
+            for doc_id, sim_docs in doc_id_dict.items():
+                for sim_doc in sim_docs:
+                    missed_log.append((vectorization_algorithm, task, doc_id, corpus.documents[doc_id], sim_doc,
+                                       corpus.documents[sim_doc]))
+        log_df = pd.DataFrame(missed_log, columns=["Algorithm", "Task", "doc_id", "Doc", "missed doc_id", "Missed Doc"])
+        log_df.to_csv(f'results/logged_decisions/{vectorization_algorithm}_missed.csv')
+
         # print('res', len(results))
         if isinstance(results[0], dict):
             results = {k: np.array([dic[k] for dic in results]) for k in results[0]}
@@ -987,7 +1065,7 @@ class EvaluationUtils:
         results_as_dict = {key: [result for result in results if result is not None]
                            for key, results in results_as_dict.items()}
 
-        significance_dict = EvaluationMath.one_way_anova(results_as_dict)
+        # significance_dict = EvaluationMath.one_way_anova(results_as_dict)
         vec_bar = tqdm(EvalParams.vectorization_algorithms, total=len(EvalParams.vectorization_algorithms),
                        desc="Store final results for algorithm")
         # Scoring
@@ -997,12 +1075,15 @@ class EvaluationUtils:
             # print('>|', results)
             # results = [res for res in results if res is not None]
             # print('>|', results)
-            sig = significance_dict[vectorization_algorithm]
+            # sig = significance_dict[vectorization_algorithm]
             score, deviation = EvaluationMath.mean(results)
             # vectorization_results[vectorization_algorithm] = score, deviation
             observation = (subpart_nr, data_set, task_name, metric_name, vectorization_algorithm, filter_mode,
-                           f'{score:.4f} ± {deviation:.4f} [{sig}]',
+                           f'{score:.4f} ± {deviation:.4f}',
                            EvaluationMath.median(results))
+            # observation = (subpart_nr, data_set, task_name, metric_name, vectorization_algorithm, filter_mode,
+            #                f'{score:.4f} ± {deviation:.4f} [{sig}]',
+            #                EvaluationMath.median(results))
             tuples.append(observation)
 
             df_obs = pd.DataFrame([observation],
@@ -1125,7 +1206,7 @@ class EvalParams:
 
     data_sets = [
         # "classic_gutenberg_fake_series",
-        "german_series",
+        # "german_series",
         # "classic_gutenberg"
         # "german_series_short",
         # "german_series_medium",
@@ -1133,7 +1214,7 @@ class EvalParams:
         # "german_books",
         # "dta_series"
         # "summaries",
-        # "goodreads_genres",
+        "goodreads_genres",
         # "goodreads_genres_short",
         # "goodreads_genres_medium",
         # "goodreads_genres_large",
@@ -1158,25 +1239,25 @@ class EvalParams:
         # "wmd",
         "avg_wv2doc",
         "doc2vec",
-        # "doc2vec_chunk",
+        "doc2vec_chunk",
         # # "longformer_untuned"
 
         "book2vec",
-        # "book2vec_avg",
-        # "book2vec_auto",
-        # "book2vec_concat",
-        # "book2vec_pca",
+        "book2vec_avg",
+        "book2vec_auto",
+        "book2vec_concat",
+        "book2vec_pca",
 
 
         # "topic2vec",
         # "book2vec_window",
-        # "book2vec_o_raw",
-        # "book2vec_o_loc",
-        # "book2vec_o_time",
-        # "book2vec_o_sty",
-        # "book2vec_o_atm",
+        "book2vec_o_raw",
+        "book2vec_o_loc",
+        "book2vec_o_time",
+        "book2vec_o_sty",
+        "book2vec_o_atm",
 
-        # "book2vec_chunk",
+        "book2vec_chunk",
         # "book2vec_chunk_window",
         # "book2vec_chunk_o_raw",
         # "book2vec_chunk_o_loc",
@@ -1198,10 +1279,12 @@ class EvalParams:
         # "book2vec_wo_sty",
         # "book2vec_wo_atm",
         # "book2vec_w2v",
+
         "book2vec_adv",
-        # "book2vec_adv_avg",
-        # "book2vec_adv_concat",
-        # "book2vec_adv_pca",
+        "book2vec_adv_avg",
+        "book2vec_adv_concat",
+        "book2vec_adv_pca",
+        "book2vec_adv_auto",
 
         # "book2vec_adv_o_raw",
         # "book2vec_adv_o_loc",
@@ -1226,9 +1309,9 @@ class EvalParams:
     ]
 
     task_names = [
-        "SeriesTask",
+        # "SeriesTask",
         "AuthorTask",
-        # "GenreTask"
+        "GenreTask"
     ]
 
 # Embedding: Avg vec, doc2vec, simpleAspects, simpleSegments, simple A+S
@@ -1257,7 +1340,7 @@ if __name__ == '__main__':
     # EvalParams
     EvaluationUtils.build_corpora()
     EvaluationUtils.train_vecs()
-    # EvaluationUtils.run_evaluation()
+    EvaluationUtils.run_evaluation()
     # print(EvaluationUtils.create_paper_table("results/simple_series_experiment_table.csv", "results/z_table.csv",
     #                                          used_metrics=["ndcg", "prec", "prec01", "prec03", "prec05", "prec10",
     #                                                        "length_metric"],

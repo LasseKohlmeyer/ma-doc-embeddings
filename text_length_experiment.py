@@ -17,6 +17,7 @@ from sklearn.preprocessing import minmax_scale
 
 from vectorization_utils import Vectorization
 
+mpl.rcParams.update({'font.size': 12})
 
 def get_short_mid_long(df, column):
     q1_of_length = int(df[[column]].quantile(q=0.333333333))
@@ -105,19 +106,19 @@ class HistScatter:
         z = filter_1q[[self.x0_label, self.x1_label]].to_numpy()
         m, b = np.polyfit(x=z[:, 0], y=z[:, 1], deg=1)
         q1_line, = ax.plot(z[:, 0], m * z[:, 0] + b, 'g--')
-        q1_line.set_label('Length Smaller as the 1st Quartile')
+        q1_line.set_label('Length Smaller as the 33rd Percentile')
 
         z = filter_2q[[self.x0_label, self.x1_label]].to_numpy()
         m, b = np.polyfit(x=z[:, 0], y=z[:, 1], deg=1)
         q2_line, = ax.plot(z[:, 0], m * z[:, 0] + b, 'r--')
-        q2_line.set_label('Length Between 1st and 3rd Quartile')
+        q2_line.set_label('Length Between 33rd and 66th Percentile')
 
         for d_id in (sorted(set(filter_3q["Doc ID A"].to_numpy().flatten()))):
             print(d_id)
         z = filter_3q[[self.x0_label, self.x1_label]].to_numpy()
         m, b = np.polyfit(x=z[:, 0], y=z[:, 1], deg=1)
         q3_line, = ax.plot(z[:, 0], m * z[:, 0] + b, 'b--')
-        q3_line.set_label('Length Bigger as the 3rd Quartile')
+        q3_line.set_label('Length Bigger as the 66th Percentile')
 
         ax.legend()
         # Removing the top and the right spine for aesthetics
@@ -171,6 +172,7 @@ class HistScatter:
                                   norm=norm, orientation='vertical',
                                   label='Absolute Text Length')
         # plt.show()
+        print(os.path.join('plots', f'length_influence_{self.title}.png'))
         plt.savefig(fname=os.path.join('plots', f'length_influence_{self.title}.png'), dpi=600)
 
 
@@ -181,7 +183,21 @@ def histogram(data: Dict[str, Union[int, float]]):
 
     df = pd.DataFrame(tuples, columns=['Document ID', 'Length'])
     print(df)
-    sns.histplot(data=df, x="Length", bins=50)
+    mean = df["Length"].mean()
+    median = df["Length"].median()
+    print(mean, median)
+    # bins = 30
+    lim = 500000
+    steps = 25000
+    bins = int(lim / steps)
+    print(bins)
+    sns.histplot(data=df, x="Length", bins=bins*2)
+    plt.xlim([0, lim])
+    plt.axvline(mean, color='r', linestyle='--')
+    plt.axvline(median, color='g', linestyle='-')
+    plt.legend({'Mean': mean, 'Median': median})
+
+    plt.xticks([x for x in range(0, lim, steps)])
     plt.show()
 
 
@@ -192,7 +208,9 @@ class TextLengthExperiment:
     ignore_same = True
 
     data_sets = [
-        "german_series",
+        # "classic_gutenberg",
+        "german_books",
+        # "german_series",
         # "dta_series"
     ]
     filters = [
@@ -225,7 +243,7 @@ class TextLengthExperiment:
         # "book2vec_wo_sty",
         # "book2vec_wo_atm",
         # "book2vec_w2v",
-        "book2vec_adv",
+        # "book2vec_adv",
         # "book2vec_adv_o_raw",
         # "book2vec_adv_o_loc",
         # "book2vec_adv_o_time",
@@ -314,7 +332,7 @@ class TextLengthExperiment:
 
     @staticmethod
     def modified_doc_id(doc_id, modificator):
-        if modificator is "NF":
+        if modificator is "NF" or modificator is None:
             return doc_id
         return f'{doc_id}_{modificator}'
 
@@ -343,24 +361,25 @@ class TextLengthExperiment:
                                                      "real",
                                                      allow_combination=True)
         summation_method = "NF"
-        try:
-            vectors = Vectorization.my_load_doc2vec_format(vec_path)
-        except FileNotFoundError:
-            if "_o_" in vectorization_algorithm:
-                vec_splitted = vectorization_algorithm.split("_o_")[0]
-                focus_facette = vectorization_algorithm.split("_o_")[1]
-                base_algorithm = vec_splitted
-                vec_path = Vectorization.build_vec_file_name(number_of_subparts,
-                                                             corpus_size,
-                                                             data_set,
-                                                             filter_mode,
-                                                             base_algorithm,
-                                                             "real",
-                                                             allow_combination=True)
-                vectors = Vectorization.my_load_doc2vec_format(vec_path)
-                summation_method = focus_facette
-            else:
-                raise FileNotFoundError
+        vectors, summation_method = Vectorization.my_load_doc2vec_format(vec_path)
+        # try:
+        #     vectors, _ = Vectorization.my_load_doc2vec_format(vec_path)
+        # except FileNotFoundError:
+        #     if "_o_" in vectorization_algorithm:
+        #         vec_splitted = vectorization_algorithm.split("_o_")[0]
+        #         focus_facette = vectorization_algorithm.split("_o_")[1]
+        #         base_algorithm = vec_splitted
+        #         vec_path = Vectorization.build_vec_file_name(number_of_subparts,
+        #                                                      corpus_size,
+        #                                                      data_set,
+        #                                                      filter_mode,
+        #                                                      base_algorithm,
+        #                                                      "real",
+        #                                                      allow_combination=True)
+        #         vectors, _ = Vectorization.my_load_doc2vec_format(vec_path)
+        #         summation_method = focus_facette
+        #     else:
+        #         raise FileNotFoundError
 
         doctags = vectors.docvecs.doctags.keys()
         doctags = [doctag for doctag in doctags if doctag[-1].isdigit()]
@@ -416,22 +435,22 @@ class TextLengthExperiment:
         # noinspection PyTypeChecker
         full_spearman = stats.spearmanr(tria_cos, tria_len)
 
-        full_spearman = f'{full_spearman[0]:.4f} [{full_spearman[1]:.4f}]'
+        full_spearman = f'{full_spearman[0]:.4f} [{full_spearman[1]}]'
 
         short_spearman = stats.spearmanr(filter_1q[['Cosine Similarity']].to_numpy().flatten(),
                                          filter_1q[['Length Similarity']].to_numpy().flatten())
 
-        short_spearman = f'{short_spearman[0]:.4f} [{short_spearman[1]:.4f}]'
+        short_spearman = f'{short_spearman[0]:.4f} [{short_spearman[1]}]'
 
         mid_spearman = stats.spearmanr(filter_2q[['Cosine Similarity']].to_numpy().flatten(),
                                        filter_2q[['Length Similarity']].to_numpy().flatten())
 
-        mid_spearman = f'{mid_spearman[0]:.4f} [{mid_spearman[1]:.4f}]'
+        mid_spearman = f'{mid_spearman[0]:.4f} [{mid_spearman[1]}]'
 
         long_spearman = stats.spearmanr(filter_3q[['Cosine Similarity']].to_numpy().flatten(),
                                         filter_3q[['Length Similarity']].to_numpy().flatten())
 
-        long_spearman = f'{long_spearman[0]:.4f} [{long_spearman[1]:.4f}]'
+        long_spearman = f'{long_spearman[0]:.4f} [{long_spearman[1]}]'
 
         # print(vectorization_algorithm, stats.pearsonr(tria_cos, tria_len_d))
         # print(vectorization_algorithm, stats.spearmanr(tria_cos, tria_len_d))
@@ -450,17 +469,18 @@ if __name__ == '__main__':
     #                   columns=['Cosine Similarity', 'Length Similarity', 'Length A'])
     # HistScatter(df, x0_label='Length Similarity', x1_label='Cosine Similarity', algorithm_name="No")
     # histogram({'d1': 2, 'd3': 3, 'd2': 2, 'd4': 5})
-    # TextLengthExperiment.run_experiment()
-    c = Corpus.fast_load("all",
-                         "no_limit",
-                         "german_series",
-                         "no_filter",
-                         "real",
-                         load_entities=False
-                         )
-    length_values = {doc_id: document.vocab_size for doc_id, document in
-                     c.documents.items()}
-    histogram(length_values)
+    TextLengthExperiment.run_experiment()
+
+    # c = Corpus.fast_load("all",
+    #                      "no_limit",
+    #                      "german_books",
+    #                      "no_filter",
+    #                      "real",
+    #                      load_entities=False
+    #                      )
+    # length_values = {doc_id: document.length for doc_id, document in
+    #                  c.documents.items()}
+    # histogram(length_values)
 
 # avg_wv2doc SpearmanrResult(correlation=0.1822316899913066, pvalue=1.03923709619589e-79)
 # doc2vec SpearmanrResult(correlation=0.07783613065249204, pvalue=1.0637541425586075e-15)

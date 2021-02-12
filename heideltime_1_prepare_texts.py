@@ -17,6 +17,6 @@ def corpus2plain_text_dir(source_path: str):
 
 
 if __name__ == "__main__":
-    corpus_to_annotate = "german_series"
+    corpus_to_annotate = "german_books"
     config = ConfigLoader.get_config()
     corpus2plain_text_dir(os.path.join(config["system_storage"]["corpora"], corpus_to_annotate))

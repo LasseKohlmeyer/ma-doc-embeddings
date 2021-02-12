@@ -280,7 +280,7 @@ class TopicModeller:
             Vectorization.my_save_doc2vec_format(fname=f'D:/models/topic_vectors/{dataset}.kv',
                                                  doctag_vec=topic_vectors)
 
-        topic_vecs = Vectorization.my_load_doc2vec_format(f'D:/models/topic_vectors/{dataset}.kv')
+        topic_vecs, _ = Vectorization.my_load_doc2vec_format(f'D:/models/topic_vectors/{dataset}.kv')
 
         # print(topic_vecs.docvecs.doctags)
         # for doctag in topic_vecs.docvecs.doctags:

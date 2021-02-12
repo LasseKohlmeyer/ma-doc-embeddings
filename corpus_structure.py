@@ -595,7 +595,7 @@ class DataHandler:
         return Corpus(source=documents, name="litrec", language=Language.EN)
 
     @staticmethod
-    def load_maharjan_goodreads(corpus_dir: str = None) -> "Corpus":
+    def load_maharjan_goodreads_success(corpus_dir: str = None) -> "Corpus":
         def load_textfile_book(prefix_path, text_genre, success_status, suffix_path, document_id, ):
             doc_path = join(prefix_path, text_genre, success_status, suffix_path)
             if not os.path.isfile(doc_path):
@@ -607,6 +607,83 @@ class DataHandler:
                 #     .replace('  ', ' ')
                 # content = ' '.join([token.split('/')[0] for token in content.split()])
                 # content = DataHandler.raw_text_parse(file.read(), DataHandler.parse_func_goodreads)
+
+            file_path_splitted = suffix_path.replace('.txt', '').split('_')
+            guten_id = file_path_splitted[0]
+            title = file_path_splitted[-1].replace('+', ' ').title()
+
+            content = ""
+            year = None
+            # meta_data_range = '\n'.join(base_content.split('\n')[:30])
+            # year_matches = re.findall(r'([1-2][0-9]{3})', meta_data_range)
+            # if year_matches:
+            #     year = year_matches[0]
+
+            try:
+                author = guten_dict[str(guten_id)][1]
+            except KeyError:
+                author = None
+
+            # print(genre, status, title, year, author)
+            # author = meta[0].replace('+', ' ')
+            # print(author, '|', title, '|', year)
+            d = Document(doc_id=document_id,
+                         text=content,
+                         title=title,
+                         language=Language.DE,
+                         authors=author,
+                         date=str(year),
+                         genres=text_genre,
+                         parse_fun=DataHandler.parse_func_goodreads,
+                         file_path=doc_path)
+            return d
+
+        if corpus_dir is None:
+            corpus_dir = config["data_set_path"]["maharjan_goodreads"]
+
+        guten_dict = load_gutenberg_meta(config["data_set_path"]["gutenberg_meta"])
+
+        genres = [genre_dir for genre_dir in listdir(corpus_dir) if os.path.isdir(join(corpus_dir, genre_dir))
+                  if genre_dir != "dismissed"]
+        genres_dict = {}
+        for genre in genres:
+            with open(join(corpus_dir, genre, "meta_data.yaml"), 'r') as stream:
+                try:
+                    genres_dict[genre] = yaml.safe_load(stream)[genre]
+                except yaml.YAMLError as exc:
+                    print(exc)
+
+        documents = {}
+        succes_dict = {}
+        book_counter = 0
+        for genre, genre_dict in genres_dict.items():
+            books = [(book, "failure") for book in genre_dict["failure"]]
+            books.extend([(book, "success") for book in genre_dict["success"]])
+
+            for (book, status) in books:
+                doc_id = f"gr_{book_counter}"
+                documents[doc_id] = load_textfile_book(corpus_dir, genre, status, book, doc_id)
+                succes_dict[doc_id] = status
+                book_counter += 1
+
+        corpus = Corpus(source=documents, name="goodreads", language=Language.EN)
+        corpus.success_dict = succes_dict
+
+        return corpus
+
+    @staticmethod
+    def load_maharjan_goodreads(corpus_dir: str = None) -> "Corpus":
+        def load_textfile_book(prefix_path, text_genre, success_status, suffix_path, document_id, ):
+            doc_path = join(prefix_path, text_genre, success_status, suffix_path)
+            if not os.path.isfile(doc_path):
+                raise UserWarning(f"No file found! {doc_path}")
+
+            # with open(doc_path, "r", encoding="utf-8") as file:
+            # base_content = file.read()
+            # content = base_content.replace('\n@\n', ' ').replace('\n', ' ').replace('  ', ' ') \
+            #     .replace('  ', ' ')
+            # content = ' '.join([token.split('/')[0] for token in content.split()])
+            # content = DataHandler.raw_text_parse(file.read(), DataHandler.parse_func_goodreads)
 
             file_path_splitted = suffix_path.replace('.txt', '').split('_')
             guten_id = file_path_splitted[0]
@@ -1552,6 +1629,8 @@ class Corpus:
             index = index.replace('_sty', '')
         elif index.endswith('_plot'):
             index = index.replace('_plot', '')
+        elif index.endswith('_cont'):
+            index = index.replace('_cont', '')
         elif index.endswith('_raw'):
             index = index.replace('_raw', '')
         return str(self.documents[index])

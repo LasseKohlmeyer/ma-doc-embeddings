@@ -50,13 +50,13 @@ def get_neighbors(data_sets: List[str], vector_names: List[str]):
                                                          "real",
                                                          allow_combination=True)
 
-            vectors = Vectorization.my_load_doc2vec_format(vec_path)
+            vectors, _ = Vectorization.my_load_doc2vec_format(vec_path)
             for doc_id in corpus.documents.keys():
                 for facet_name in facet_names:
                     sim_docs = Vectorization.most_similar_documents(vectors, corpus, positives=doc_id,
                                                                     topn=doc_top_n,
                                                                     feature_to_use=facet_name, print_results=False,
-                                                                    series=is_series_corpus)
+                                                                    series=is_series_corpus)[1:]
                     for i, (sim_doc_id, sim) in enumerate(sim_docs):
                         tuples.append((data_set, vector_name, facet_name, corpus.documents[doc_id], i,
                                        corpus.documents[replace_sim_id(sim_doc_id)], sim))

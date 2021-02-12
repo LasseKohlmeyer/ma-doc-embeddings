@@ -388,6 +388,7 @@ class CorpusTaggedFacetIterator(object):
         self.lower = lower
         self.disable_aspects = disable_aspects
         self.doc_aspects = {}
+        self.detailed_aspects = {}
         self.topic_dict = topic_dict
         self.summary_dict = summary_dict
         self.chunk_len = chunk_len
@@ -396,6 +397,14 @@ class CorpusTaggedFacetIterator(object):
 
     def __len__(self):
         return len(self.corpus.documents)
+
+    def build_doc_aspects(self, doc_id, doc_aspects):
+        self.doc_aspects[doc_id] = {aspect_name: len(document_aspects)
+                                    for aspect_name, document_aspects in doc_aspects.items()}
+        self.detailed_aspects[doc_id] = {aspect_name: (len(document_aspects), len(set(document_aspects)),
+                                                       self.corpus.documents[doc_id].length,
+                                                       self.corpus.documents[doc_id].vocab_size)
+                                         for aspect_name, document_aspects in doc_aspects.items()}
 
     def __iter__(self):
         if self.chunk_len:
@@ -412,8 +421,8 @@ class CorpusTaggedFacetIterator(object):
                                                                    summary_dict=self.summary_dict,
                                                                    window=self.window)
                         chunked_doc_aspects = doc_aspects
-                        self.doc_aspects[document_chunk.doc_id] = {aspect_name: len(document_aspects)
-                                                                   for aspect_name, document_aspects in doc_aspects.items()}
+                        self.build_doc_aspects(document_chunk.doc_id, doc_aspects)
+
                         for aspect_name, document_aspects in chunked_doc_aspects.items():
                             # print(doc_id, i, len(chunked_aspect), chunked_aspect[:10])
                             chunked_aspect_doc_id = f'{doc_id}_{aspect_name}_{i}'
@@ -430,8 +439,9 @@ class CorpusTaggedFacetIterator(object):
                                                                topic_dict=self.topic_dict,
                                                                summary_dict=self.summary_dict,
                                                                window=self.window)
-                    self.doc_aspects[doc_id] = {aspect_name: len(document_aspects)
-                                                for aspect_name, document_aspects in doc_aspects.items()}
+                    self.build_doc_aspects(doc_id, doc_aspects)
+                    # self.doc_aspects[doc_id] = {aspect_name: len(document_aspects)
+                    #                             for aspect_name, document_aspects in doc_aspects.items()}
                     for aspect_name, document_aspects in doc_aspects.items():
                         for i in range(0, len(document_aspects), self.chunk_len):
                             chunked_aspect = document_aspects[i:i + self.chunk_len]
@@ -448,8 +458,10 @@ class CorpusTaggedFacetIterator(object):
                                                            topic_dict=self.topic_dict,
                                                            summary_dict=self.summary_dict,
                                                            window=self.window)
-                self.doc_aspects[doc_id] = {aspect_name: len(document_aspects)
-                                            for aspect_name, document_aspects in doc_aspects.items()}
+                # self.doc_aspects[doc_id] = {aspect_name: len(document_aspects)
+                #                             for aspect_name, document_aspects in doc_aspects.items()}
+                self.build_doc_aspects(doc_id, doc_aspects)
+
                 for aspect_name, document_aspects in doc_aspects.items():
                     yield TaggedDocument(document_aspects, [f'{doc_id}_{aspect_name}'])
 
@@ -463,6 +475,7 @@ class FlairFacetIterator(object):
         self.lower = lower
         self.disable_aspects = disable_aspects
         self.doc_aspects = {}
+        self.detailed_aspects = {}
         self.topic_dict = topic_dict
         self.summary_dict = summary_dict
         self.chunk_len = chunk_len
@@ -471,6 +484,15 @@ class FlairFacetIterator(object):
 
     def __len__(self):
         return len(self.corpus.documents)
+
+    def build_doc_aspects(self, doc_id, doc_aspects):
+        self.doc_aspects[doc_id] = {aspect_name: len(document_aspects)
+                                    for aspect_name, document_aspects in doc_aspects.items()}
+        self.detailed_aspects[doc_id] = {aspect_name: (len(document_aspects), len(set(document_aspects)),
+                                                       self.corpus.documents[doc_id].length,
+                                                       self.corpus.documents[doc_id].vocab_size)
+                                         for aspect_name, document_aspects in doc_aspects.items()}
+        return self.doc_aspects[doc_id]
 
     def __iter__(self):
         if self.chunk_len:
@@ -486,9 +508,11 @@ class FlairFacetIterator(object):
                                                                    topic_dict=self.topic_dict,
                                                                    summary_dict=self.summary_dict,
                                                                    window=self.window)
-                        chunked_doc_aspects = {aspect_name: len(document_aspects)
-                                               for aspect_name, document_aspects in doc_aspects.items()}
-                        self.doc_aspects[document_chunk.doc_id] = chunked_doc_aspects
+                        # chunked_doc_aspects = {aspect_name: len(document_aspects)
+                        #                        for aspect_name, document_aspects in doc_aspects.items()}
+                        # self.doc_aspects[document_chunk.doc_id] = chunked_doc_aspects
+
+                        chunked_doc_aspects = self.build_doc_aspects(document_chunk.doc_id, doc_aspects)
                         for aspect_name, document_aspects in chunked_doc_aspects.items():
                             # print(doc_id, i, len(chunked_aspect), chunked_aspect[:10])
                             chunked_aspect_doc_id = f'{doc_id}_{aspect_name}_{i}'
@@ -505,8 +529,9 @@ class FlairFacetIterator(object):
                                                                topic_dict=self.topic_dict,
                                                                summary_dict=self.summary_dict,
                                                                window=self.window)
-                    self.doc_aspects[doc_id] = {aspect_name: len(document_aspects)
-                                                for aspect_name, document_aspects in doc_aspects.items()}
+                    # self.doc_aspects[doc_id] = {aspect_name: len(document_aspects)
+                    #                             for aspect_name, document_aspects in doc_aspects.items()}
+                    self.build_doc_aspects(doc_id, doc_aspects)
                     for aspect_name, document_aspects in doc_aspects.items():
                         for i in range(0, len(document_aspects), self.chunk_len):
                             chunked_aspect = document_aspects[i:i + self.chunk_len]
@@ -524,8 +549,9 @@ class FlairFacetIterator(object):
                                                            topic_dict=self.topic_dict,
                                                            summary_dict=self.summary_dict,
                                                            window=self.window)
-                self.doc_aspects[doc_id] = {aspect_name: len(document_aspects)
-                                            for aspect_name, document_aspects in doc_aspects.items()}
+                # self.doc_aspects[doc_id] = {aspect_name: len(document_aspects)
+                #                             for aspect_name, document_aspects in doc_aspects.items()}
+                self.build_doc_aspects(doc_id, doc_aspects)
                 for aspect_name, document_aspects in doc_aspects.items():
                     doc_aspect_id = f'{doc_id}_{aspect_name}'
                     print(doc_aspect_id, len(document_aspects))

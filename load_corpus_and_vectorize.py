@@ -70,7 +70,7 @@ if __name__ == "__main__":
                              save_path=vec_file_name,
                              return_vecs=False)
 
-    vecs = Vectorization.my_load_doc2vec_format(vec_file_name, combination="concat")
+    vecs, _ = Vectorization.my_load_doc2vec_format(vec_file_name, combination="concat")
     print(vecs.docvecs.most_similar("cb_0"))
     print(vecs.docvecs.most_similar("cb_4"))
     print(vecs.docvecs.most_similar("cb_18"))

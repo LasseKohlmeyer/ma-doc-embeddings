@@ -122,7 +122,7 @@ if __name__ == '__main__':
                                                  "real",
                                                  allow_combination=True)
 
-    vecs = Vectorization.my_load_doc2vec_format(vec_path)
+    vecs, _ = Vectorization.my_load_doc2vec_format(vec_path)
 
     Vectorization.most_similar_documents(vecs, c, positives="cb_18", feature_to_use="atm")
 
