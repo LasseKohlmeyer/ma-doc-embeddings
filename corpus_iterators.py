@@ -8,6 +8,7 @@ from gensim.corpora import Dictionary
 from gensim.models.doc2vec import TaggedDocument
 from corpus_structure import Corpus, Document
 from text_summarisation import Summarizer
+from wordnet_utils import NetWords
 
 
 def resolve_entities(entities_of_documents):
@@ -138,22 +139,43 @@ def calculate_facets_of_document(document: Document,
                                                                                           lower,
                                                                                           as_id=True))
 
+    print("times", times)
+    print("locations", locations)
+
     # print(len(times), times)
     doc_aspects = {}
     if "time" not in disable_aspects:
+        times = set(times)
+        times.update(document.get_wordnet_matches(NetWords.get_time_words(lan=document.language),
+                                                  as_id=True,
+                                                  lemma=lemma,
+                                                  lower=lower))
         doc_aspects['time'] = windowing(facet_ids=times, doc=document, window_size=window)
 
     if "loc" not in disable_aspects:
+        locations = set(locations)
+        locations.update(document.get_wordnet_matches(NetWords.get_location_words(lan=document.language),
+                                                      as_id=True,
+                                                      lemma=lemma,
+                                                      lower=lower))
         doc_aspects['loc'] = windowing(facet_ids=locations, doc=document, window_size=window)
 
     if "raw" not in disable_aspects:
         doc_aspects['raw'] = document.get_flat_document_tokens(lemma=lemma, lower=lower)
 
     if "atm" not in disable_aspects:
-        doc_aspects['atm'] = windowing(facet_ids=document.get_flat_and_filtered_document_tokens(lemma=lemma,
-                                                                                                lower=lower,
-                                                                                                pos=["ADJ", "ADV"],
-                                                                                                ids=True),
+        atmosphere_words = document.get_flat_and_filtered_document_tokens(lemma=lemma,
+                                                                          lower=lower,
+                                                                          pos=["ADJ", "ADV"],
+                                                                          ids=True)
+        print("atmosphere", atmosphere_words)
+        atmosphere_words = set(atmosphere_words)
+        atmosphere_words.update(document.get_wordnet_matches(NetWords.get_atmosphere_words(lan=document.language),
+                                                             as_id=True,
+                                                             lemma=lemma,
+                                                             lower=lower))
+
+        doc_aspects['atm'] = windowing(facet_ids=atmosphere_words,
                                        doc=document,
                                        window_size=window)
     if "sty" not in disable_aspects:

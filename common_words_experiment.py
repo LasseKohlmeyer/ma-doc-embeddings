@@ -70,7 +70,9 @@ class CommonWordsExperiment:
             if cls.absolute:
                 thresholds = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
                               11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
-                              25, 50, 100, 1000, len(corpus)]
+                              25, 50, 100, #1000, 2000, 3000,
+                              len(corpus)
+                              ]
             else:
                 thresholds = cls.thresholds
 
@@ -124,6 +126,12 @@ class CommonWordsExperiment:
         # filtered_corpus = corpus
         # del corpus
         print('>|2')
+
+        author_dict = defaultdict(list)
+        for doc_id, document in filtered_corpus.documents.items():
+            author_dict[document.authors].append(doc_id)
+        author_median = np.median([len(doc_ids) for author, doc_ids in author_dict.items()])
+        series_median = np.median([len(doc_ids) for series_id, doc_ids in filtered_corpus.series_dict.items()])
 
         corpus_vocab_size = len(filtered_corpus.get_corpus_vocab())
         print('>|3 vocab size', corpus_vocab_size)
@@ -214,10 +222,18 @@ def plot_many(x, y_list, title=None, skip=0, labels=None, plot_range=None, loc="
 def violion_plot(dataframe):
     # todo different scales for absolute values
     sns.set_theme(style="whitegrid")
-    _ = sns.violinplot(x="Threshold", y="Value", hue="Value Type",
+    font_size = 20
+    ax = sns.violinplot(x="Document Threshold", y="Relative Corpus Size", hue="Value Type",
                          data=dataframe, palette="muted", split=False)
     # ax2 = ax1.twinx()
-    _ = sns.lineplot(data=dataframe, x="Threshold", y="Global Vocab Size")
+    ax = sns.lineplot(data=dataframe, x="Document Threshold", y="Global Vocab Size")
+    ax = sns.lineplot(data=dataframe, x="Document Threshold", y="Corpus Length")
+    ax.set_xlabel("Document Threshold", fontsize=font_size)
+    ax.set_ylabel("Relative Corpus Size", fontsize=font_size)
+    ax.tick_params(labelsize=font_size)
+    plt.setp(ax.get_legend().get_texts(), fontsize=str(font_size))
+
+
     plt.show()
 
 
@@ -253,6 +269,7 @@ def plot_results(path: str):
     orig_doc_vocab_len = None
     orig_doc_len = None
     orig_global_vocab_len = None
+    original_corpus_length = None
     diff_vocab_vals = []
     diff_doc_len_vals = []
     diff_global_vocab_vals = []
@@ -269,14 +286,18 @@ def plot_results(path: str):
             orig_doc_vocab_len = data['avg_vocab_size']
             orig_doc_len = data['avg_document_length']
             orig_global_vocab_len = data['global_vocab_size']
+            original_corpus_length = sum([vals['document_length'] for doc_id, vals in data['document_sizes'].items()])
             relative_vocab = 1
             relative_doc_len = 1
             relative_global_vocab = 1
+            relative_corpus_length = 1
 
         else:
             relative_vocab = 1 - scale(orig_doc_vocab_len - data['avg_vocab_size']) / orig_doc_vocab_len
             relative_doc_len = 1 - scale(orig_doc_len - data['avg_document_length']) / orig_doc_len
             relative_global_vocab = 1 - scale(orig_global_vocab_len - data['global_vocab_size']) / orig_global_vocab_len
+            relative_corpus_length = sum([vals['document_length']
+                                          for doc_id, vals in data['document_sizes'].items()]) / original_corpus_length
 
         diff_vocab_vals.append(relative_vocab)
         diff_doc_len_vals.append(relative_doc_len)
@@ -300,10 +321,14 @@ def plot_results(path: str):
                 relative_vocab = 1 - (origin_doc_vocab[doc_id] - vals['vocab_size']) / origin_doc_vocab[doc_id]
                 relative_doc_len = 1 - (origin_doc_len[doc_id] - vals['document_length']) / origin_doc_len[doc_id]
 
-            df_tuples.append((doc_id, threshold, relative_vocab, 'Vocabulary Size Loss', relative_global_vocab))
-            df_tuples.append((doc_id, threshold, relative_doc_len, 'Document Length Loss', relative_global_vocab))
+            df_tuples.append((doc_id, threshold, relative_vocab, 'Vocabulary Size', relative_global_vocab,
+                              relative_corpus_length))
+            df_tuples.append((doc_id, threshold, relative_doc_len, 'Document Length', relative_global_vocab,
+                              relative_corpus_length))
 
-    df = pd.DataFrame(df_tuples, columns=['Document ID', 'Threshold', 'Value', 'Value Type', 'Global Vocab Size'])
+    df = pd.DataFrame(df_tuples, columns=['Document ID', 'Document Threshold', 'Relative Corpus Size', 'Value Type',
+                                          'Global Vocab Size', 'Corpus Length'])
+    print(df["Global Vocab Size"])
     violion_plot(df)
 
     documents_vocab_ls = [val for _, val in documents_vocab.items()]

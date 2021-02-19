@@ -1,4 +1,5 @@
 import json
+import math
 import os
 import re
 from collections import defaultdict
@@ -594,82 +595,6 @@ class DataHandler:
         # print(len(not_found))
         return Corpus(source=documents, name="litrec", language=Language.EN)
 
-    @staticmethod
-    def load_maharjan_goodreads_success(corpus_dir: str = None) -> "Corpus":
-        def load_textfile_book(prefix_path, text_genre, success_status, suffix_path, document_id, ):
-            doc_path = join(prefix_path, text_genre, success_status, suffix_path)
-            if not os.path.isfile(doc_path):
-                raise UserWarning(f"No file found! {doc_path}")
-
-            # with open(doc_path, "r", encoding="utf-8") as file:
-                # base_content = file.read()
-                # content = base_content.replace('\n@\n', ' ').replace('\n', ' ').replace('  ', ' ') \
-                #     .replace('  ', ' ')
-                # content = ' '.join([token.split('/')[0] for token in content.split()])
-                # content = DataHandler.raw_text_parse(file.read(), DataHandler.parse_func_goodreads)
-
-            file_path_splitted = suffix_path.replace('.txt', '').split('_')
-            guten_id = file_path_splitted[0]
-            title = file_path_splitted[-1].replace('+', ' ').title()
-
-            content = ""
-            year = None
-            # meta_data_range = '\n'.join(base_content.split('\n')[:30])
-            # year_matches = re.findall(r'([1-2][0-9]{3})', meta_data_range)
-            # if year_matches:
-            #     year = year_matches[0]
-
-            try:
-                author = guten_dict[str(guten_id)][1]
-            except KeyError:
-                author = None
-
-            # print(genre, status, title, year, author)
-            # author = meta[0].replace('+', ' ')
-            # print(author, '|', title, '|', year)
-            d = Document(doc_id=document_id,
-                         text=content,
-                         title=title,
-                         language=Language.DE,
-                         authors=author,
-                         date=str(year),
-                         genres=text_genre,
-                         parse_fun=DataHandler.parse_func_goodreads,
-                         file_path=doc_path)
-            return d
-
-        if corpus_dir is None:
-            corpus_dir = config["data_set_path"]["maharjan_goodreads"]
-
-        guten_dict = load_gutenberg_meta(config["data_set_path"]["gutenberg_meta"])
-
-        genres = [genre_dir for genre_dir in listdir(corpus_dir) if os.path.isdir(join(corpus_dir, genre_dir))
-                  if genre_dir != "dismissed"]
-        genres_dict = {}
-        for genre in genres:
-            with open(join(corpus_dir, genre, "meta_data.yaml"), 'r') as stream:
-                try:
-                    genres_dict[genre] = yaml.safe_load(stream)[genre]
-                except yaml.YAMLError as exc:
-                    print(exc)
-
-        documents = {}
-        succes_dict = {}
-        book_counter = 0
-        for genre, genre_dict in genres_dict.items():
-            books = [(book, "failure") for book in genre_dict["failure"]]
-            books.extend([(book, "success") for book in genre_dict["success"]])
-
-            for (book, status) in books:
-                doc_id = f"gr_{book_counter}"
-                documents[doc_id] = load_textfile_book(corpus_dir, genre, status, book, doc_id)
-                succes_dict[doc_id] = status
-                book_counter += 1
-
-        corpus = Corpus(source=documents, name="goodreads", language=Language.EN)
-        corpus.success_dict = succes_dict
-
-        return corpus
 
     @staticmethod
     def load_maharjan_goodreads(corpus_dir: str = None) -> "Corpus":
@@ -724,11 +649,15 @@ class DataHandler:
                   if genre_dir != "dismissed"]
         genres_dict = {}
         for genre in genres:
-            with open(join(corpus_dir, genre, "meta_data.yaml"), 'r') as stream:
-                try:
-                    genres_dict[genre] = yaml.safe_load(stream)[genre]
-                except yaml.YAMLError as exc:
-                    print(exc)
+
+            load_genre = {
+                "failure": [f for f in listdir(os.path.join(corpus_dir, genre, "failure"))
+                            if isfile(join(corpus_dir, genre, "failure", f))],
+                "success": [f for f in listdir(os.path.join(corpus_dir, genre, "success"))
+                            if isfile(join(corpus_dir, genre, "success", f))]
+            }
+            genres_dict[genre] = load_genre
+
 
         documents = {}
         succes_dict = {}
@@ -742,7 +671,6 @@ class DataHandler:
                 documents[doc_id] = load_textfile_book(corpus_dir, genre, status, book, doc_id)
                 succes_dict[doc_id] = status
                 book_counter += 1
-
         corpus = Corpus(source=documents, name="goodreads", language=Language.EN)
         corpus.success_dict = succes_dict
 
@@ -1257,6 +1185,21 @@ class Document:
             return defaultdict(lambda: [], {entity_type: [token.representation(lemma=lemma, lower=lower)
                                                           for (sent_id, token_id, token) in tokens]
                                             for entity_type, tokens in self.doc_entities.items()})
+
+    def get_wordnet_matches(self, wordnet_input, as_id: bool = False, lemma: bool = False, lower: bool = False):
+        matches = []
+        if as_id:
+            for i, sentence in enumerate(self.sentences):
+                for j, token in enumerate(sentence.tokens):
+                    if token.representation(lemma=True, lower=True) in wordnet_input:
+                        matches.append((i, j))
+
+        else:
+            for sentence in self.sentences:
+                for j, token in sentence.tokens:
+                    if token.representation(lemma=True, lower=True) in wordnet_input:
+                        matches.append(token.representation(lemma=lemma, lower=lower))
+        return matches
 
     def into_chunks(self, chunk_size: int):
         def flush_chunk():
@@ -2078,10 +2021,23 @@ class Corpus:
                 common_words[doc_id] = common_words[series_id]
         return common_words
 
-    def get_global_common_words(self) -> Set[str]:
-        common_words = CommonWords.global_too_specific_words_doc_frequency(self,
-                                                                           percentage_share=0.25)
-        return common_words
+    def moderate_specific_word_reduction(self) -> Set[str]:
+        percentage_share = 0.00186
+        absolute_threshold = math.ceil(len(self.documents) * percentage_share)
+        if absolute_threshold < 2:
+            absolute_threshold = 2
+        specific_words = CommonWords.global_too_specific_words_doc_frequency(self,
+                                                                             absolute_share=absolute_threshold)
+        return specific_words
+
+    def strict_specific_word_reduction(self) -> Set[str]:
+        percentage_share = 0.02423
+        absolute_threshold = math.ceil(len(self.documents) * percentage_share)
+        if absolute_threshold < 3:
+            absolute_threshold = 3
+        specific_words = CommonWords.global_too_specific_words_doc_frequency(self,
+                                                                             absolute_share=absolute_threshold)
+        return specific_words
 
     # def get_common_words(self, series_dictionary: Dict[str, List[str]]) -> Dict[str, Set[str]]:
     #     common_words = defaultdict(set)
@@ -2461,9 +2417,19 @@ class Corpus:
             corpus = self.common_words_corpus_copy_mem_eff(common_words_of_task, masking,
                                                            corpus_dir=filtered_corpus_dir)
             return corpus
-        elif mode.lower() == "common_words_doc_freq" or mode.lower() == "cw_df":
-            common_words = self.get_global_common_words()
-            corpus = self.common_words_corpus_copy_mem_eff(common_words, masking,
+        # elif mode.lower() == "common_words_doc_freq" or mode.lower() == "cw_df":
+        #     common_words = self.get_global_common_words()
+        #     corpus = self.common_words_corpus_copy_mem_eff(common_words, masking,
+        #                                                    corpus_dir=filtered_corpus_dir)
+        #     return corpus
+        elif mode.lower() == "specific_words_strict" or mode.lower() == "sw_str":
+            specific_words = self.strict_specific_word_reduction()
+            corpus = self.common_words_corpus_copy_mem_eff(specific_words, masking,
+                                                           corpus_dir=filtered_corpus_dir)
+            return corpus
+        elif mode.lower() == "specific_words_moderate" or mode.lower() == "sw_mod":
+            specific_words = self.moderate_specific_word_reduction()
+            corpus = self.common_words_corpus_copy_mem_eff(specific_words, masking,
                                                            corpus_dir=filtered_corpus_dir)
             return corpus
         else:
@@ -3218,8 +3184,10 @@ class CommonWords:
     #
     #     return common_words
 
+
+
     @staticmethod
-    def global_too_specific_words_doc_frequency(corpus: Corpus, percentage_share: float,
+    def global_too_specific_words_doc_frequency(corpus: Corpus, percentage_share: float = None,
                                                 absolute_share: int = None) \
             -> Set[str]:
         tqdm_disable = True
@@ -3227,7 +3195,7 @@ class CommonWords:
 
         if absolute_share:
             percentage_share = absolute_share
-
+        print("Percantge share", percentage_share)
         for doc_id, document in tqdm(corpus.documents.items(), total=len(corpus.documents), desc="Calculate DF",
                                      disable=tqdm_disable):
             document: Document

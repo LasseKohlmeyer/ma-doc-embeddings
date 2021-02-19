@@ -1211,10 +1211,10 @@ class EvalParams:
         # "german_series_short",
         # "german_series_medium",
         # "german_series_large",
-        # "german_books",
+        "german_books" # 3
         # "dta_series"
         # "summaries",
-        "goodreads_genres",
+        # "goodreads_genres",
         # "goodreads_genres_short",
         # "goodreads_genres_medium",
         # "goodreads_genres_large",
@@ -1223,6 +1223,8 @@ class EvalParams:
     ]
     filters = [
         "no_filter",
+        "specific_words_moderate",
+        "specific_words_strict",
         # "named_entities",
         # "common_words_strict",
         # "common_words_strict_general_words_sensitive",
@@ -1239,7 +1241,7 @@ class EvalParams:
         # "wmd",
         "avg_wv2doc",
         "doc2vec",
-        "doc2vec_chunk",
+        # "doc2vec_chunk",
         # # "longformer_untuned"
 
         "book2vec",
@@ -1251,13 +1253,13 @@ class EvalParams:
 
         # "topic2vec",
         # "book2vec_window",
-        "book2vec_o_raw",
-        "book2vec_o_loc",
-        "book2vec_o_time",
-        "book2vec_o_sty",
-        "book2vec_o_atm",
+        # "book2vec_o_raw",
+        # "book2vec_o_loc",
+        # "book2vec_o_time",
+        # "book2vec_o_sty",
+        # "book2vec_o_atm",
 
-        "book2vec_chunk",
+        # "book2vec_chunk",
         # "book2vec_chunk_window",
         # "book2vec_chunk_o_raw",
         # "book2vec_chunk_o_loc",
@@ -1280,11 +1282,11 @@ class EvalParams:
         # "book2vec_wo_atm",
         # "book2vec_w2v",
 
-        "book2vec_adv",
-        "book2vec_adv_avg",
-        "book2vec_adv_concat",
-        "book2vec_adv_pca",
-        "book2vec_adv_auto",
+        # "book2vec_adv",
+        # "book2vec_adv_avg",
+        # "book2vec_adv_concat",
+        # "book2vec_adv_pca",
+        # "book2vec_adv_auto",
 
         # "book2vec_adv_o_raw",
         # "book2vec_adv_o_loc",
@@ -1311,7 +1313,7 @@ class EvalParams:
     task_names = [
         # "SeriesTask",
         "AuthorTask",
-        "GenreTask"
+        # "GenreTask"
     ]
 
 # Embedding: Avg vec, doc2vec, simpleAspects, simpleSegments, simple A+S
@@ -1349,16 +1351,24 @@ if __name__ == '__main__':
     #                                                   "common_words_relaxed_general_words_sensitive",
     #                                                   "common_words_doc_freq"]))
 
-    print(EvaluationUtils.create_paper_table("results/simple_series_experiment_table.csv", "results/z_table.csv",
-                                             used_metrics=["ndcg", "f_prec", "f_prec01", "f_prec03", "f_prec05",
-                                                           "f_prec10",
-                                                           "length_metric"],
-                                             filters=["no_filter"]))
-    # print(EvaluationUtils.create_paper_table("results/simple_series_experiment_table.csv", "results/z_2table.csv",
+    # print(EvaluationUtils.create_paper_table("results/simple_series_experiment_table.csv", "results/z_table.csv",
+    #                                          used_metrics=["ndcg", "f_prec", "f_prec01", "f_prec03", "f_prec05",
+    #                                                        "f_prec10",
+    #                                                        "length_metric"],
+    #                                          filters=["no_filter"]))
+    # print(EvaluationUtils.create_paper_table("results/simple_series_experiment_table.csv", "results/z_table.csv",
     #                                          used_metrics=["ndcg", "prec", "prec01", "prec03", "prec05",
     #                                                        "prec10",
     #                                                        "length_metric"],
     #                                          filters=["no_filter"]))
+    print(EvaluationUtils.create_paper_table("results/simple_series_experiment_table.csv", "results/z_table.csv",
+                                             used_metrics=["ndcg", "rec", "pec01", "rec03", "rec05",
+                                                           "rec10",
+                                                           "length_metric"],
+                                             filters=["no_filter",
+                                                      "specific_words_moderate",
+                                                      "specific_words_strict"
+                                                      ]))
 
     # print(EvaluationUtils.create_paper_table("results/simple_series_experiment_table.csv", "results/z_table.csv",
     #                                          used_metrics=["ndcg", "f1", "f101", "f103", "f105",
