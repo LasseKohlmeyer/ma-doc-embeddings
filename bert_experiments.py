@@ -40,6 +40,10 @@ task_names = [
     # "GenreTask",
 ]
 
+EvaluationUtils.build_corpora(data_sets=data_sets,
+                              filters=filters)
+
+
 EvaluationUtils.train_vecs(data_sets=data_sets,
                            vectorization_algorithms=vectorization_algorithms,
                            filters=filters)
