@@ -21,7 +21,7 @@ class ConfigLoader:
         if os.path.exists(path):
             path = os.path.join(relative_path, "configs", "default.config.json")
             logging.info('importing config from configs/default.config.json ...')
-            with open(path) as json_file:
+            with open(path, encoding="utf-8") as json_file:
                 return json.load(json_file)
 
         raise Exception("config file missing!")
