@@ -92,8 +92,10 @@ class DataHandler:
             return DataHandler.load_real_series_dta_as_corpus()
         elif input_str == "goodreads_genres":
             return DataHandler.load_maharjan_goodreads()
+        elif input_str == "classic_gutenberg":
+            return DataHandler.load_classic_gutenberg_as_corpus()
         else:
-            raise UserWarning("Unknown input string!")
+            raise UserWarning(f"Unknown input string {input_str}!")
 
     @staticmethod
     def load_test_corpus():
