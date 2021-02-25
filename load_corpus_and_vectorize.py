@@ -28,7 +28,8 @@ def graph_experiment(corpus: Corpus):
 if __name__ == "__main__":
     # corpus = DataHandler.load_maharjan_goodreads()
     # Preprocesser.annotate_and_save(corpus, corpus_dir="corpora/goodreads_genres")
-    data_set_name = "classic_gutenberg"
+    # data_set_name = "classic_gutenberg"
+    data_set_name = "german_series"
     corpus = Corpus.fast_load(path=os.path.join('corpora', data_set_name), load_entities=False)
 
     # graph_experiment(corpus)
@@ -51,8 +52,9 @@ if __name__ == "__main__":
     #     doc.load_sentences_from_disk()
     #     print(doc_id, doc.length)
 
-    vectorization_algorithm = "book2vec"
-    vec_file_name = Vectorization.build_vec_file_name('tall',
+    vectorization_algorithm = "doc2vec_sentence_based"
+    # vectorization_algorithm = "book2vec"
+    vec_file_name = Vectorization.build_vec_file_name('test',
                                                       'no_limit',
                                                       data_set_name,
                                                       'no_filter',
@@ -70,7 +72,7 @@ if __name__ == "__main__":
                              save_path=vec_file_name,
                              return_vecs=False)
 
-    vecs, _ = Vectorization.my_load_doc2vec_format(vec_file_name, combination="concat")
+    vecs, _ = Vectorization.my_load_doc2vec_format(vec_file_name)
     print(vecs.docvecs.most_similar("cb_0"))
     print(vecs.docvecs.most_similar("cb_4"))
     print(vecs.docvecs.most_similar("cb_18"))

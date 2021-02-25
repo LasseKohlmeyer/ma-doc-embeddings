@@ -43,6 +43,7 @@ def corpus_stats(data_sets: List[str]):
         print({author: len(doc_ids) for author, doc_ids in author_dict.items() if author is not None})
         author_vals = [len(doc_ids) for author, doc_ids in author_dict.items() if author is not None]
 
+
         author_median = f'{np.median(author_vals):.0f} ± {iqr(author_vals):.0f} [{np.min(author_vals):.0f}, {np.max(author_vals):.0f}]'
         author_mean = f'{np.mean(author_vals):.2f} ± {np.std(author_vals):.2f} [{np.min(author_vals):.0f}, {np.max(author_vals):.0f}]'
         author_max = f'{np.max(author_vals):.0f}'
@@ -78,7 +79,7 @@ def corpus_stats(data_sets: List[str]):
         tuples.append((data_set_name,
                        nr_books, language,
                        tokens_total, tokens_median,
-                       vocab_total, vocab_median, series_mean, author_mean, genre_mean))
+                       vocab_total, vocab_median, author_mean, series_mean, genre_mean))
     df = pd.DataFrame(tuples, columns=["Data set", "Amount of Books", "Language",
                                        "Total Tokens", "Tokens Median ± IQR",
                                        "Total Vocabulary", "Vocabulary Median ± IQR",

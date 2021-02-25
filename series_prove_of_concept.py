@@ -744,9 +744,13 @@ class EvaluationUtils:
         return subparts, corpus_size, real_or_fake
 
     @classmethod
-    def build_corpora(cls, parallel: bool = False):
+    def build_corpora(cls, parallel: bool = False, data_sets: List[str] = None, filters: List[str] = None):
+        if data_sets is None:
+            data_sets = EvalParams.data_sets
+        if filters is None:
+            filters = EvalParams.filters
 
-        data_set_bar = tqdm(EvalParams.data_sets, total=len(EvalParams.data_sets), desc="2 Operate on dataset")
+        data_set_bar = tqdm(data_sets, total=len(data_sets), desc="2 Operate on dataset")
         for data_set in data_set_bar:
             data_set_bar.set_description(f'2 Operate on dataset >{data_set}<')
             data_set_bar.refresh()
@@ -766,11 +770,19 @@ class EvaluationUtils:
                 corpus = chunk_documents(data_set, number_of_subparts, EvalParams.corpus_size)
 
                 EvaluationUtils.filter_parsing_loop(parallel, corpus, data_set, number_of_subparts,
-                                                    corpus_size, real_or_fake)
+                                                    corpus_size, real_or_fake, filters=filters)
 
     @classmethod
-    def train_vecs(cls, parallel: bool = False):
-        data_set_bar = tqdm(EvalParams.data_sets, total=len(EvalParams.data_sets), desc="1 Operate on dataset")
+    def train_vecs(cls, parallel: bool = False, data_sets: List[str] = None, filters: List[str] = None,
+                   vectorization_algorithms: List[str] = None):
+        if data_sets is None:
+            data_sets = EvalParams.data_sets
+        if filters is None:
+            filters = EvalParams.filters
+        if vectorization_algorithms is None:
+            vectorization_algorithms = EvalParams.vectorization_algorithms
+
+        data_set_bar = tqdm(data_sets, total=len(data_sets), desc="1 Operate on dataset")
         for data_set in data_set_bar:
             data_set_bar.set_description(f'1 Operate on dataset >{data_set}<')
             data_set_bar.refresh()
@@ -787,7 +799,7 @@ class EvaluationUtils:
                 subparts_bar.set_description(f'2 Iterating through subpart >{nr_of_subparts}<')
                 subparts_bar.refresh()
 
-                filter_bar = tqdm(EvalParams.filters, total=len(EvalParams.filters), desc="3 Apply Filter")
+                filter_bar = tqdm(filters, total=len(filters), desc="3 Apply Filter")
                 for filter_mode in filter_bar:
                     filter_bar.set_description(f'3 Apply Filter >{filter_mode}<')
                     filter_bar.refresh()
@@ -796,22 +808,36 @@ class EvaluationUtils:
                                               data_set,
                                               filter_mode,
                                               real_or_fake,
-                                              load_entities=False)
+                                              load_entities=False,)
                     EvaluationUtils.vectorization_loop(parallel, corpus, data_set, filter_mode,
-                                                       nr_of_subparts, corpus_size, real_or_fake)
+                                                       nr_of_subparts, corpus_size, real_or_fake,
+                                                       vectorization_algorithms=vectorization_algorithms)
 
     @classmethod
-    def run_evaluation(cls, parallel: bool = False):
+    def run_evaluation(cls, parallel: bool = False, data_sets: List[str] = None, filters: List[str] = None,
+                       vectorization_algorithms: List[str] = None, task_names: List[str] = None, result_dir: str = None):
+        if data_sets is None:
+            data_sets = EvalParams.data_sets
+        if filters is None:
+            filters = EvalParams.filters
+        if vectorization_algorithms is None:
+            vectorization_algorithms = EvalParams.vectorization_algorithms
+        if task_names is None:
+            task_names = EvalParams.task_names
+        if result_dir is None:
+            result_dir = "results"
         tuples = []
-        result_dir = "results"
+
         experiment_table_name = "series_experiment_table"
+        if not os.path.exists(result_dir):
+            os.mkdir(result_dir)
         final_path = os.path.join(result_dir, f"simple_{experiment_table_name}.csv")
         cache_path = os.path.join(result_dir, f"cache_{experiment_table_name}.csv")
         paper_path = os.path.join(result_dir, f"{experiment_table_name}.csv")
 
         res = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: dict())))
 
-        for data_set in tqdm(EvalParams.data_sets, total=len(EvalParams.data_sets), desc=f"Evaluate datasets"):
+        for data_set in tqdm(data_sets, total=len(data_sets), desc=f"Evaluate datasets"):
             subparts, corpus_size, real_or_fake = EvaluationUtils.attributes_based_on_data(data_set)
             if data_set.endswith('_short') or data_set.endswith('_medium') or data_set.endswith('_large'):
                 splitted = data_set.split('_')
@@ -820,7 +846,7 @@ class EvaluationUtils:
             else:
                 size = ""
             for number_of_subparts in subparts:
-                for filter_mode in tqdm(EvalParams.filters, total=len(EvalParams.filters), desc=f"Evaluate filters"):
+                for filter_mode in tqdm(filters, total=len(filters), desc=f"Evaluate filters"):
 
                     corpus = Corpus.fast_load(number_of_subparts,
                                               corpus_size,
@@ -830,8 +856,8 @@ class EvaluationUtils:
                                               load_entities=False)
                     if size:
                         corpus = corpus.length_sub_corpora_of_size(size)
-                    vec_bar = tqdm(EvalParams.vectorization_algorithms,
-                                   total=len(EvalParams.vectorization_algorithms),
+                    vec_bar = tqdm(vectorization_algorithms,
+                                   total=len(vectorization_algorithms),
                                    desc=f"Evaluate algorithm")
 
                     if parallel:
@@ -843,7 +869,8 @@ class EvaluationUtils:
                                                            size,
                                                            filter_mode,
                                                            vectorization_algorithm,
-                                                           real_or_fake)
+                                                           real_or_fake,
+                                                           task_names=task_names)
                             for vectorization_algorithm in vec_bar)
                     else:
                         tuple_list_results = [cls.eval_vec_loop_eff(corpus,
@@ -853,18 +880,19 @@ class EvaluationUtils:
                                                                     size,
                                                                     filter_mode,
                                                                     vectorization_algorithm,
-                                                                    real_or_fake)
+                                                                    real_or_fake,
+                                                                    task_names=task_names)
                                               for vectorization_algorithm in vec_bar]
 
                     for subpart_nr, data, filt_mod, vec_algo, results in tuple_list_results:
                         # results = results[results != np.array(None)]
                         res[subpart_nr][data][filt_mod][vec_algo] = results
 
-        for data_set in tqdm(EvalParams.data_sets, total=len(EvalParams.data_sets),
+        for data_set in tqdm(data_sets, total=len(data_sets),
                              desc="Store final results for dataset"):
             subparts, _, _ = EvaluationUtils.attributes_based_on_data(data_set)
             for number_of_subparts in subparts:
-                for filter_mode in tqdm(EvalParams.filters, total=len(EvalParams.filters),
+                for filter_mode in tqdm(filters, total=len(filters),
                                         desc="Store final results for filter"):
                     # print(data_set, res["all"].keys())
                     list_results = res[number_of_subparts][data_set][filter_mode]
@@ -881,13 +909,15 @@ class EvaluationUtils:
                             for metric, metric_results in task_dict.items():
                                 tuples.extend(cls.aggregate_results(number_of_subparts, data_set, task_name, metric,
                                                                     filter_mode, metric_results,
-                                                                    cache_path))
+                                                                    cache_path,
+                                                                    vectorization_algorithms=vectorization_algorithms))
                         # tuples.extend(metric_tuples)
 
                     else:
                         tuples.extend(cls.aggregate_results(number_of_subparts, data_set, "Series",
                                                             EvalParams.evaluation_metric.__name__,
-                                                            filter_mode, list_results, cache_path))
+                                                            filter_mode, list_results, cache_path,
+                                                            vectorization_algorithms=vectorization_algorithms))
 
         df = pd.DataFrame(tuples, columns=['Series_length', 'Dataset', 'Task', 'Metric', 'Algorithm',
                                            'Filter', 'Score', 'Median'])
@@ -899,8 +929,9 @@ class EvaluationUtils:
 
     @classmethod
     def eval_vec_loop_eff(cls, corpus: Corpus, number_of_subparts, corpus_size, data_set, data_set_size,
-                          filter_mode, vectorization_algorithm, real_or_fake: str):
-
+                          filter_mode, vectorization_algorithm, real_or_fake: str, task_names: List[str] = None):
+        if task_names is None:
+            task_names = EvalParams.task_names
         topn = 100
         summation_method = "NF"
         # print('at', vec_path, real_or_fake)
@@ -973,7 +1004,7 @@ class EvaluationUtils:
             topn_value = 1
 
         tasks = [EvaluationTask.create_from_name(task_name, reverted=reverted, corpus=corpus, topn=topn)
-                 for task_name in EvalParams.task_names]
+                 for task_name in task_names]
         # print(doctags)
         all_doc_id_dict = defaultdict(dict)
         missed_dict = defaultdict(dict)
@@ -1059,14 +1090,17 @@ class EvaluationUtils:
     def aggregate_results(cls, subpart_nr: Union[str, int], data_set: str, task_name: str, metric_name: str,
                           filter_mode: str,
                           results_as_dict: Dict[str, np.ndarray],
-                          cache_path: str):
+                          cache_path: str,
+                          vectorization_algorithms: List[str] = None):
+        if vectorization_algorithms is None:
+            vectorization_algorithms = EvalParams.vectorization_algorithms
         tuples = []
 
         results_as_dict = {key: [result for result in results if result is not None]
                            for key, results in results_as_dict.items()}
 
         # significance_dict = EvaluationMath.one_way_anova(results_as_dict)
-        vec_bar = tqdm(EvalParams.vectorization_algorithms, total=len(EvalParams.vectorization_algorithms),
+        vec_bar = tqdm(vectorization_algorithms, total=len(vectorization_algorithms),
                        desc="Store final results for algorithm")
         # Scoring
 
@@ -1094,8 +1128,10 @@ class EvaluationUtils:
 
     @classmethod
     def filter_parsing_loop(cls, parallel: bool, corpus: Corpus, data_set: str, number_of_subparts: Union[str, int],
-                            corpus_size: str, real_or_fake: str):
-        filter_bar = tqdm(EvalParams.filters, total=len(EvalParams.filters), desc="3 Calculate filter_mode results")
+                            corpus_size: str, real_or_fake: str, filters: List[str] = None):
+        if filters is None:
+            filters = EvalParams.filters
+        filter_bar = tqdm(filters, total=len(filters), desc="3 Calculate filter_mode results")
         if parallel:
             Parallel(n_jobs=EvalParams.num_cores)(
                 delayed(EvaluationUtils.store_corpus_to_parameters_eff)(corpus,
@@ -1116,8 +1152,12 @@ class EvaluationUtils:
 
     @classmethod
     def vectorization_loop(cls, parallel: bool, corpus: Corpus, data_set: str, filter_mode: str,
-                           number_of_subparts: Union[str, int], corpus_size: str, real_or_fake: str):
-        vec_bar = tqdm(EvalParams.vectorization_algorithms, total=len(EvalParams.vectorization_algorithms),
+                           number_of_subparts: Union[str, int], corpus_size: str, real_or_fake: str,
+                           vectorization_algorithms: List[str] = None):
+        if vectorization_algorithms is None:
+            vectorization_algorithms = EvalParams.vectorization_algorithms
+
+        vec_bar = tqdm(vectorization_algorithms, total=len(vectorization_algorithms),
                        desc="4 Vectorize")
         if parallel:
             Parallel(n_jobs=EvalParams.num_cores)(delayed(EvaluationUtils.sep_vec_calc_eff)(corpus,
@@ -1207,11 +1247,11 @@ class EvalParams:
     data_sets = [
         # "classic_gutenberg_fake_series",
         # "german_series",
-        # "classic_gutenberg"
+        "classic_gutenberg"
         # "german_series_short",
         # "german_series_medium",
         # "german_series_large",
-        "german_books" # 3
+        # "german_books"
         # "dta_series"
         # "summaries",
         # "goodreads_genres",
@@ -1223,8 +1263,8 @@ class EvalParams:
     ]
     filters = [
         "no_filter",
-        "specific_words_moderate",
-        "specific_words_strict",
+        # "specific_words_moderate",
+        # "specific_words_strict",
         # "named_entities",
         # "common_words_strict",
         # "common_words_strict_general_words_sensitive",
@@ -1239,16 +1279,42 @@ class EvalParams:
     ]
     vectorization_algorithms = [
         # "wmd",
+        # "bow",
         "avg_wv2doc",
         "doc2vec",
+        "book2vec",
+        "avg_wv2doc_pretrained",
+        "doc2vec_pretrained",
         # "doc2vec_chunk",
         # # "longformer_untuned"
 
-        "book2vec",
-        "book2vec_avg",
-        "book2vec_auto",
-        "book2vec_concat",
-        "book2vec_pca",
+
+        "book2vec_pretrained",
+        # "book2vec_avg",
+        # "book2vec_auto",
+        # "book2vec_concat",
+        # "book2vec_pca",
+        # "doc2vec_dim50",
+        # "doc2vec_dim100",
+        # "doc2vec_dim300",
+        # "doc2vec_dim500",
+        # "doc2vec_dim700",
+        # "doc2vec_dim900",
+
+        # "book2vec_dim50",
+        # "book2vec_dim50_concat",
+        # "book2vec_dim100",
+        # "book2vec_dim100_concat",
+        # "book2vec_dim300",
+        # "book2vec_dim300_concat",
+        # "book2vec_dim500",
+        # "book2vec_dim500_concat",
+        # "book2vec_dim700",
+        # "book2vec_dim700_concat",
+        # "book2vec_dim900",
+        # "book2vec_dim900_concat",
+
+
 
 
         # "topic2vec",
@@ -1313,7 +1379,7 @@ class EvalParams:
     task_names = [
         # "SeriesTask",
         "AuthorTask",
-        # "GenreTask"
+        "GenreTask"
     ]
 
 # Embedding: Avg vec, doc2vec, simpleAspects, simpleSegments, simple A+S
@@ -1351,24 +1417,27 @@ if __name__ == '__main__':
     #                                                   "common_words_relaxed_general_words_sensitive",
     #                                                   "common_words_doc_freq"]))
 
-    # print(EvaluationUtils.create_paper_table("results/simple_series_experiment_table.csv", "results/z_table.csv",
-    #                                          used_metrics=["ndcg", "f_prec", "f_prec01", "f_prec03", "f_prec05",
-    #                                                        "f_prec10",
-    #                                                        "length_metric"],
-    #                                          filters=["no_filter"]))
-    # print(EvaluationUtils.create_paper_table("results/simple_series_experiment_table.csv", "results/z_table.csv",
-    #                                          used_metrics=["ndcg", "prec", "prec01", "prec03", "prec05",
-    #                                                        "prec10",
-    #                                                        "length_metric"],
-    #                                          filters=["no_filter"]))
     print(EvaluationUtils.create_paper_table("results/simple_series_experiment_table.csv", "results/z_table.csv",
-                                             used_metrics=["ndcg", "rec", "pec01", "rec03", "rec05",
-                                                           "rec10",
+                                             used_metrics=["ndcg", "f_prec", "f_prec01", "f_prec03", "f_prec05",
+                                                           "f_prec10",
                                                            "length_metric"],
                                              filters=["no_filter",
                                                       "specific_words_moderate",
                                                       "specific_words_strict"
                                                       ]))
+    # print(EvaluationUtils.create_paper_table("results/simple_series_experiment_table.csv", "results/z_table.csv",
+    #                                          used_metrics=["ndcg", "prec", "prec01", "prec03", "prec05",
+    #                                                        "prec10",
+    #                                                        "length_metric"],
+    #                                          filters=["no_filter"]))
+    # print(EvaluationUtils.create_paper_table("results/simple_series_experiment_table.csv", "results/z_table.csv",
+    #                                          used_metrics=["ndcg", "rec", "pec01", "rec03", "rec05",
+    #                                                        "rec10",
+    #                                                        "length_metric"],
+    #                                          filters=["no_filter",
+    #                                                   "specific_words_moderate",
+    #                                                   "specific_words_strict"
+    #                                                   ]))
 
     # print(EvaluationUtils.create_paper_table("results/simple_series_experiment_table.csv", "results/z_table.csv",
     #                                          used_metrics=["ndcg", "f1", "f101", "f103", "f105",

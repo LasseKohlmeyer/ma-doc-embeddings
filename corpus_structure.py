@@ -693,6 +693,13 @@ class Language(str, Enum):
         return Language.UNKNOWN
 
 
+def clean_token(token: str):
+    sub = re.sub('[^A-Za-z0-9.,?!]+', '', token)
+    if sub == "":
+        sub = ","
+    return sub
+
+
 class Token:
     __slots__ = 'text', 'lemma', 'pos', 'ne', 'punctuation', 'alpha', 'stop'
 
@@ -720,6 +727,7 @@ class Token:
             rep = self.text
         if lower:
             rep = rep.lower()
+        rep = clean_token(rep)
         return rep
 
     def json_representation(self):
@@ -742,16 +750,20 @@ class Token:
     def __repr__(self):
         return f'|{self.text}|'
 
-    def get_save_file_representation(self):
+    def get_save_file_representation(self, flair_mode: str = None):
         def bool_converter(input_bool: bool) -> str:
             if input_bool:
                 return "1"
             else:
                 return "0"
-
-        return f'{self.text}\t{self.lemma}\t{str(self.pos).strip()}\t{str(self.ne).strip()}' \
-               f'\t{bool_converter(self.punctuation)}' \
-               f'\t{bool_converter(self.alpha)}\t{bool_converter(self.stop)}'
+        if flair_mode:
+            return f'{self.text}\t{self.lemma}\t{str(self.pos).strip()}\t{str(self.ne).strip()}' \
+                   f'\t{bool_converter(self.punctuation)}' \
+                   f'\t{bool_converter(self.alpha)}\t{bool_converter(self.stop)}\t{flair_mode}'
+        else:
+            return f'{self.text}\t{self.lemma}\t{str(self.pos).strip()}\t{str(self.ne).strip()}' \
+                   f'\t{bool_converter(self.punctuation)}' \
+                   f'\t{bool_converter(self.alpha)}\t{bool_converter(self.stop)}'
 
     @staticmethod
     def parse_text_file_token_representation(input_repr) -> "Token":
@@ -2022,8 +2034,12 @@ class Corpus:
         return common_words
 
     def moderate_specific_word_reduction(self) -> Set[str]:
-        percentage_share = 0.00186
-        absolute_threshold = math.ceil(len(self.documents) * percentage_share)
+        author_dict = defaultdict(list)
+        for doc_id, document in self.documents.items():
+            author_dict[document.authors].append(doc_id)
+        absolute_threshold = math.ceil(np.max([len(doc_ids) for author, doc_ids in author_dict.items() if author is not None]))
+        # percentage_share = 0.00186
+        # absolute_threshold = math.ceil(len(self.documents) * percentage_share)
         if absolute_threshold < 2:
             absolute_threshold = 2
         specific_words = CommonWords.global_too_specific_words_doc_frequency(self,
@@ -2031,8 +2047,13 @@ class Corpus:
         return specific_words
 
     def strict_specific_word_reduction(self) -> Set[str]:
-        percentage_share = 0.02423
-        absolute_threshold = math.ceil(len(self.documents) * percentage_share)
+        author_dict = defaultdict(list)
+        for doc_id, document in self.documents.items():
+            author_dict[document.authors].append(doc_id)
+        absolute_threshold = np.max([len(doc_ids) for author, doc_ids in author_dict.items() if author is not None])
+
+        # percentage_share = 0.02423
+        # absolute_threshold = math.ceil(len(self.documents) * percentage_share)
         if absolute_threshold < 3:
             absolute_threshold = 3
         specific_words = CommonWords.global_too_specific_words_doc_frequency(self,
@@ -2558,6 +2579,87 @@ class Corpus:
             if vector_doc_id == corpus_doc_id or vector_doc_id.startswith(f'{corpus_doc_id}_'):
                 return True
         return False
+
+    def to_flair_data(self, text_corpus: bool = True):
+        corpus_dir = f'{self.root_corpus_path}_flair_text'
+        random.seed(42)
+
+        if not os.path.isdir(corpus_dir):
+            os.mkdir(corpus_dir)
+
+        if not text_corpus:
+            for key in ["train", "dev", "test"]:
+                doc_path = os.path.join(corpus_dir, f'{key}.txt')
+                with open(doc_path, 'w', encoding="utf-8") as writer:
+                    writer.write(f'')
+
+            for doc_id, document in tqdm(self.documents.items()):
+                sentences = document.get_sentences_from_disk()
+                random.shuffle(sentences)
+
+                for sentence in sentences:
+
+                    nr = random.randint(0, 100)
+                    if nr < 50:
+                        key = "train"
+                    elif 50 <= nr < 80:
+                        key = "dev"
+                    else:
+                        key = "test"
+                    doc_path = os.path.join(corpus_dir, f'{key}.txt')
+                    try:
+                        with open(doc_path, 'a', encoding="utf-8") as writer:
+                            for token in sentence.tokens:
+                                writer.write(f'{token.get_save_file_representation(doc_id)}\n')
+                            writer.write("\n")
+                    except PermissionError:
+                        with open(doc_path, 'a', encoding="utf-8") as writer:
+                            for token in sentence.tokens:
+                                writer.write(f'{token.get_save_file_representation(doc_id)}\n')
+                            writer.write("\n")
+        else:
+            split_size = 10000
+            for key in ["dev", "test"]:
+                doc_path = os.path.join(corpus_dir, f'{key}.txt')
+                with open(doc_path, 'w', encoding="utf-8") as writer:
+                    writer.write(f'')
+
+            train_sentence_counter = 0
+            split_nr = 0
+            for doc_id, document in tqdm(self.documents.items()):
+                sentences = document.get_sentences_from_disk()
+                random.shuffle(sentences)
+
+                for sentence in sentences:
+
+                    nr = random.randint(0, 100)
+                    if nr < 70:
+                        key = "train"
+                    elif 70 <= nr < 90:
+                        key = "valid"
+                    else:
+                        key = "test"
+
+                    if key == "train":
+                        if train_sentence_counter > split_size:
+                            split_nr += 1
+                            train_sentence_counter = 0
+                        train_dir_path = os.path.join(corpus_dir, key)
+                        if not os.path.exists(train_dir_path):
+                            os.mkdir(train_dir_path)
+                        doc_path = os.path.join(train_dir_path, f'split_{split_nr}.txt')
+                        train_sentence_counter += 1
+                    else:
+                        doc_path = os.path.join(corpus_dir, f'{key}.txt')
+                    try:
+                        with open(doc_path, 'a', encoding="utf-8") as writer:
+                            writer.write(f'{" ".join(sentence.representation())}\n')
+                    except PermissionError:
+                        with open(doc_path, 'a', encoding="utf-8") as writer:
+                            writer.write(f'{" ".join(sentence.representation())}\n')
+
+
+
 
 
 class Preprocesser:

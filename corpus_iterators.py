@@ -139,25 +139,28 @@ def calculate_facets_of_document(document: Document,
                                                                                           lower,
                                                                                           as_id=True))
 
-    print("times", times)
-    print("locations", locations)
+    # print("times", times)
+    # print("locations", locations)
 
     # print(len(times), times)
     doc_aspects = {}
+    use_dictionary_lookup = False
     if "time" not in disable_aspects:
         times = set(times)
-        times.update(document.get_wordnet_matches(NetWords.get_time_words(lan=document.language),
-                                                  as_id=True,
-                                                  lemma=lemma,
-                                                  lower=lower))
+        if use_dictionary_lookup:
+            times.update(document.get_wordnet_matches(NetWords.get_time_words(lan=document.language),
+                                                      as_id=True,
+                                                      lemma=lemma,
+                                                      lower=lower))
         doc_aspects['time'] = windowing(facet_ids=times, doc=document, window_size=window)
 
     if "loc" not in disable_aspects:
         locations = set(locations)
-        locations.update(document.get_wordnet_matches(NetWords.get_location_words(lan=document.language),
-                                                      as_id=True,
-                                                      lemma=lemma,
-                                                      lower=lower))
+        if use_dictionary_lookup:
+            locations.update(document.get_wordnet_matches(NetWords.get_location_words(lan=document.language),
+                                                          as_id=True,
+                                                          lemma=lemma,
+                                                          lower=lower))
         doc_aspects['loc'] = windowing(facet_ids=locations, doc=document, window_size=window)
 
     if "raw" not in disable_aspects:
@@ -168,12 +171,13 @@ def calculate_facets_of_document(document: Document,
                                                                           lower=lower,
                                                                           pos=["ADJ", "ADV"],
                                                                           ids=True)
-        print("atmosphere", atmosphere_words)
+        # print("atmosphere", atmosphere_words)
         atmosphere_words = set(atmosphere_words)
-        atmosphere_words.update(document.get_wordnet_matches(NetWords.get_atmosphere_words(lan=document.language),
-                                                             as_id=True,
-                                                             lemma=lemma,
-                                                             lower=lower))
+        if use_dictionary_lookup:
+            atmosphere_words.update(document.get_wordnet_matches(NetWords.get_atmosphere_words(lan=document.language),
+                                                                 as_id=True,
+                                                                 lemma=lemma,
+                                                                 lower=lower))
 
         doc_aspects['atm'] = windowing(facet_ids=atmosphere_words,
                                        doc=document,
@@ -193,6 +197,14 @@ def calculate_facets_of_document(document: Document,
                                                                summary_dict,
                                                                lemma=lemma,
                                                                lower=lower)
+    else:
+        plot_words = document.get_flat_and_filtered_document_tokens(lemma=lemma,
+                                                                    lower=lower,
+                                                                    pos=["VERB", "ADV"],
+                                                                    ids=True)
+        doc_aspects['plot'] = windowing(facet_ids=plot_words,
+                                        doc=document,
+                                        window_size=window)
     # print(doc_aspects.keys(), disable_aspects)
     # for key, values in doc_aspects.items():
     #     for doc_list, doc_id in zip(values, doc_ids):
@@ -283,6 +295,26 @@ class CorpusSentenceIterator(object):
                 yield sentence.representation(self.lemma, self.lower)
 
 
+class CorpusTaggedSentenceIterator(object):
+    def __init__(self, corpus: Corpus, lemma: bool = False, lower: bool = False, sentence_nr: int = None):
+        self.corpus = corpus
+        self.lemma = lemma
+        self.lower = lower
+        self.sentence_nr = sentence_nr
+
+    def __len__(self):
+        return len(self.corpus.documents)
+
+    def __iter__(self):
+        # for fname in os.listdir(self.dirname):
+        #     for line in open(os.path.join(self.dirname, fname)):
+        #         yield line.split()
+
+        for doc_id, document in self.corpus.documents.items():
+            for sent_id, sentence in enumerate(document.get_sentences_from_disk()[:self.sentence_nr]):
+                yield TaggedDocument(sentence.representation(self.lemma, self.lower), [f'{doc_id}_{sent_id}'])
+
+
 class CorpusDocumentIterator(object):
     def __init__(self, corpus: Corpus, lemma: bool = False, lower: bool = False):
         self.corpus = corpus
@@ -296,6 +328,23 @@ class CorpusDocumentIterator(object):
     def __iter__(self):
         for doc_id, document in self.corpus.documents.items():
             yield document.get_flat_tokens_from_disk(lemma=self.lemma, lower=self.lower)
+            if doc_id not in self.doc_ids:
+                self.doc_ids.append(doc_id)
+
+
+class CorpusPlainDocumentIterator(object):
+    def __init__(self, corpus: Corpus, lemma: bool = False, lower: bool = False):
+        self.corpus = corpus
+        self.lemma = lemma
+        self.lower = lower
+        self.doc_ids = []
+
+    def __len__(self):
+        return len(self.corpus.documents)
+
+    def __iter__(self):
+        for doc_id, document in self.corpus.documents.items():
+            yield ' '.join(document.get_flat_tokens_from_disk(lemma=self.lemma, lower=self.lower))
             if doc_id not in self.doc_ids:
                 self.doc_ids.append(doc_id)
 
@@ -380,6 +429,27 @@ class FlairDocumentIterator(object):
         else:
             for doc_id, document in self.corpus.documents.items():
                 yield doc_id, ' '.join(document.get_flat_tokens_from_disk(lemma=self.lemma, lower=self.lower))
+
+
+class FlairSentenceDocumentIterator(object):
+    def __init__(self, corpus: Corpus, lemma: bool = False, lower: bool = False, sentence_nr: int = None):
+        self.corpus = corpus
+        self.lemma = lemma
+        self.lower = lower
+        self.sentence_nr = sentence_nr
+
+    def __len__(self):
+        if self.sentence_nr:
+            return sum([self.sentence_nr for _ in self.corpus.documents.values()])
+        else:
+            return sum([document.sentences_nr for document in self.corpus.documents.values()])
+
+        # return len(self.corpus.documents)
+
+    def __iter__(self):
+        for doc_id, document in self.corpus.documents.items():
+            for i, sentence in enumerate(document.get_sentences_from_disk()[:self.sentence_nr]):
+                yield f'{doc_id}_{i}', ' '.join(sentence.representation(lemma=self.lemma, lower=self.lower))
 
 
 # class FlairChunkLongDocumentIterator(object):

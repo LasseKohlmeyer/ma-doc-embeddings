@@ -316,7 +316,7 @@ def neighbor_plot(model, corpus: Corpus):
 if __name__ == '__main__':
     data_set_name = "classic_gutenberg"
     # data_set_name = "german_books"
-    vectorization_algorithm = "book2vec_adv"
+    vectorization_algorithm = "book2vec"
     vec_path = Vectorization.build_vec_file_name("all",
                                                  "no_limit",
                                                  data_set_name,
