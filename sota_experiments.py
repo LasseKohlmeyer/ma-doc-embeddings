@@ -3,7 +3,7 @@ from series_prove_of_concept import EvaluationUtils
 result_dir = "result_sota"
 
 data_sets = [
-    "classic_gutenberg"
+    "classic_gutenberg",
     "goodreads_genres",
     "german_series",
     # "german_books",

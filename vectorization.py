@@ -1,5 +1,6 @@
 import logging
 import os
+import time
 from collections import defaultdict
 from typing import Union, List, Dict
 
@@ -143,6 +144,11 @@ class Vectorizer:
             return Vectorizer.book2vec_simple(corpus, save_path, return_vecs=return_vecs,
                                               disable_aspects=['plot', 'cont'], chunk_len=chunk_len,
                                               facets_of_chunks=facets_of_chunks, window_size=window, dimension=dim)
+        elif input_str == "book2vec_simple_net" or input_str == "book2vec_net":
+            return Vectorizer.book2vec_simple(corpus, save_path, return_vecs=return_vecs,
+                                              disable_aspects=['plot', 'cont'], chunk_len=chunk_len,
+                                              facets_of_chunks=facets_of_chunks, window_size=window, dimension=dim,
+                                              use_dictionary_lookup=True)
         elif input_str == "book2vec_simple_pretained" or input_str == "book2vec_pretrained":
             return Vectorizer.book2vec_simple(corpus, save_path, return_vecs=return_vecs,
                                               disable_aspects=['plot', 'cont'], chunk_len=chunk_len,
@@ -200,6 +206,10 @@ class Vectorizer:
         elif input_str == "book2vec_adv":
             return Vectorizer.book2vec_adv(corpus, save_path, return_vecs=return_vecs, chunk_len=chunk_len,
                                            facets_of_chunks=facets_of_chunks, window_size=window, dimension=dim)
+        elif input_str == "book2vec_adv_net":
+            return Vectorizer.book2vec_adv(corpus, save_path, return_vecs=return_vecs, chunk_len=chunk_len,
+                                           facets_of_chunks=facets_of_chunks, window_size=window, dimension=dim,
+                                           use_dictionary_lookup=True)
         elif input_str == "book2vec_adv_pretrained":
             return Vectorizer.book2vec_adv(corpus, save_path, return_vecs=return_vecs, chunk_len=chunk_len,
                                            facets_of_chunks=facets_of_chunks, window_size=window, dimension=dim,
@@ -517,7 +527,11 @@ class Vectorizer:
         flair_instance = FlairConnector(word_embedding_base=word_embedding_base, document_embedding=document_embedding,
                                         pretuned=pretuned)
         print(sentence_based, len(documents))
+
+        start = time.time()
         docs_dict = flair_instance.embedd_documents(documents)
+        end = time.time()
+        print("time:", end-start)
 
         if chunk_len:
             docs_dict.update(cls.avg_sim_prefix_doc_ids(docs_dict))
@@ -730,7 +744,8 @@ class Vectorizer:
                         window_size: int = 0,
                         concat: bool = False,
                         dimension: int = None,
-                        pretrained: bool = False
+                        pretrained: bool = False,
+                        use_dictionary_lookup: bool = False
                         ):
 
         lemma = False
@@ -752,7 +767,8 @@ class Vectorizer:
 
         documents = CorpusTaggedFacetIterator(corpus, lemma=lemma, lower=lower, disable_aspects=disable_aspects,
                                               topic_dict=topic_dict, summary_dict=summary_dict, chunk_len=chunk_len,
-                                              facets_of_chunks=facets_of_chunks, window=window_size)
+                                              facets_of_chunks=facets_of_chunks, window=window_size,
+                                              use_dictionary_lookup=use_dictionary_lookup)
         # print('Start training')
         logging.info("Start training")
 
@@ -819,7 +835,8 @@ class Vectorizer:
                      window_size: int = 0,
                      dimension: int = None,
                      pretrained: bool = False,
-                     pretuned: bool = False):
+                     pretuned: bool = False,
+                     use_dictionary_lookup: bool = False):
         lemma = False
         lower = False
 
@@ -840,14 +857,17 @@ class Vectorizer:
         logging.info("Start training")
         if algorithm.lower() == "doc2vec" or algorithm.lower() == "d2v":
             documents = CorpusTaggedFacetIterator(corpus, lemma=lemma, lower=lower, disable_aspects=disable_aspects,
-                                                  topic_dict=topic_dict, summary_dict=summary_dict, chunk_len=chunk_len)
+                                                  topic_dict=topic_dict, summary_dict=summary_dict, chunk_len=chunk_len,
+                                                  window=window_size,
+                                                  use_dictionary_lookup=use_dictionary_lookup)
             model, words_dict, docs_dict = cls.doc2vec_base(documents, without_training, chunk_len=chunk_len,
                                                             dimension=dimension, language=corpus.language,
                                                             pretrained=pretrained)
         elif algorithm.lower() == "avg_w2v" or algorithm.lower() == "w2v" or algorithm.lower() == "word2vec":
             preprocessed_sentences = CorpusSentenceIterator(corpus)
             documents = CorpusTaggedFacetIterator(corpus, lemma=lemma, lower=lower, disable_aspects=disable_aspects,
-                                                  topic_dict=topic_dict, summary_dict=summary_dict, window=window_size)
+                                                  topic_dict=topic_dict, summary_dict=summary_dict, window=window_size,
+                                                  use_dictionary_lookup=use_dictionary_lookup)
             aspect_doc_ids = [d.tags[0] for d in documents]
             model, words_dict, docs_dict = cls.word2vec_base(preprocessed_sentences, documents,
                                                              aspect_doc_ids, without_training,
@@ -858,7 +878,8 @@ class Vectorizer:
             # documents = FlairDocumentIterator(corpus)
             documents = FlairFacetIterator(corpus, lemma=lemma, lower=lower, disable_aspects=disable_aspects,
                                            topic_dict=topic_dict, summary_dict=summary_dict, chunk_len=chunk_len,
-                                           facets_of_chunks=facets_of_chunks, window=window_size)
+                                           facets_of_chunks=facets_of_chunks, window=window_size,
+                                           use_dictionary_lookup=use_dictionary_lookup)
             words_dict = None
             docs_dict = cls.flair_base(documents, word_embedding_base=None,
                                        document_embedding="bert-de", chunk_len=chunk_len, pretuned=pretuned)

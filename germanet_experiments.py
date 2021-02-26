@@ -1,10 +1,10 @@
 from series_prove_of_concept import EvaluationUtils
 
-result_dir = "result_bert"
+result_dir = "result_germanet"
 
 data_sets = [
-    "classic_gutenberg"
-    # "goodreads_genres",
+    # "classic_gutenberg",
+    "goodreads_genres",
     # "german_series",
     # "german_books",
 ]
@@ -16,19 +16,20 @@ vectorization_algorithms = [
     # "doc2vec_sentence_based_1000",
     # "bert",
     # "bert_sentence_based_100",
-    "bert_sentence_based_100_pt",
-    "bert_sentence_based_1000_pt",
+    # "bert_sentence_based_1000",
     # "flair",
-    "flair_sentence_based_100",
+    # "flair_sentence_based_100",
     # "flair_sentence_based_1000",
     # "bert_sentence_based_100_pt",
-
-    "roberta_sentence_based_100_pt",
-    "xlm_sentence_based_100_pt",
-
+    # "roberta_sentence_based_100_pt",
+    # "xlm_sentence_based_100_pt",
+    # "bert_sentence_based_1000_pt",
+    # "roberta_sentence_based_1000_pt",
+    # "xlm_sentence_based_1000_pt",
 
     "book2vec",
-    "book2vec_concat",
+    # "book2vec_concat",
+    "book2vec_net"
 ]
 filters = [
     "no_filter",
@@ -39,12 +40,8 @@ filters = [
 task_names = [
     "AuthorTask",
     # "SeriesTask",
-    # "GenreTask",
+    "GenreTask",
 ]
-
-EvaluationUtils.build_corpora(data_sets=data_sets,
-                              filters=filters)
-
 
 EvaluationUtils.train_vecs(data_sets=data_sets,
                            vectorization_algorithms=vectorization_algorithms,

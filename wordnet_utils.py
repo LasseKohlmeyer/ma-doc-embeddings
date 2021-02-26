@@ -1,7 +1,7 @@
 import json
 import os
 from collections import defaultdict
-from typing import List
+from typing import List, Set
 
 from nltk.corpus import wordnet as wn
 
@@ -12,7 +12,7 @@ class WordNetUtils:
     atmosphere_words = None
 
     @classmethod
-    def get_wordnet_words(cls, base_categories: List[str]):
+    def get_wordnet_words(cls, base_categories: List[str]) -> Set[str]:
         instances = set()
         for category in base_categories:
             abstract_term = wn.synset(category)
@@ -34,7 +34,7 @@ class WordNetUtils:
         return set([form.name() for lem in input_word for form in lem.derivationally_related_forms()])
 
     @classmethod
-    def get_location_words(cls):
+    def get_location_words(cls) -> Set[str]:
         if not cls.location_words:
             location_categories = [
                 'location.n.01',
@@ -54,7 +54,7 @@ class WordNetUtils:
 
             ]
             cls.location_words = cls.get_wordnet_words(location_categories)
-            cls.location_words = [w for w in cls.location_words if len(w.split()) == 1]
+            cls.location_words = set([w for w in cls.location_words if len(w.split()) == 1])
 
         return cls.location_words
 
@@ -76,18 +76,18 @@ class WordNetUtils:
                 'timing.n.01'
             ]
             cls.time_words = cls.get_wordnet_words(time_categories)
-            cls.time_words = [w for w in cls.time_words if len(w.split()) == 1]
+            cls.time_words = set([w for w in cls.time_words if len(w.split()) == 1])
         return cls.time_words
 
     @classmethod
-    def get_atmosphere_words(cls):
+    def get_atmosphere_words(cls) -> Set[str]:
         if not cls.atmosphere_words:
             atmosphere_categories = [
                 'feeling.n.01',
                 'emotion.n.01'
             ]
             cls.atmosphere_words = cls.get_wordnet_words(atmosphere_categories)
-            cls.atmosphere_words = [w for w in cls.atmosphere_words if len(w.split()) == 1]
+            cls.atmosphere_words = set([w for w in cls.atmosphere_words if len(w.split()) == 1])
 
         return cls.atmosphere_words
 
@@ -109,7 +109,7 @@ class GermaNetUtils:
         return germanet_category_dict
 
     @classmethod
-    def get_location_words(cls):
+    def get_location_words(cls) -> Set[str]:
         if not cls.location_words:
             germanet_nouns = cls.load_germanet_file("nomen.json")
             # print((germanet_nouns.keys()))
@@ -121,11 +121,11 @@ class GermaNetUtils:
             ]
             cls.location_words = set([word.lower() for location in location_categories
                                       for word in germanet_nouns[location]])
-            cls.location_words = [w for w in cls.location_words if len(w.split()) == 1]
+            cls.location_words = set([w for w in cls.location_words if len(w.split()) == 1])
         return cls.location_words
 
     @classmethod
-    def get_time_words(cls):
+    def get_time_words(cls) -> Set[str]:
         if not cls.time_words:
             germanet_nouns = cls.load_germanet_file("nomen.json")
             # print((germanet_nouns.keys()))
@@ -135,11 +135,11 @@ class GermaNetUtils:
                 "Geschehen"
             ]
             cls.time_words = set([word.lower() for time in time_categories for word in germanet_nouns[time]])
-            cls.time_words = [w for w in cls.time_words if len(w.split()) == 1]
+            cls.time_words = set([w for w in cls.time_words if len(w.split()) == 1])
         return cls.time_words
 
     @classmethod
-    def get_atmosphere_words(cls):
+    def get_atmosphere_words(cls) -> Set[str]:
         if not cls.atmosphere_words:
             germanet_adj = cls.load_germanet_file("adj.json")
             # print((germanet_adj.keys()))
@@ -164,28 +164,28 @@ class GermaNetUtils:
                                      for word in germanet_adj[atmosphere]])
 
             cls.atmosphere_words = atmosphere_words
-            cls.atmosphere_words = [w for w in cls.atmosphere_words if len(w.split()) == 1]
+            cls.atmosphere_words = set([w for w in cls.atmosphere_words if len(w.split()) == 1])
 
         return cls.atmosphere_words
 
 
 class NetWords:
     @classmethod
-    def get_location_words(cls, lan: str):
+    def get_location_words(cls, lan: str) -> Set[str]:
         if lan.lower() == "de" or lan.lower() == "ger" or lan.lower() == "deutsch" or lan.lower() == "german":
             return GermaNetUtils.get_location_words()
         else:
             return WordNetUtils.get_location_words()
 
     @classmethod
-    def get_time_words(cls, lan: str):
+    def get_time_words(cls, lan: str) -> Set[str]:
         if lan.lower() == "de" or lan.lower() == "ger" or lan.lower() == "deutsch" or lan.lower() == "german":
             return GermaNetUtils.get_time_words()
         else:
             return WordNetUtils.get_time_words()
 
     @classmethod
-    def get_atmosphere_words(cls, lan: str):
+    def get_atmosphere_words(cls, lan: str) -> Set[str]:
         if lan.lower() == "de" or lan.lower() == "ger" or lan.lower() == "deutsch" or lan.lower() == "german":
             return GermaNetUtils.get_atmosphere_words()
         else:

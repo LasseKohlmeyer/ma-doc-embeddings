@@ -1200,7 +1200,9 @@ class Document:
                                                           for (sent_id, token_id, token) in tokens]
                                             for entity_type, tokens in self.doc_entities.items()})
 
-    def get_wordnet_matches(self, wordnet_input, as_id: bool = False, lemma: bool = False, lower: bool = False):
+    def get_wordnet_matches(self, wordnet_input: Set[str], as_id: bool = False,
+                            lemma: bool = False,
+                            lower: bool = False):
         matches = []
         if as_id:
             for i, sentence in enumerate(self.sentences):
