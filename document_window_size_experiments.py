@@ -50,11 +50,11 @@ EvaluationUtils.train_vecs(data_sets=data_sets,
                            vectorization_algorithms=vectorization_algorithms,
                            filters=filters)
 
-# EvaluationUtils.run_evaluation(data_sets=data_sets,
-#                                vectorization_algorithms=vectorization_algorithms,
-#                                filters=filters,
-#                                task_names=task_names,
-#                                result_dir=result_dir)
+EvaluationUtils.run_evaluation(data_sets=data_sets,
+                               vectorization_algorithms=vectorization_algorithms,
+                               filters=filters,
+                               task_names=task_names,
+                               result_dir=result_dir)
 
 print(
     EvaluationUtils.create_paper_table(f"{result_dir}/simple_series_experiment_table.csv", f"{result_dir}/z_table.csv",
