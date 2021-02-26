@@ -3,8 +3,8 @@ from series_prove_of_concept import EvaluationUtils
 result_dir = "result_bert"
 
 data_sets = [
-    "classic_gutenberg"
-    # "goodreads_genres",
+    # "classic_gutenberg"
+    "goodreads_genres",
     # "german_series",
     # "german_books",
 ]
@@ -24,7 +24,9 @@ vectorization_algorithms = [
     # "bert_sentence_based_100_pt",
 
     "roberta_sentence_based_100_pt",
+    "roberta_sentence_based_1000_pt",
     "xlm_sentence_based_100_pt",
+    "xlm_sentence_based_1000_pt",
 
 
     "book2vec",
@@ -39,7 +41,7 @@ filters = [
 task_names = [
     "AuthorTask",
     # "SeriesTask",
-    # "GenreTask",
+    "GenreTask",
 ]
 
 EvaluationUtils.build_corpora(data_sets=data_sets,
@@ -50,11 +52,11 @@ EvaluationUtils.train_vecs(data_sets=data_sets,
                            vectorization_algorithms=vectorization_algorithms,
                            filters=filters)
 
-EvaluationUtils.run_evaluation(data_sets=data_sets,
-                               vectorization_algorithms=vectorization_algorithms,
-                               filters=filters,
-                               task_names=task_names,
-                               result_dir=result_dir)
+# EvaluationUtils.run_evaluation(data_sets=data_sets,
+#                                vectorization_algorithms=vectorization_algorithms,
+#                                filters=filters,
+#                                task_names=task_names,
+#                                result_dir=result_dir)
 
 print(
     EvaluationUtils.create_paper_table(f"{result_dir}/simple_series_experiment_table.csv", f"{result_dir}/z_table.csv",
