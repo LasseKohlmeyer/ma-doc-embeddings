@@ -17,15 +17,20 @@ def get_percentage_of_correctly_labeled(vectors, human_assessment_df: pd.DataFra
     correctly_assessed = []
     facet_wise = defaultdict(list)
     random_baseline = False
+    skip_count = 0
     for i, row in human_assessment_df.iterrows():
         book1 = doc_id_mapping[row["Book 1"]]
         book2 = doc_id_mapping[row["Book 2"]]
         book3 = doc_id_mapping[row["Book 3"]]
         facet = facet_mapping[row["Facet"]]
         selection = row["Selection"]
+        if selection == "skip" or selection == "unsure":
+            # print("skipped")
+            skip_count += 1
+            continue
 
         if random_baseline:
-            if selection.split('|')[0] == str(random.randint(1, 3)):
+            if int(row["Selected Answer Nr."]) == random.randint(1, 3):
                 correctly_assessed.append(1)
                 facet_wise[row["Facet"]].append(1)
             else:
@@ -37,13 +42,14 @@ def get_percentage_of_correctly_labeled(vectors, human_assessment_df: pd.DataFra
             sim_3 = Vectorization.facet_sim(model_vectors=vectors, doc_id_a=book2, doc_id_b=book3, facet_name=facet)
 
             # print(selection, selection.split('|')[0], book1, book2, book3)
-            if selection.split('|')[0] == "1" and sim_1 > sim_2 and sim_1 > sim_3:
+            # print()
+            if int(row["Selected Answer Nr."]) == 1 and sim_1 > sim_2 and sim_1 > sim_3:
                 correctly_assessed.append(1)
                 facet_wise[row["Facet"]].append(1)
-            elif selection.split('|')[0] == "2" and sim_2 > sim_1 and sim_2 > sim_3:
+            elif int(row["Selected Answer Nr."]) == 2 and sim_2 > sim_1 and sim_2 > sim_3:
                 correctly_assessed.append(1)
                 facet_wise[row["Facet"]].append(1)
-            elif selection.split('|')[0] == "3" and sim_3 > sim_1 and sim_3 > sim_2:
+            elif int(row["Selected Answer Nr."]) == 3 and sim_3 > sim_1 and sim_3 > sim_2:
                 correctly_assessed.append(1)
                 facet_wise[row["Facet"]].append(1)
             else:
@@ -53,7 +59,7 @@ def get_percentage_of_correctly_labeled(vectors, human_assessment_df: pd.DataFra
 
     # for facet, scores in facet_wise.items():
     #     print(facet, sum(scores), scores)
-
+    # print(f"{skip_count} times skipped!")
     result_scores = {facet: sum(scores) / len(scores) for facet, scores in facet_wise.items()}
     result_scores["all_facets"] = sum(correctly_assessed) / len(correctly_assessed)
     return result_scores
@@ -65,12 +71,18 @@ def correlation_for_correctly_labeled(vectors, human_assessment_df: pd.DataFrame
 
     ground_truth = defaultdict(list)
     predicted = defaultdict(list)
+    skip_count = 0
     for i, row in human_assessment_df.iterrows():
         book1 = doc_id_mapping[row["Book 1"]]
         book2 = doc_id_mapping[row["Book 2"]]
         book3 = doc_id_mapping[row["Book 3"]]
         facet = facet_mapping[row["Facet"]]
         selection = row["Selection"]
+
+        if selection == "skip" or selection == "unsure":
+            # print("skipped")
+            skip_count += 1
+            continue
 
         sim_1 = Vectorization.facet_sim(model_vectors=vectors, doc_id_a=book1, doc_id_b=book2, facet_name=facet)
         sim_2 = Vectorization.facet_sim(model_vectors=vectors, doc_id_a=book1, doc_id_b=book3, facet_name=facet)
@@ -87,13 +99,13 @@ def correlation_for_correctly_labeled(vectors, human_assessment_df: pd.DataFrame
             print("warning")
             pred_label = -1
 
-        ground_truth[row["Facet"]].append(int(selection.split('|')[0]))
-        ground_truth["all_facets"].append(int(selection.split('|')[0]))
+        ground_truth[row["Facet"]].append(int(row["Selected Answer Nr."]))
+        ground_truth["all_facets"].append(int(row["Selected Answer Nr."]))
         predicted[row["Facet"]].append(pred_label)
         predicted["all_facets"].append(pred_label)
 
         # print(row["Facet"], "=", sum(facet_wise[row["Facet"]]))
-
+    print(f"{skip_count} times skipped!")
     result_scores = {}
     for facet, ground_truth_labels in ground_truth.items():
         predicted_labels = predicted[facet]
@@ -126,7 +138,7 @@ def load_vectors_from_properties(number_of_subparts, corpus_size, data_set,
     return vectors
 
 
-def calculate_vectors(data_set_name: str, vec_algorithms: List[str], ):
+def calculate_vectors(data_set_name: str, vec_algorithms: List[str], filters: List[str]):
     try:
         corpus = Corpus.fast_load(path=os.path.join('corpora', data_set_name), load_entities=False)
     except FileNotFoundError:
@@ -134,22 +146,31 @@ def calculate_vectors(data_set_name: str, vec_algorithms: List[str], ):
         Preprocesser.annotate_and_save(corpus, corpus_dir=f"corpora/{data_set_name}")
         corpus = Corpus.fast_load(path=os.path.join('corpora', data_set_name), load_entities=False)
 
-    for vectorization_algorithm in vec_algorithms:
-        vec_file_name = Vectorization.build_vec_file_name('all',
-                                                          'no_limit',
-                                                          data_set_name,
-                                                          'no_filter',
-                                                          vectorization_algorithm,
-                                                          'real')
+    for filter in filters:
+        for vectorization_algorithm in vec_algorithms:
+            vec_file_name = Vectorization.build_vec_file_name('all',
+                                                              'no_limit',
+                                                              data_set_name,
+                                                              filter,
+                                                              vectorization_algorithm,
+                                                              'real')
 
-        Vectorizer.algorithm(input_str=vectorization_algorithm,
-                             corpus=corpus,
-                             save_path=vec_file_name,
-                             return_vecs=False)
+            if not os.path.isfile(vec_file_name):
+                print(vec_file_name)
+                Vectorizer.algorithm(input_str=vectorization_algorithm,
+                                     corpus=corpus,
+                                     save_path=vec_file_name,
+                                     return_vecs=False)
 
 
-def evaluate(data_set_name: str, vec_algorithms: List[str]):
-    human_assessment_df = pd.read_csv("results/human_assessment/human_assessed.csv")
+def evaluate(data_set_name: str, vec_algorithms: List[str], filters: List[str]):
+    human_assessment_df = pd.read_csv("results/human_assessment/gutenberg_classic_20/human_assessed.csv")
+    print(len(human_assessment_df.index))
+    human_assessment_df = human_assessment_df.loc[(human_assessment_df['Confidence'] > 0.5)
+                                                  # & (human_assessment_df['Answers'] > 1)
+    ]
+
+    print(len(human_assessment_df.index))
     survey_id2doc_id = {1: "cb_17",
                         2: "cb_2",
                         3: "cb_0",
@@ -175,26 +196,33 @@ def evaluate(data_set_name: str, vec_algorithms: List[str]):
 
     tuples = []
     correlation_tuples = []
-    for vec_algorithm in vec_algorithms:
-        corpus = Corpus.fast_load(path=os.path.join('corpora', data_set_name), load_entities=False)
-        vecs = load_vectors_from_properties(number_of_subparts="all",
-                                            corpus_size="no_limit",
-                                            data_set=data_set_name,
-                                            filter_mode="no_filter",
-                                            vectorization_algorithm=vec_algorithm)
+    for filter in filters:
+        for vec_algorithm in vec_algorithms:
+            filtered_dataset = f'{data_set_name}_{filter}'
+            # corpus = Corpus.fast_load(path=os.path.join('corpora', f''data_set_name), load_entities=False)
+            vecs = load_vectors_from_properties(number_of_subparts="all",
+                                                corpus_size="no_limit",
+                                                data_set=data_set_name,
+                                                filter_mode=filter,
+                                                vectorization_algorithm=vec_algorithm)
 
-        corr_scores = correlation_for_correctly_labeled(vectors=vecs, human_assessment_df=human_assessment_df,
-                                                               doc_id_mapping=survey_id2doc_id, facet_mapping=facets)
-        correlation_tuples.append((data_set_name, vec_algorithm, corr_scores["all_facets"], corr_scores["total"],
-                                   corr_scores["time"], corr_scores["location"],
-                                   corr_scores["plot"], corr_scores["atmosphere"], corr_scores["content"]))
+            corr_scores = correlation_for_correctly_labeled(vectors=vecs, human_assessment_df=human_assessment_df,
+                                                            doc_id_mapping=survey_id2doc_id, facet_mapping=facets)
+            correlation_tuples.append((data_set_name, vec_algorithm, corr_scores["all_facets"], corr_scores["total"],
+                                       corr_scores["time"], corr_scores["location"],
+                                       corr_scores["plot"], corr_scores["atmosphere"], corr_scores["content"]))
 
-        scores = get_percentage_of_correctly_labeled(vectors=vecs, human_assessment_df=human_assessment_df,
-                                                     doc_id_mapping=survey_id2doc_id, facet_mapping=facets)
-        # print(scores)
-        tuples.append((data_set_name, vec_algorithm, scores["all_facets"], scores["total"], scores["time"], scores["location"],
-                       scores["plot"],
-                       scores["atmosphere"], scores["content"]))
+            scores = get_percentage_of_correctly_labeled(vectors=vecs, human_assessment_df=human_assessment_df,
+                                                         doc_id_mapping=survey_id2doc_id, facet_mapping=facets)
+            # print(scores)
+            tuples.append((filtered_dataset, vec_algorithm, scores["all_facets"], scores["total"], scores["time"],
+                           scores["location"],
+                           scores["plot"],
+                           scores["atmosphere"], scores["content"]))
+            print((filtered_dataset, vec_algorithm, scores["all_facets"], scores["total"], scores["time"],
+                           scores["location"],
+                           scores["plot"],
+                           scores["atmosphere"], scores["content"]))
 
     result_df = pd.DataFrame(tuples, columns=["Data set", "Algorithm", "All Facets", "Total", "Time",
                                               "Location", "Plot", "Atmosphere", "Content"])
@@ -209,7 +237,26 @@ def evaluate(data_set_name: str, vec_algorithms: List[str]):
 
 if __name__ == '__main__':
     data_set = "classic_gutenberg"
-    algorithms = ["avg_wv2doc", "doc2vec", "book2vec", "book2vec_concat", "book2vec_adv"]
+    algorithms = ["avg_wv2doc", "doc2vec", "doc2vec_dbow",
+                  "doc2vec_sentence_based_100", "doc2vec_sentence_based_1000",
+                  "book2vec", "book2vec_concat",
+                  "book2vec_dbow", "book2vec_dbow_concat",
+                  "book2vec_net", "book2vec_net_concat",
+                  "book2vec_dbow_net", "book2vec_dbow_net_concat",
+                  "book2vec_net_only", "book2vec_net_only_concat",
+                  "book2vec_dbow_net_only", "book2vec_dbow_net_only_concat",
+                  "book2vec_adv", "book2vec_adv_concat", "bow",
+                  "bert", "bert_sentence_based_100", "bert_sentence_based_100_pt", "bert_sentence_based_1000",
+                  "bert_sentence_based_1000_pt",
+                  # "flair_sentence_based_100", "flair_sentence_based_1000",
+                  "roberta_sentence_based_100_pt", "xlm_sentence_based_100_pt",
+                  ]
+    filters = ["no_filter",
+               "specific_words_strict"
+               ]
 
-    # calculate_vectors(data_set, algorithms)
-    evaluate(data_set, algorithms)
+    calculate_vectors(data_set, algorithms, filters)
+    evaluate(data_set, algorithms, filters)
+
+    # good seeds: 10
+    # bad:

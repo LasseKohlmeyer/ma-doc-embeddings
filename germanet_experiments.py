@@ -4,9 +4,9 @@ result_dir = "result_germanet"
 
 data_sets = [
     # "classic_gutenberg",
-    "goodreads_genres",
+    # "goodreads_genres",
     # "german_series",
-    # "german_books",
+    "german_books",
 ]
 vectorization_algorithms = [
     # "bert_sentence_based",
@@ -29,7 +29,8 @@ vectorization_algorithms = [
 
     "book2vec",
     # "book2vec_concat",
-    "book2vec_net"
+    "book2vec_net",
+    "book2vec_net_only"
 ]
 filters = [
     "no_filter",
@@ -39,8 +40,8 @@ filters = [
 
 task_names = [
     "AuthorTask",
-    # "SeriesTask",
-    "GenreTask",
+    "SeriesTask",
+    # "GenreTask",
 ]
 
 EvaluationUtils.train_vecs(data_sets=data_sets,

@@ -110,7 +110,7 @@ def calculate_facets_of_document(document: Document,
                                  topic_dict: Union[None, Dict[str, List[str]]],
                                  summary_dict: Union[None, Dict[str, List[Union[str, int]]]],
                                  window: int = 0,
-                                 use_dictionary_lookup: bool = False):
+                                 use_dictionary_lookup: str = None):
     def windowing(facet_ids, doc: Document, window_size: int):
         facet_words = []
         for (sentence_id, token_id) in facet_ids:
@@ -151,6 +151,8 @@ def calculate_facets_of_document(document: Document,
         times = set(times)
         if use_dictionary_lookup:
             time_words = NetWords.get_time_words(lan=document.language)
+            if use_dictionary_lookup.lower() == "only":
+                times.clear()
             times.update(document.get_wordnet_matches(time_words,
                                                       as_id=True,
                                                       lemma=lemma,
@@ -161,6 +163,8 @@ def calculate_facets_of_document(document: Document,
     if "loc" not in disable_aspects:
         locations = set(locations)
         if use_dictionary_lookup:
+            if use_dictionary_lookup.lower() == "only":
+                locations.clear()
             locations.update(document.get_wordnet_matches(NetWords.get_location_words(lan=document.language),
                                                           as_id=True,
                                                           lemma=lemma,
@@ -178,6 +182,8 @@ def calculate_facets_of_document(document: Document,
         # print("atmosphere", atmosphere_words)
         atmosphere_words = set(atmosphere_words)
         if use_dictionary_lookup:
+            if use_dictionary_lookup.lower() == "only":
+                atmosphere_words.clear()
             atmosphere_words.update(document.get_wordnet_matches(NetWords.get_atmosphere_words(lan=document.language),
                                                                  as_id=True,
                                                                  lemma=lemma,
@@ -480,7 +486,7 @@ class FlairSentenceDocumentIterator(object):
 class CorpusTaggedFacetIterator(object):
     def __init__(self, corpus: Corpus, lemma: bool = False, lower: bool = False, disable_aspects: List[str] = None,
                  topic_dict: Dict = None, summary_dict: Dict = None, chunk_len: int = None,
-                 facets_of_chunks: bool = True, window: int = 0, use_dictionary_lookup: bool = False):
+                 facets_of_chunks: bool = True, window: int = 0, use_dictionary_lookup: str = None):
         self.corpus = corpus
         self.lemma = lemma
         self.lower = lower
@@ -644,7 +650,7 @@ class CorpusTaggedFacetIterator(object):
 class FlairFacetIterator(object):
     def __init__(self, corpus: Corpus, lemma: bool = False, lower: bool = False, disable_aspects: List[str] = None,
                  topic_dict: Dict = None, summary_dict: Dict = None, chunk_len: int = None,
-                 facets_of_chunks: bool = True, window: int = 0, use_dictionary_lookup: bool = False):
+                 facets_of_chunks: bool = True, window: int = 0, use_dictionary_lookup: str = None):
         self.corpus = corpus
         self.lemma = lemma
         self.lower = lower

@@ -1,10 +1,13 @@
 import json
 from collections import defaultdict
 
+from gensim import corpora
+from gensim.models import TfidfModel
 from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
 from umap import UMAP
 
+from corpus_iterators import CorpusDocumentIterator
 from corpus_structure import Corpus
 from vectorization_utils import Vectorization
 import random
@@ -60,20 +63,68 @@ def label_replace(facet):
         return "Combine"
 
 
+def link_color(label: str, neighbor: str):
+    label_color = colors(label)
+    neighbor_color = colors(neighbor)
+    if label_color[0] == neighbor_color[0]:
+        return label_color[0]
+    return "#777777"
+
 def force_directed_graph(model, corpus: Corpus):
+    top_n_docs = 3
+    top_n_tfidf_words = 5000
+    top_n_words = 50
+    words_shown = 7
+
     labels = []
     word_labels = set()
     word_neighbors = {}
     document_neighbors = defaultdict(list)
+
+    tokenized_document_corpus = CorpusDocumentIterator(corpus, lemma=False, lower=False)
+
+    dictionary = corpora.Dictionary()
+    bow_corpus = [dictionary.doc2bow(doc, allow_update=True) for doc in tokenized_document_corpus]
+    tf_idf_model = TfidfModel(bow_corpus)
+
+    doc_id_mapping = {doc_id: i for i, doc_id in enumerate(tokenized_document_corpus.doc_ids)}
+
+    relevant_words_of_doc = set()
+    # tf_idf_score = {}
+    relevant_words_with_sims = set()
+    for doc_id, doc in zip(tokenized_document_corpus.doc_ids, tf_idf_model[bow_corpus]):
+        tuples = [(dictionary[word_id], sim) for word_id, sim in doc]
+        tuples.sort(key=lambda x: x[1])
+        relevant_words_with_sims.update(set([(doc_id, word, sim) for word, sim in tuples]))
+        tuples = tuples[:top_n_tfidf_words]
+
+        # tf_idf_score[doc_id] = {word: sim for word, sim in tuples}
+        relevant_words = set([word for word, sim in tuples])
+
+        relevant_words_of_doc.update(relevant_words)
+        # relevant_words_of_doc[doc_id] = relevant_words
+
+    tf_idf_lookup = defaultdict(dict)
+
+    for (doc_id, word, sim) in relevant_words_with_sims:
+        tf_idf_lookup[doc_id][word] = sim
+
+    # print(tf_idf_lookup)
+
     for doc_id in model.docvecs.doctags:
         if str(doc_id)[-1].isalpha() and not str(doc_id).endswith("raw"):
-            sim_docs = Vectorization.most_similar_documents(model, corpus, positives=[doc_id], topn=2, print_results=False)
-            sim_words = Vectorization.most_similar_words(model, positives=[doc_id], topn=15,
+            sim_docs = Vectorization.most_similar_documents(model, corpus, positives=[doc_id], topn=top_n_docs, print_results=False)
+            sim_words = Vectorization.most_similar_words(model, positives=[doc_id], topn=top_n_words,
                                                          print_results=False)
 
-            labels.append(doc_id)
+            labels.append((doc_id, "doc"))
+            # sim_words = [(sim_word[0], sim_word[1]) for sim_word in sim_words if
+            #              sim_word[0] in relevant_words_of_doc['_'.join(doc_id.split('_')[:-1])]]
+            sim_words = [(sim_word[0], sim_word[1]) for sim_word in sim_words if
+                         sim_word[0] in relevant_words_of_doc]
+
             word_neighbors[doc_id] = sim_words
-            sim_words = [sim_word[0] for sim_word in sim_words]
+            sim_words = [sim_word[0] for sim_word in sim_words][:words_shown]
             word_labels.update(sim_words)
             document_neighbors[doc_id].extend(sim_docs[1:])
 
@@ -84,40 +135,52 @@ def force_directed_graph(model, corpus: Corpus):
     reverted_word_neighbors = {word: len(documents)
                                for word, documents in reverted_word_neighbors.items()
                                if len(documents) > 1}
-    word_labels = [word for word in word_labels if word in reverted_word_neighbors.keys()]
+    word_labels = [(word, "word") for word in word_labels if word in reverted_word_neighbors.keys()]
     word_neighbors = {doc_id: [word_sim for word_sim in word_sims if word_sim[0] in reverted_word_neighbors.keys()]
                       for doc_id, word_sims in word_neighbors.items()}
 
     labels.extend(word_labels)
+    # labels = [label.lower() for label in labels]
     # print(labels)
     nodes = []
     label2id = {}
-    for i, label in enumerate(labels):
+    for i, (label, type) in enumerate(labels):
+        size = 100
+        degree = 2.0
+        if type == "word":
+            size = 50
+            degree = 1.0
         nodes.append({"betweenness": 1.0,
                       "closeness": 1.0,
-                      "degree": 1.0,
+                      "degree": degree,
                       "eigenvector": 1.0,
                       "colour": colors(label)[0],
                       "fontcolour": colors(label)[0],
                       "id": doc_id_replace(corpus, label),
                       "name": label,
-                      "value": 100})
+                      "value": size})
         label2id[label] = i
 
     links = []
-
-    for label in labels:
+    # print(labels, list(word_neighbors.keys())[-10:])
+    for (label, type) in labels:
         if label in document_neighbors:
             for doc_neighbor in document_neighbors[label]:
                 print(doc_neighbor)
                 links.append({"source": label2id[label],
                               "target": label2id[doc_neighbor[0]],
-                              "value": int(doc_neighbor[1]*100)})
+                              "value": int(doc_neighbor[1]*100),
+                              "colour": link_color(label, neighbor=doc_neighbor[0])
+                              })
+
         if label in word_neighbors:
             for word_neighbor in word_neighbors[label]:
-                links.append({"source": label2id[label],
-                              "target": label2id[word_neighbor[0]],
-                              "value": int(word_neighbor[1]*100/2)})
+                if word_neighbor[0] in label2id:
+                    # print(tf_idf_lookup['_'.join(label.split('_')[:-1])][word_neighbor[0]])
+                    links.append({"source": label2id[label],
+                                  "target": label2id[word_neighbor[0]],
+                                  "value": int(word_neighbor[1]*100/2),
+                                  "colour": "#cccccc"})
 
     # word_counter = defaultdict(lambda: 0)
     # for link in links:
@@ -132,7 +195,7 @@ def force_directed_graph(model, corpus: Corpus):
     # nodes = [node for i, node in enumerate(nodes) if i in all_link_nodes]
     d3_graph = {"nodes": nodes, "links": links}
 
-    with open('neighborhood.json', 'w', encoding="utf-8") as outfile:
+    with open('d3/neighborhood.json', 'w', encoding="utf-8") as outfile:
         json.dump(d3_graph, outfile, indent=1)
 
     return d3_graph
@@ -230,9 +293,6 @@ def neighbor_plot(model, corpus: Corpus):
     vectors.extend(document_vectors)
     vectors.extend(word_vectors)
 
-
-
-
     # dim_reduced_model = TSNE(perplexity=40, n_components=2, init='pca', n_iter=2500, random_state=42)
     dim_reduced_model = UMAP(n_components=2, init='spectral', random_state=42)
     new_values = dim_reduced_model.fit_transform(vectors)
@@ -317,10 +377,11 @@ if __name__ == '__main__':
     data_set_name = "classic_gutenberg"
     # data_set_name = "german_books"
     vectorization_algorithm = "book2vec"
+    filter = "no_filter"  # "specific_words_strict"  # "no_filter"
     vec_path = Vectorization.build_vec_file_name("all",
                                                  "no_limit",
                                                  data_set_name,
-                                                 "no_filter",
+                                                 filter,
                                                  vectorization_algorithm,
                                                  "real",
                                                  allow_combination=True)
@@ -329,7 +390,7 @@ if __name__ == '__main__':
     c = Corpus.fast_load("all",
                          "no_limit",
                          data_set_name,
-                         "no_filter",
+                         filter,
                          "real",
                          load_entities=False
                          )

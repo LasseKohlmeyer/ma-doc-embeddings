@@ -18,6 +18,8 @@ vectorization_algorithms = [
     # "bert_sentence_based_100",
     "bert_sentence_based_100_pt",
     "bert_sentence_based_1000_pt",
+    "bert_sentence_based_2000_pt",
+    "bert_sentence_based_3000_pt",
     # "flair",
     "flair_sentence_based_100",
     # "flair_sentence_based_1000",

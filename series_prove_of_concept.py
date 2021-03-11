@@ -1282,7 +1282,9 @@ class EvalParams:
         # "bow",
         "avg_wv2doc",
         "doc2vec",
+        "doc2vec_dbow",
         "book2vec",
+        "book2vec_dbow",
         "avg_wv2doc_pretrained",
         "doc2vec_pretrained",
         # "doc2vec_chunk",
@@ -1408,7 +1410,7 @@ if __name__ == '__main__':
     # EvalParams
     EvaluationUtils.build_corpora()
     EvaluationUtils.train_vecs()
-    EvaluationUtils.run_evaluation()
+    # EvaluationUtils.run_evaluation()
     # print(EvaluationUtils.create_paper_table("results/simple_series_experiment_table.csv", "results/z_table.csv",
     #                                          used_metrics=["ndcg", "prec", "prec01", "prec03", "prec05", "prec10",
     #                                                        "length_metric"],
