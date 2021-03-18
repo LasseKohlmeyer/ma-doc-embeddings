@@ -5,7 +5,7 @@
 .links line {
   stroke: #ccc;
   stroke-opacity: 0.6;
-  stroke-width: 3.5px;
+  stroke-width: 10px;
 }
 
 .nodes circle {
@@ -35,7 +35,7 @@ var color = d3.scaleOrdinal(d3.schemeCategory20);
 
 var simulation = d3.forceSimulation()
     .force("link", d3.forceLink())//Or to use names rather than indices: .id(function(d) { return d.id; }))
-    .force("charge", d3.forceManyBody().strength([-600]).distanceMax([900]))
+    .force("charge", d3.forceManyBody().strength([-700]).distanceMax([800]))
     .force("center", d3.forceCenter(width / 2, height / 2));
 
 var container = svg.append('g');
@@ -83,11 +83,11 @@ d3.json("neighborhood.json", function(error, graph) {
 
   // Linear scale for degree centrality.
   var degreeSize = d3.scaleLinear()
-  	.domain([d3.min(graph.nodes, function(d) {return d.degree; }),d3.max(graph.nodes, function(d) {return d.degree; })])
-  	.range([8,14]);
+  	.domain([d3.min(graph.nodes, function(d) {return d.standard; }),d3.max(graph.nodes, function(d) {return d.standard; })])
+  	.range([8,18]);
 
   // Collision detection based on degree centrality.
-  simulation.force("collide", d3.forceCollide().radius( function (d) { return degreeSize(d.degree); }));
+  simulation.force("collide", d3.forceCollide().radius( function (d) { return degreeSize(d.standard); }));
 
   var link = container.append("g")
       .attr("class", "links")
@@ -95,7 +95,7 @@ d3.json("neighborhood.json", function(error, graph) {
     .data(graph.links, function(d) { return d.source + ", " + d.target;})
     .enter().append("line")
       .attr('class', 'link')
-	  //.style('stroke-width',  function(d) {return 0.1*d.value+"px";})
+	  .style('stroke-width',  function(d) {return 10+"px";})
 	  .style('stroke',  function(d) {
 		//console.log(d.colour);	
 	  return d.colour; 
@@ -149,7 +149,7 @@ d3.json("neighborhood.json", function(error, graph) {
 	.enter().append("g")
 	var shape=node.append("circle")
     // Use degree centrality from NetworkX in json.
-    .attr('r', function(d, i) { return degreeSize(d.degree); })
+    .attr('r', function(d, i) { return degreeSize(d.standard); })
     // Color by group, a result of modularity calculation in NetworkX.
       .attr("fill", function(d) { return d.colour; })
       .attr('class', 'node')
@@ -194,7 +194,7 @@ d3.json("neighborhood.json", function(error, graph) {
 	  .style("font-size", function(d) {
 	  //alert(d.value);
 	  res=d.value/2.5
-	  if (res<5)
+	  if (res<10)
 	  {
 		res=5
 	  }
@@ -267,7 +267,10 @@ d3.json("neighborhood.json", function(error, graph) {
 			// Data join with only those new links.
 			link = link.data(newData, function(d) {return d.source + ', ' + d.target;});
 			link.exit().remove();
-			var linkEnter = link.enter().append('line').attr('class', 'link');
+			var linkEnter = link.enter().append('line').attr('class', 'link').style('stroke',  function(d) {
+		//console.log(d.colour);	
+	  return d.colour; 
+	  })  ;
 			link = linkEnter.merge(link);
 
 			node = node.data(graph.nodes);
@@ -289,7 +292,7 @@ d3.json("neighborhood.json", function(error, graph) {
 			var centrality = this.value;
 			var centralitySize = d3.scaleLinear()
 				.domain([d3.min(graph.nodes, function(d) { return d[centrality]; }), d3.max(graph.nodes, function(d) { return d[centrality]; })])
-				.range([8,14]);
+				.range([8,18]);
 			shape.attr('r', function(d) { return centralitySize(d[centrality]); } );  
 			// Recalculate collision detection based on selected centrality.
 			simulation.force("collide", d3.forceCollide().radius( function (d) { return centralitySize(d[centrality]); }));
@@ -297,9 +300,9 @@ d3.json("neighborhood.json", function(error, graph) {
 		});
 
 	dropdown.selectAll('option')
-		.data(['Degree Centrality', 'Betweenness Centrality', 'Eigenvector Centrality','Closeness Centrality'])
+		.data(['Standard', 'Small', 'Words','Documents'])
 		.enter().append('option')
-		.attr('value', function(d) { return d.split(' ')[0].toLowerCase(); })
+		.attr('value', function(d) { return d.toLowerCase(); })
 		.text(function(d) { return d; });
 
 });
@@ -377,9 +380,14 @@ function searchNodes() {
 	});
 	selected.style('opacity', '0');
 	var link = container.selectAll('.link');
+	
+		var selected_2 = container.selectAll('.text').filter(function (d, i) {
+		return d.id.toLowerCase().search(term.toLowerCase()) == -1;
+	});
+	selected_2.style('opacity', '0');
 	link.style('stroke-opacity', '0');
-	d3.selectAll('.text')
-	.style('opacity', '0');
+	/*d3.selectAll('.text')
+	.style('opacity', '0');*/
 	
 	d3.selectAll('.node').transition()
 		.duration(5000)
