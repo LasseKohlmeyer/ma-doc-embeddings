@@ -441,4 +441,4 @@ if __name__ == '__main__':
 
     tsne_plot(vecs, c)
     # neighbor_plot(vecs, c)
-    # force_directed_graph(vecs, c)
+    force_directed_graph(vecs, c)
