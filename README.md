@@ -21,3 +21,5 @@ experiments/book_comparison.py contains experiments for the book comparison task
 experiments/predicting_high_rated_books contains the evaluation for the Scenario predicting high rated books.
 
 The Book Comparison Survey is analyzed by boco_survey/survey_analyses.py and converted to a dataset.
+
+![Abstract Image of Multiple Facets](https://github.com/laslitz/ma-doc_embeddings/complete_neighborhood.png)
