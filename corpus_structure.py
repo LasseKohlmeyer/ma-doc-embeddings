@@ -88,6 +88,8 @@ class DataHandler:
             return DataHandler.load_book_summaries_as_corpus()
         elif input_str == "test_corpus":
             return DataHandler.load_test_corpus()
+        elif input_str == "dta":
+            return DataHandler.load_dta_as_corpus()
         elif input_str == "dta_series":
             return DataHandler.load_real_series_dta_as_corpus()
         elif input_str == "goodreads_genres":
@@ -396,6 +398,84 @@ class DataHandler:
         return corpus
 
     @staticmethod
+    def load_dta_as_corpus(path: str = None) -> "Corpus":
+        if path is None:
+            input_dir = config["data_set_path"]["dta"]
+        else:
+            input_dir = path
+        del path
+        path_names = [text_file for text_file in os.listdir(input_dir) if text_file.endswith('.xml')]
+
+        path_names = [path_name for path_name in path_names if int(path_name.split('.')[0].split('_')[-1]) >= 1800]
+        d = defaultdict(list)
+        for path_name in path_names:
+            meta_info = path_name.split('.')[0].split('_')
+            author_name = meta_info[0]
+            title = meta_info[1]
+            d[f'{author_name}_{title[:-2]}'].append(path_name)
+
+        d = {key: path_names for key, path_names in d.items() if len(path_names) > 0}
+        series_number = 0
+        documents = {}
+        series_dict = defaultdict(list)
+        for series, paths in d.items():
+            for inner_series_nr, path in enumerate(paths):
+                doc_path = join(input_dir, path)
+                with open(doc_path, 'r', encoding="utf-8") as tei:
+                    tei_content = tei.read()
+
+                    soup = BeautifulSoup(tei_content, 'xml')
+                    doc_title = []
+                    for title in soup.find_all('title'):
+                        parsed_title = title.getText()
+                        if parsed_title not in doc_title:
+                            doc_title.append(parsed_title)
+
+                    doc_title = ' '.join(list(doc_title))
+                    if len(doc_title) > 40:
+                        doc_title = ' '.join(doc_title.split()[:20])
+                    print(doc_title)
+                    authors = []
+                    for author in soup.find_all('author'):
+                        try:
+                            parsed_author = f'{author.forename.getText()} {author.surname.getText()}'
+
+                        except AttributeError:
+                            parsed_author = f'{author.surname.getText()}'
+                        if parsed_author not in authors:
+                            authors.append(parsed_author)
+
+                    doc_authors = ', '.join(authors)
+                    # doc_text = soup.select("TEI text body")[0].getText()
+                    # doc_text = doc_text.replace("ſ", "s").replace("¬\n", "").replace("\n", " ")
+
+                    # doc_text = DataHandler.raw_text_parse(tei.read(), DataHandler.parse_func_dta)
+                    doc_text = ""
+
+                    doc_date = path.split('.')[0].split('_')[-1]
+                    doc_id = f"dta_{series_number}_{inner_series_nr}"
+                    # print(doc_id, path, doc_date, doc_title, doc_authors)
+                    # print(doc_text[:100], '---', doc_text[-100:])
+                    doc = Document(doc_id=doc_id,
+                                   text=doc_text,
+                                   title=doc_title,
+                                   language=Language.DE,
+                                   authors=doc_authors,
+                                   date=doc_date,
+                                   genres=None,
+                                   sentences=None,
+                                   parse_fun=DataHandler.parse_func_dta,
+                                   file_path=doc_path)
+
+                    documents[doc_id] = doc
+                    series_dict[f"dta_{series_number}"].append(doc_id)
+            series_number += 1
+        series_dict = {series_id: doc_ids for series_id, doc_ids in series_dict.items() if len(doc_ids) > 1}
+        corpus = Corpus(documents, name="deutsches_text_archiv_belletristik_series", language=Language.DE)
+        corpus.set_series_dict(series_dict)
+        return corpus
+
+    @staticmethod
     def load_real_series_dta_as_corpus(path: str = None):
         if path is None:
             input_dir = config["data_set_path"]["dta"]
@@ -404,7 +484,7 @@ class DataHandler:
         del path
         path_names = [text_file for text_file in os.listdir(input_dir) if text_file.endswith('.xml')]
 
-        path_names = [path_name for path_name in path_names if int(path_name.split('.')[0].split('_')[-1]) > 1820]
+        path_names = [path_name for path_name in path_names if int(path_name.split('.')[0].split('_')[-1]) > 1800]
         d = defaultdict(list)
         for path_name in path_names:
             meta_info = path_name.split('.')[0].split('_')
@@ -555,7 +635,7 @@ class DataHandler:
         def load_textfile_book(prefix_path, suffix_path, document_id, title):
             doc_path = join(prefix_path, suffix_path)
             if not os.path.isfile(doc_path):
-                raise UserWarning(f"No file found! {doc_path}")
+                raise FileNotFoundError  # UserWarning(f"No file found! {doc_path}")
             # with open(doc_path, "r", encoding="utf-8") as file:
             #     # content = file.read().replace('\n@\n', ' ').replace('\n', ' ').replace('  ', ' ').replace('  ', ' ')
             #     # content = ' '.join([token.split('/')[0] for token in content.split()])
@@ -1211,10 +1291,17 @@ class Document:
                         matches.append((i, j))
 
         else:
-            for sentence in self.sentences:
-                for j, token in sentence.tokens:
-                    if token.representation(lemma=True, lower=True) in wordnet_input:
-                        matches.append(token.representation(lemma=lemma, lower=lower))
+            try:
+                for sentence in self.sentences:
+                    for j, token in sentence.tokens:
+                        if token.representation(lemma=True, lower=True) in wordnet_input:
+                            matches.append(token.representation(lemma=lemma, lower=lower))
+            except TypeError:
+                for sentence in self.sentences:
+                    for token in sentence.tokens:
+                        if token.representation(lemma=True, lower=True) in wordnet_input:
+                            matches.append(token.representation(lemma=lemma, lower=lower))
+
         return matches
 
     def into_chunks(self, chunk_size: int):

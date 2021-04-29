@@ -30,6 +30,7 @@ class FlairConnector:
         """
         # document embedding
         self.fine_tune = fine_tune
+        self.document_embedding = None
         if word_embedding_base:
             self.word_embedding_base = WordEmbeddings(word_embedding_base)
 
@@ -40,9 +41,9 @@ class FlairConnector:
             else:
                 raise UserWarning(f'{document_embedding} is not supported for combination with word embeedings')
         elif document_embedding:
-            print(document_embedding)
+            print(document_embedding, pretuned)
             if pretuned:
-                if document_embedding.lower() == 'bert':
+                if document_embedding.lower() == 'bert' or document_embedding.lower() == 'bert-de':
                     self.document_embedding = SentenceTransformer('stsb-bert-large')
                     # self.document_embedding = SentenceTransformerDocumentEmbeddings('stsb-bert-large')
                 elif document_embedding.lower() == 'roberta':

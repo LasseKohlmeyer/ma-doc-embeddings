@@ -84,7 +84,7 @@ def tag_file(input_file_name: str, hw: HeidelTime.HeidelTimeWrapper, indicator: 
 if __name__ == "__main__":
     config = ConfigLoader.get_config()
 
-    corpus_to_annotate = "german_books"
+    corpus_to_annotate = "dta"
     # lan = "english"
     lan = "german"
 
@@ -98,13 +98,17 @@ if __name__ == "__main__":
 
     hw = HeidelTime.HeidelTimeWrapper(lan, doc='narratives')
     c = 0
-
-    with open(os.path.join(new_dir, 'time_dict.json'), encoding="utf-8") as json_file:
-        old_data = json.load(json_file)
-        already_processed = old_data.keys()
-    time_dict.update(old_data)
+    time_dict_path = os.path.join(new_dir, 'time_dict.json')
+    if not os.path.isfile(time_dict_path):
+        already_processed = set()
+    else:
+        with open(os.path.join(new_dir, 'time_dict.json'), encoding="utf-8") as json_file:
+            old_data = json.load(json_file)
+            already_processed = old_data.keys()
+        time_dict.update(old_data)
     for path_name in tqdm(path_names, total=len(path_names), desc="Files completed", disable=True):
         doc_id = '_'.join(path_name.split('_')[:-1])
+        print(doc_id)
         if str(path_name).endswith('.txt'):
             if doc_id in already_processed:
                 c += 1

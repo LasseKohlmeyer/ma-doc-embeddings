@@ -22,6 +22,7 @@ from corpus_iterators import CorpusSentenceIterator, \
     write_doc_based_aspect_frequency_analyzis, FlairDocumentIterator, FlairFacetIterator, CorpusTaggedSentenceIterator, \
     CorpusPlainDocumentIterator, FlairSentenceDocumentIterator
 from flair_connector import FlairConnector
+from psif import PSIFVectors
 from text_summarisation import Summarizer
 from topic_modelling import TopicModeller
 from corpus_structure import Corpus, ConfigLoader, Language
@@ -48,7 +49,7 @@ def robust_vec_loading(pretrained_emb_path: str = None, binary: bool = False):
 class Vectorizer:
     workers = 1
     seed = 42
-    window = 10
+    window = 5
     min_count = 0
     epochs = 20
     dim = 300
@@ -89,6 +90,28 @@ class Vectorizer:
                 input_str = input_str.replace("_facet", "")
 
         window = 0
+        if "_window_10" in input_str:
+            window = 10
+            input_str = input_str.replace("_window_10", "")
+        if "_window_5" in input_str:
+            window = 5
+            input_str = input_str.replace("_window_5", "")
+        if "_window_4" in input_str:
+            window = 4
+            input_str = input_str.replace("_window_4", "")
+        if "_window_3" in input_str:
+            window = 3
+            input_str = input_str.replace("_window_3", "")
+        if "_window_2" in input_str:
+            window = 2
+            input_str = input_str.replace("_window_2", "")
+        if "_window_1" in input_str:
+            window = 1
+            input_str = input_str.replace("_window_1", "")
+        if "_window_0" in input_str:
+            window = 0
+            input_str = input_str.replace("_window_0", "")
+
         if "_window" in input_str:
             window = 5
             input_str = input_str.replace("_window", "")
@@ -236,23 +259,34 @@ class Vectorizer:
 
         elif input_str == "book2vec_wo_raw":
             return Vectorizer.book2vec_simple(corpus, save_path,
-                                              disable_aspects=['raw'], return_vecs=return_vecs, chunk_len=chunk_len,
+                                              disable_aspects=['raw', 'plot', 'cont'], return_vecs=return_vecs,
+                                              chunk_len=chunk_len,
                                               facets_of_chunks=facets_of_chunks, window_size=window, dimension=dim)
+        elif input_str == "book2vec_dbow_wo_raw":
+            return Vectorizer.book2vec_simple(corpus, save_path,
+                                              disable_aspects=['raw', 'plot', 'cont'], return_vecs=return_vecs,
+                                              chunk_len=chunk_len,
+                                              facets_of_chunks=facets_of_chunks, window_size=window, dimension=dim,
+                                              dbow=True)
         elif input_str == "book2vec_wo_loc":
             return Vectorizer.book2vec_simple(corpus, save_path,
-                                              disable_aspects=['loc'], return_vecs=return_vecs, chunk_len=chunk_len,
+                                              disable_aspects=['loc', 'plot', 'cont'] , return_vecs=return_vecs, chunk_len=chunk_len,
                                               facets_of_chunks=facets_of_chunks, window_size=window, dimension=dim)
         elif input_str == "book2vec_wo_time":
             return Vectorizer.book2vec_simple(corpus, save_path,
-                                              disable_aspects=['time'], return_vecs=return_vecs, chunk_len=chunk_len,
+                                              disable_aspects=['time', 'plot', 'cont'], return_vecs=return_vecs, chunk_len=chunk_len,
                                               facets_of_chunks=facets_of_chunks, window_size=window, dimension=dim)
         elif input_str == "book2vec_wo_sty":
             return Vectorizer.book2vec_simple(corpus, save_path,
-                                              disable_aspects=['sty'], return_vecs=return_vecs, chunk_len=chunk_len,
+                                              disable_aspects=['sty', 'plot', 'cont'], return_vecs=return_vecs, chunk_len=chunk_len,
                                               facets_of_chunks=facets_of_chunks, window_size=window, dimension=dim)
         elif input_str == "book2vec_wo_atm":
             return Vectorizer.book2vec_simple(corpus, save_path,
-                                              disable_aspects=['atm'], return_vecs=return_vecs, chunk_len=chunk_len,
+                                              disable_aspects=['atm', 'plot', 'cont'], return_vecs=return_vecs, chunk_len=chunk_len,
+                                              facets_of_chunks=facets_of_chunks, window_size=window, dimension=dim)
+        elif input_str == "book2vec_wo_plot":
+            return Vectorizer.book2vec_simple(corpus, save_path,
+                                              disable_aspects=['cont'], return_vecs=return_vecs, chunk_len=chunk_len,
                                               facets_of_chunks=facets_of_chunks, window_size=window, dimension=dim)
         elif input_str == "book2vec_simple_untrained" or input_str == "book2vec_untrained":
             return Vectorizer.book2vec_simple(corpus, save_path, return_vecs=return_vecs,
@@ -261,10 +295,35 @@ class Vectorizer:
         elif input_str == "book2vec_adv":
             return Vectorizer.book2vec_adv(corpus, save_path, return_vecs=return_vecs, chunk_len=chunk_len,
                                            facets_of_chunks=facets_of_chunks, window_size=window, dimension=dim)
+        elif input_str == "book2vec_advn":
+            return Vectorizer.book2vec_adv(corpus, save_path, return_vecs=return_vecs, chunk_len=chunk_len,
+                                           facets_of_chunks=facets_of_chunks, window_size=window, dimension=dim,
+                                           basic_mode=True)
+        elif input_str == "book2vec_adv_dbow":
+            return Vectorizer.book2vec_adv(corpus, save_path, return_vecs=return_vecs, chunk_len=chunk_len,
+                                           facets_of_chunks=facets_of_chunks, window_size=window, dimension=dim,
+                                           dbow=True)
+        elif input_str == "book2vec_advn_dbow":
+            return Vectorizer.book2vec_adv(corpus, save_path, return_vecs=return_vecs, chunk_len=chunk_len,
+                                           facets_of_chunks=facets_of_chunks, window_size=window, dimension=dim,
+                                           dbow=True, basic_mode=True)
+        elif input_str == "book2vec_adv_dbow_wo_raw":
+            return Vectorizer.book2vec_adv(corpus, save_path, return_vecs=return_vecs, chunk_len=chunk_len,
+                                           facets_of_chunks=facets_of_chunks, window_size=window, dimension=dim,
+                                           dbow=True, disable_aspects=["raw"])
+        elif input_str == "book2vec_adv_dbow_net_wo_raw":
+            return Vectorizer.book2vec_adv(corpus, save_path, return_vecs=return_vecs, chunk_len=chunk_len,
+                                           facets_of_chunks=facets_of_chunks, window_size=window, dimension=dim,
+                                           dbow=True, disable_aspects=["raw"], use_dictionary_lookup="Both")
+
         elif input_str == "book2vec_adv_net":
             return Vectorizer.book2vec_adv(corpus, save_path, return_vecs=return_vecs, chunk_len=chunk_len,
                                            facets_of_chunks=facets_of_chunks, window_size=window, dimension=dim,
-                                           use_dictionary_lookup=True)
+                                           use_dictionary_lookup="Both")
+        elif input_str == "book2vec_adv_net_only":
+            return Vectorizer.book2vec_adv(corpus, save_path, return_vecs=return_vecs, chunk_len=chunk_len,
+                                           facets_of_chunks=facets_of_chunks, window_size=window, dimension=dim,
+                                           use_dictionary_lookup="only")
         elif input_str == "book2vec_adv_pretrained":
             return Vectorizer.book2vec_adv(corpus, save_path, return_vecs=return_vecs, chunk_len=chunk_len,
                                            facets_of_chunks=facets_of_chunks, window_size=window, dimension=dim,
@@ -355,7 +414,7 @@ class Vectorizer:
                                            facets_of_chunks=facets_of_chunks, window_size=window, dimension=dim)
         elif input_str == "book2vec_bert":
             return Vectorizer.book2vec_adv(corpus, save_path,
-                                           disable_aspects=['cont'],
+                                           disable_aspects=['cont', 'plot'],
                                            return_vecs=return_vecs,
                                            algorithm="transformer",
                                            chunk_len=chunk_len,
@@ -373,6 +432,27 @@ class Vectorizer:
             return Vectorizer.flair(corpus, "fasttext", "rnn", save_path, return_vecs=return_vecs, chunk_len=chunk_len)
         elif input_str == "bert":
             return Vectorizer.flair(corpus, None, "bert", save_path, return_vecs=return_vecs, chunk_len=chunk_len)
+        elif input_str == "roberta":
+            return Vectorizer.flair(corpus, None, "roberta", save_path, return_vecs=return_vecs, chunk_len=chunk_len)
+        elif input_str == "xlm":
+            return Vectorizer.flair(corpus, None, "xlm", save_path, return_vecs=return_vecs, chunk_len=chunk_len)
+        elif input_str == "bert_pt":
+            return Vectorizer.flair(corpus, None, "bert", save_path, return_vecs=return_vecs, chunk_len=chunk_len,
+                                    pretuned=True)
+        elif input_str == "book2vec_bert_pt":
+            return Vectorizer.book2vec_adv(corpus, save_path,
+                                           disable_aspects=['cont', 'plot'],
+                                           return_vecs=return_vecs,
+                                           algorithm="transformer",
+                                           chunk_len=chunk_len,
+                                           facets_of_chunks=facets_of_chunks, window_size=window, dimension=dim,
+                                           pretuned=True)
+        elif input_str == "roberta_pt":
+            return Vectorizer.flair(corpus, None, "roberta", save_path, return_vecs=return_vecs, chunk_len=chunk_len,
+                                    pretuned=True)
+        elif input_str == "xlm_pt":
+            return Vectorizer.flair(corpus, None, "xlm", save_path, return_vecs=return_vecs, chunk_len=chunk_len,
+                                    pretuned=True)
         elif input_str == "bert_sentence_based":
             return Vectorizer.flair(corpus, None, "bert", save_path, return_vecs=return_vecs, chunk_len=chunk_len,
                                     sentence_based=True)
@@ -399,7 +479,7 @@ class Vectorizer:
             return Vectorizer.flair(corpus, None, "stacked_flair", save_path, return_vecs=return_vecs,
                                     chunk_len=chunk_len)
         elif input_str == "topic_vec" or input_str == "topic_vecs" or input_str == "topic2vec":
-            Vectorizer.topiv_vecs(corpus, save_path=save_path, return_vecs=return_vecs)
+            Vectorizer.topic_vecs(corpus, save_path=save_path, return_vecs=return_vecs)
         elif input_str == "bert_sentence_based_pt":
             return Vectorizer.flair(corpus, None, "bert", save_path, return_vecs=return_vecs, chunk_len=chunk_len,
                                     sentence_based=True, pretuned=True)
@@ -433,8 +513,10 @@ class Vectorizer:
         elif input_str == "xlm_sentence_based_1000_pt":
             return Vectorizer.flair(corpus, None, "xlm", save_path, return_vecs=return_vecs, chunk_len=chunk_len,
                                     sentence_based=True, sentence_nr=1000, pretuned=True)
+        elif input_str == "psif":
+            return Vectorizer.psif(corpus, save_path, return_vecs=return_vecs)
         else:
-            raise UserWarning(f"fUnknown input string {input_str}!")
+            raise UserWarning(f"Unknown input string {input_str}!")
 
     @classmethod
     def word2vec_base(cls,
@@ -480,7 +562,9 @@ class Vectorizer:
             if len(doc) == 0:
                 continue
             if restrict_to:
+                print("before restrict", len(doc))
                 doc = doc[:restrict_to]
+                print("after restsrict", len(doc))
             for token in doc:
                 # print(token, model.wv.vocab[token])
                 try:
@@ -829,21 +913,23 @@ class Vectorizer:
         if disable_aspects is None:
             disable_aspects = []
 
-        if "cont" not in disable_aspects:
-            topic_dict = TopicModeller.topic_modelling(corpus)
-            # topic_dict, _ = TopicModeller.train_lda_mem_eff(corpus)
-        else:
-            topic_dict = None
+        topic_dict = None
+        summary_dict = None
+        # if "cont" not in disable_aspects:
+        #     topic_dict = TopicModeller.topic_modelling(corpus)
+        #     # topic_dict, _ = TopicModeller.train_lda_mem_eff(corpus)
+        # else:
+        #     topic_dict = None
 
-        if "plot" not in disable_aspects:
-            summary_dict = Summarizer.get_summary(corpus)
-        else:
-            summary_dict = None
+        # if "plot" not in disable_aspects:
+        #     summary_dict = Summarizer.get_summary(corpus)
+        # else:
+        #     summary_dict = None
         print(disable_aspects)
         documents = CorpusTaggedFacetIterator(corpus, lemma=lemma, lower=lower, disable_aspects=disable_aspects,
                                               topic_dict=topic_dict, summary_dict=summary_dict, chunk_len=chunk_len,
                                               facets_of_chunks=facets_of_chunks, window=window_size,
-                                              use_dictionary_lookup=use_dictionary_lookup)
+                                              use_dictionary_lookup=use_dictionary_lookup, basic_mode=True)
         # print('Start training')
         logging.info("Start training")
 
@@ -888,7 +974,7 @@ class Vectorizer:
         return sentence_aspect
 
     @classmethod
-    def topiv_vecs(cls, corpus: Corpus, save_path: str = "models/", return_vecs: bool = True):
+    def topic_vecs(cls, corpus: Corpus, save_path: str = "models/", return_vecs: bool = True):
         _, _, topic_model, lda_corpus, doc_ids = TopicModeller.train_lda_mem_eff(corpus)
         docs_dict = {}
         words_dict = None
@@ -912,7 +998,8 @@ class Vectorizer:
                      pretrained: bool = False,
                      pretuned: bool = False,
                      use_dictionary_lookup: str = None,
-                     dbow: bool = False):
+                     dbow: bool = False,
+                     basic_mode=True):
         lemma = False
         lower = False
 
@@ -935,7 +1022,7 @@ class Vectorizer:
             documents = CorpusTaggedFacetIterator(corpus, lemma=lemma, lower=lower, disable_aspects=disable_aspects,
                                                   topic_dict=topic_dict, summary_dict=summary_dict, chunk_len=chunk_len,
                                                   window=window_size,
-                                                  use_dictionary_lookup=use_dictionary_lookup)
+                                                  use_dictionary_lookup=use_dictionary_lookup, basic_mode=basic_mode)
             model, words_dict, docs_dict = cls.doc2vec_base(documents, without_training, chunk_len=chunk_len,
                                                             dimension=dimension, language=corpus.language,
                                                             pretrained=pretrained, dbow=dbow)
@@ -943,7 +1030,7 @@ class Vectorizer:
             preprocessed_sentences = CorpusSentenceIterator(corpus)
             documents = CorpusTaggedFacetIterator(corpus, lemma=lemma, lower=lower, disable_aspects=disable_aspects,
                                                   topic_dict=topic_dict, summary_dict=summary_dict, window=window_size,
-                                                  use_dictionary_lookup=use_dictionary_lookup)
+                                                  use_dictionary_lookup=use_dictionary_lookup, basic_mode=basic_mode)
             aspect_doc_ids = [d.tags[0] for d in documents]
             model, words_dict, docs_dict = cls.word2vec_base(preprocessed_sentences, documents,
                                                              aspect_doc_ids, without_training,
@@ -955,10 +1042,10 @@ class Vectorizer:
             documents = FlairFacetIterator(corpus, lemma=lemma, lower=lower, disable_aspects=disable_aspects,
                                            topic_dict=topic_dict, summary_dict=summary_dict, chunk_len=chunk_len,
                                            facets_of_chunks=facets_of_chunks, window=window_size,
-                                           use_dictionary_lookup=use_dictionary_lookup)
+                                           use_dictionary_lookup=use_dictionary_lookup, basic_mode=basic_mode)
             words_dict = None
             docs_dict = cls.flair_base(documents, word_embedding_base=None,
-                                       document_embedding="bert-de", chunk_len=chunk_len, pretuned=pretuned)
+                                       document_embedding="bert", chunk_len=chunk_len, pretuned=pretuned)
         else:
             raise UserWarning(f"Not supported vectorization algorithm '{algorithm}'!")
 
@@ -1132,6 +1219,19 @@ class Vectorizer:
         return Vectorization.store_vecs_and_reload(save_path=save_path, docs_dict=docs_dict, words_dict=words_dict,
                                                    return_vecs=return_vecs)
 
+    @classmethod
+    def psif(cls, corpus: Corpus, save_path: str = "models/", return_vecs: bool = True):
+        # _, doc_ids = corpus.get_texts_and_doc_ids()
+        data_set_name = corpus.name
+        sentences = CorpusSentenceIterator(corpus)
+        documents = CorpusPlainDocumentIterator(corpus)
+
+        docs_dict, words_dict = PSIFVectors.calculate_psif(sentences, documents, data_set_name)
+
+        return Vectorization.store_vecs_and_reload(save_path=save_path, docs_dict=docs_dict, words_dict=words_dict,
+                                                   return_vecs=return_vecs)
+
+
     @staticmethod
     def model2dict(model: Doc2Vec):
         words_dict = {word: model.wv[word] for word in model.wv.vocab}
@@ -1140,3 +1240,5 @@ class Vectorizer:
         # print('>>', model.docvecs.vectors_docs)
         # print('>>', model.docvecs.max_rawint)
         return words_dict, doc_dict
+
+

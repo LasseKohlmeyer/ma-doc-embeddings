@@ -435,22 +435,22 @@ class TextLengthExperiment:
         # noinspection PyTypeChecker
         full_spearman = stats.spearmanr(tria_cos, tria_len)
 
-        full_spearman = f'{full_spearman[0]:.4f} [{full_spearman[1]}]'
+        full_spearman = f'{full_spearman[0]} [{full_spearman[1]}]'
 
         short_spearman = stats.spearmanr(filter_1q[['Cosine Similarity']].to_numpy().flatten(),
                                          filter_1q[['Length Similarity']].to_numpy().flatten())
 
-        short_spearman = f'{short_spearman[0]:.4f} [{short_spearman[1]}]'
+        short_spearman = f'{short_spearman[0]} [{short_spearman[1]}]'
 
         mid_spearman = stats.spearmanr(filter_2q[['Cosine Similarity']].to_numpy().flatten(),
                                        filter_2q[['Length Similarity']].to_numpy().flatten())
 
-        mid_spearman = f'{mid_spearman[0]:.4f} [{mid_spearman[1]}]'
+        mid_spearman = f'{mid_spearman[0]} [{mid_spearman[1]}]'
 
         long_spearman = stats.spearmanr(filter_3q[['Cosine Similarity']].to_numpy().flatten(),
                                         filter_3q[['Length Similarity']].to_numpy().flatten())
 
-        long_spearman = f'{long_spearman[0]:.4f} [{long_spearman[1]}]'
+        long_spearman = f'{long_spearman[0]} [{long_spearman[1]}]'
 
         # print(vectorization_algorithm, stats.pearsonr(tria_cos, tria_len_d))
         # print(vectorization_algorithm, stats.spearmanr(tria_cos, tria_len_d))

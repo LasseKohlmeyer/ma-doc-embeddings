@@ -109,6 +109,7 @@ def calculate_facets_of_document(document: Document,
                                  lemma: bool, lower: bool,
                                  topic_dict: Union[None, Dict[str, List[str]]],
                                  summary_dict: Union[None, Dict[str, List[Union[str, int]]]],
+                                 basic_mode: bool,
                                  window: int = 0,
                                  use_dictionary_lookup: str = None):
     def windowing(facet_ids, doc: Document, window_size: int):
@@ -159,6 +160,7 @@ def calculate_facets_of_document(document: Document,
                                                       lower=lower))
 
         doc_aspects['time'] = windowing(facet_ids=times, doc=document, window_size=window)
+        times.clear()
 
     if "loc" not in disable_aspects:
         locations = set(locations)
@@ -170,9 +172,9 @@ def calculate_facets_of_document(document: Document,
                                                           lemma=lemma,
                                                           lower=lower))
         doc_aspects['loc'] = windowing(facet_ids=locations, doc=document, window_size=window)
-
+        locations.clear()
     if "raw" not in disable_aspects:
-        doc_aspects['raw'] = document.get_flat_document_tokens(lemma=lemma, lower=lower)
+        doc_aspects['raw'] = document.get_flat_document_tokens(lemma=lemma, lower=lower)[:10000]
 
     if "atm" not in disable_aspects:
         atmosphere_words = document.get_flat_and_filtered_document_tokens(lemma=lemma,
@@ -192,6 +194,7 @@ def calculate_facets_of_document(document: Document,
         doc_aspects['atm'] = windowing(facet_ids=atmosphere_words,
                                        doc=document,
                                        window_size=window)
+        atmosphere_words.clear()
     if "sty" not in disable_aspects:
         doc_aspects['sty'] = windowing(facet_ids=document.get_flat_and_filtered_document_tokens(lemma=lemma,
                                                                                                 lower=lower,
@@ -199,10 +202,10 @@ def calculate_facets_of_document(document: Document,
                                                                                                 ids=True),
                                        doc=document,
                                        window_size=window)
-    if "cont" not in disable_aspects:
+    if not basic_mode or "cont" not in disable_aspects:
         doc_aspects["cont"] = topic_dict[doc_id]
 
-    if "plot" not in disable_aspects:
+    if not basic_mode and "plot" not in disable_aspects:
         doc_aspects["plot"] = Summarizer.document_summary_list(document,
                                                                summary_dict,
                                                                lemma=lemma,
@@ -486,7 +489,8 @@ class FlairSentenceDocumentIterator(object):
 class CorpusTaggedFacetIterator(object):
     def __init__(self, corpus: Corpus, lemma: bool = False, lower: bool = False, disable_aspects: List[str] = None,
                  topic_dict: Dict = None, summary_dict: Dict = None, chunk_len: int = None,
-                 facets_of_chunks: bool = True, window: int = 0, use_dictionary_lookup: str = None):
+                 facets_of_chunks: bool = True, window: int = 0, use_dictionary_lookup: str = None,
+                 basic_mode: bool = True):
         self.corpus = corpus
         self.lemma = lemma
         self.lower = lower
@@ -500,6 +504,7 @@ class CorpusTaggedFacetIterator(object):
         self.window = window
         self.use_dictionary_lookup = use_dictionary_lookup
         self.document_aspects = {}
+        self.basic_mode = basic_mode
 
         self.precalculate_facets()
 
@@ -509,10 +514,13 @@ class CorpusTaggedFacetIterator(object):
     def build_doc_aspects(self, doc_id, doc_aspects):
         self.doc_aspects[doc_id] = {aspect_name: len(document_aspects)
                                     for aspect_name, document_aspects in doc_aspects.items()}
-        self.detailed_aspects[doc_id] = {aspect_name: (len(document_aspects), len(set(document_aspects)),
-                                                       self.corpus.documents[doc_id].length,
-                                                       self.corpus.documents[doc_id].vocab_size)
-                                         for aspect_name, document_aspects in doc_aspects.items()}
+        try:
+            self.detailed_aspects[doc_id] = {aspect_name: (len(document_aspects), len(set(document_aspects)),
+                                                           self.corpus.documents[doc_id].length,
+                                                           self.corpus.documents[doc_id].vocab_size)
+                                             for aspect_name, document_aspects in doc_aspects.items()}
+        except KeyError:
+            pass
 
     def precalculate_facets(self):
         if self.chunk_len:
@@ -528,6 +536,7 @@ class CorpusTaggedFacetIterator(object):
                             lower=self.lower,
                             topic_dict=self.topic_dict,
                             summary_dict=self.summary_dict,
+                            basic_mode=self.basic_mode,
                             window=self.window,
                             use_dictionary_lookup=self.use_dictionary_lookup)
                         self.build_doc_aspects(document_chunk.doc_id, self.document_aspects[document_chunk.doc_id])
@@ -541,6 +550,7 @@ class CorpusTaggedFacetIterator(object):
                         lower=self.lower,
                         topic_dict=self.topic_dict,
                         summary_dict=self.summary_dict,
+                        basic_mode=self.basic_mode,
                         window=self.window,
                         use_dictionary_lookup=self.use_dictionary_lookup)
                     self.build_doc_aspects(doc_id, self.document_aspects[doc_id])
@@ -555,6 +565,7 @@ class CorpusTaggedFacetIterator(object):
                     lower=self.lower,
                     topic_dict=self.topic_dict,
                     summary_dict=self.summary_dict,
+                    basic_mode=self.basic_mode,
                     window=self.window,
                     use_dictionary_lookup=self.use_dictionary_lookup)
                 # self.doc_aspects[doc_id] = {aspect_name: len(document_aspects)
@@ -597,6 +608,7 @@ class CorpusTaggedFacetIterator(object):
                                                                    lower=self.lower,
                                                                    topic_dict=self.topic_dict,
                                                                    summary_dict=self.summary_dict,
+                                                                   basic_mode=self.basic_mode,
                                                                    window=self.window,
                                                                    use_dictionary_lookup=self.use_dictionary_lookup)
                         chunked_doc_aspects = doc_aspects
@@ -617,6 +629,7 @@ class CorpusTaggedFacetIterator(object):
                                                                lower=self.lower,
                                                                topic_dict=self.topic_dict,
                                                                summary_dict=self.summary_dict,
+                                                               basic_mode=self.basic_mode,
                                                                window=self.window,
                                                                use_dictionary_lookup=self.use_dictionary_lookup)
                     self.build_doc_aspects(doc_id, doc_aspects)
@@ -637,6 +650,7 @@ class CorpusTaggedFacetIterator(object):
                                                            lower=self.lower,
                                                            topic_dict=self.topic_dict,
                                                            summary_dict=self.summary_dict,
+                                                           basic_mode=self.basic_mode,
                                                            window=self.window,
                                                            use_dictionary_lookup=self.use_dictionary_lookup)
                 # self.doc_aspects[doc_id] = {aspect_name: len(document_aspects)
@@ -650,7 +664,8 @@ class CorpusTaggedFacetIterator(object):
 class FlairFacetIterator(object):
     def __init__(self, corpus: Corpus, lemma: bool = False, lower: bool = False, disable_aspects: List[str] = None,
                  topic_dict: Dict = None, summary_dict: Dict = None, chunk_len: int = None,
-                 facets_of_chunks: bool = True, window: int = 0, use_dictionary_lookup: str = None):
+                 facets_of_chunks: bool = True, window: int = 0, use_dictionary_lookup: str = None,
+                 basic_mode: bool = True):
         self.corpus = corpus
         self.lemma = lemma
         self.lower = lower
@@ -664,6 +679,8 @@ class FlairFacetIterator(object):
         self.window = window
         self.use_dictionary_lookup = use_dictionary_lookup
         self.document_aspects = {}
+        self.basic_mode = basic_mode
+        self.precalculate_facets()
 
     def __len__(self):
         return len(self.corpus.documents)
@@ -691,6 +708,7 @@ class FlairFacetIterator(object):
                             lower=self.lower,
                             topic_dict=self.topic_dict,
                             summary_dict=self.summary_dict,
+                            basic_mode=self.basic_mode,
                             window=self.window,
                             use_dictionary_lookup=self.use_dictionary_lookup)
                         # chunked_doc_aspects = {aspect_name: len(document_aspects)
@@ -709,6 +727,7 @@ class FlairFacetIterator(object):
                         lower=self.lower,
                         topic_dict=self.topic_dict,
                         summary_dict=self.summary_dict,
+                        basic_mode=self.basic_mode,
                         window=self.window,
                         use_dictionary_lookup=self.use_dictionary_lookup)
                     # self.doc_aspects[doc_id] = {aspect_name: len(document_aspects)
@@ -724,6 +743,7 @@ class FlairFacetIterator(object):
                     lower=self.lower,
                     topic_dict=self.topic_dict,
                     summary_dict=self.summary_dict,
+                    basic_mode=self.basic_mode,
                     window=self.window,
                     use_dictionary_lookup=self.use_dictionary_lookup)
                 # self.doc_aspects[doc_id] = {aspect_name: len(document_aspects)
@@ -751,6 +771,7 @@ class FlairFacetIterator(object):
                             yield doc_aspect_id, f"{' '.join(chunked_aspect)} ."
         else:
             for doc_id, document in self.corpus.documents.items():
+                print(self.document_aspects.keys())
                 for aspect_name, document_aspects in self.document_aspects[doc_id].items():
                     doc_aspect_id = f'{doc_id}_{aspect_name}'
                     # print(doc_aspect_id, len(document_aspects))
@@ -769,6 +790,7 @@ class FlairFacetIterator(object):
                                                                    lower=self.lower,
                                                                    topic_dict=self.topic_dict,
                                                                    summary_dict=self.summary_dict,
+                                                                   basic_mode=self.basic_mode,
                                                                    window=self.window,
                                                                    use_dictionary_lookup=self.use_dictionary_lookup)
                         # chunked_doc_aspects = {aspect_name: len(document_aspects)
@@ -791,6 +813,7 @@ class FlairFacetIterator(object):
                                                                lower=self.lower,
                                                                topic_dict=self.topic_dict,
                                                                summary_dict=self.summary_dict,
+                                                               basic_mode=self.basic_mode,
                                                                window=self.window,
                                                                use_dictionary_lookup=self.use_dictionary_lookup)
                     # self.doc_aspects[doc_id] = {aspect_name: len(document_aspects)
@@ -812,6 +835,7 @@ class FlairFacetIterator(object):
                                                            lower=self.lower,
                                                            topic_dict=self.topic_dict,
                                                            summary_dict=self.summary_dict,
+                                                           basic_mode=self.basic_mode,
                                                            window=self.window,
                                                            use_dictionary_lookup=self.use_dictionary_lookup)
                 # self.doc_aspects[doc_id] = {aspect_name: len(document_aspects)

@@ -20,7 +20,7 @@
 }
 </style>
 <body>
-<svg width="1400" height="800"></svg>
+<svg width="1800" height="1200"></svg>
 <script src="https://d3js.org/d3.v4.min.js"></script>
 <script>
 
@@ -35,7 +35,7 @@ var color = d3.scaleOrdinal(d3.schemeCategory20);
 
 var simulation = d3.forceSimulation()
     .force("link", d3.forceLink())//Or to use names rather than indices: .id(function(d) { return d.id; }))
-    .force("charge", d3.forceManyBody().strength([-700]).distanceMax([800]))
+    .force("charge", d3.forceManyBody().strength([-900]).distanceMax([800]))
     .force("center", d3.forceCenter(width / 2, height / 2));
 
 var container = svg.append('g');
@@ -107,13 +107,13 @@ d3.json("neighborhood.json", function(error, graph) {
 			//source = d.source
 		      // Ternary operator restyles links and nodes if they are adjacent.
 		      d3.selectAll('.link').style('stroke-opacity', function (l) {
-			      return l.target == s || l.source == s || l.target == t || l.source == t ? 1 : 0.05;
+			      return l.target == s || l.source == s || l.target == t || l.source == t ? 1 : 0.00;
 		      });
 		      d3.selectAll('.node').style('opacity', function (n) {
-			      return neighboring(s, n) || neighboring(t, n)? 1 : 0.3;
+			      return neighboring(s, n) || neighboring(t, n)? 1 : 0.0;
 		      });
 			  d3.selectAll('.text').style('opacity', function (n) {
-			      return neighboring(s, n) || neighboring(t, n)? 1 : 0.3;
+			      return neighboring(s, n) || neighboring(t, n)? 1 : 0.0;
 		      });
 		      d3.select(this).style('opacity', 1);
 		      toggle = 1;
@@ -159,13 +159,13 @@ d3.json("neighborhood.json", function(error, graph) {
 	      if (toggle == 0) {
 		      // Ternary operator restyles links and nodes if they are adjacent.
 		      d3.selectAll('.link').style('stroke-opacity', function (l) {
-			      return l.target == d || l.source == d ? 1 : 0.05;
+			      return l.target == d || l.source == d ? 1 : 0.00;
 		      });
 		      d3.selectAll('.node').style('opacity', function (n) {
-			      return neighboring(d, n) ? 1 : 0.3;
+			      return neighboring(d, n) ? 1 : 0.0;
 		      });
 			  d3.selectAll('.text').style('opacity', function (n) {
-			      return neighboring(d, n) ? 1 : 0.3;
+			      return neighboring(d, n) ? 1 : 0.0;
 		      });
 		      d3.select(this).style('opacity', 1);
 		      toggle = 1;

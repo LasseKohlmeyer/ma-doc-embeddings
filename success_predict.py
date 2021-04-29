@@ -1,5 +1,6 @@
 from collections import defaultdict
 
+from scipy.stats import stats
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
 from sklearn.neural_network import MLPClassifier
@@ -37,6 +38,15 @@ def cross_val_scores_weighted(model, X, y, weights, cv=5, metrics=[sk.metrics.ac
     return scores
 
 
+def chi_square_test(input1, input2):
+    truth1 = [0.5 for e in input1]
+    truth2 = [0.5 for e in input2]
+    print('---')
+    print(stats.chisquare(input1, truth1))
+    print(stats.chisquare(input2, truth2))
+    print('---')
+
+
 def mcnemar_sig_text(table):
     # define contingency table
     # calculate mcnemar test
@@ -53,9 +63,10 @@ def mcnemar_sig_text(table):
     # interpret the p-value
     alpha = 0.05
     if result.pvalue > alpha:
-        print('Classifiers have same proportions of errors (fail to reject H0)')
+        print(f'Classifiers have same proportions of errors (fail to reject H0), {result.pvalue}')
     else:
-        print('Classifiers have different proportions of errors (reject H0)')
+        print(f'Classifiers have different proportions of errors (reject H0), {result.pvalue}')
+
 
 def success_prediction_task(data_set_name: str, success_dict, vector_names):
     result_tuples = []
@@ -80,22 +91,29 @@ def success_prediction_task(data_set_name: str, success_dict, vector_names):
         doc_ids = []
         k_fold_cross_val = None
         for doctag in vectors.docvecs.doctags:
-            if summation_method and f"_{summation_method}" in str(doctag):
-                x.append(vectors.docvecs[doctag])
-                # success = success_dict[doctag.replace(f"_{summation_method}", "")]
-                # if success == "failure":
-                #     success = 0
-                # else:
-                #     success = 1
-                # y.append(success)
-                y.append(0 if success_dict[doctag.replace(f"_{summation_method}", "")] == "failure" else 1)
-                doc_ids.append(doctag.replace(f"_{summation_method}", ""))
+            try:
+                if summation_method and f"_{summation_method}" in str(doctag):
+                    x.append(vectors.docvecs[doctag])
+                    # success = success_dict[doctag.replace(f"_{summation_method}", "")]
+                    # if success == "failure":
+                    #     success = 0
+                    # else:
+                    #     success = 1
+                    # y.append(success)
+                    y.append(0 if success_dict[doctag.replace(f"_{summation_method}", "")] == "failure" else 1)
+                    doc_ids.append(doctag.replace(f"_{summation_method}", ""))
 
-            elif not summation_method and str(doctag)[-1].isdigit():
-                x.append(vectors.docvecs[doctag])
-                y.append(0 if success_dict[doctag] == "failure" else 1)
-                doc_ids.append(doctag)
-            else:
+                elif not summation_method and str(doctag)[-1].isdigit():
+                    doc_splitted = doctag.split("_")
+                    if len(doc_splitted) > 1 and doc_splitted[-1][-1].isdigit() and doc_splitted[-2][-1].isdigit():
+                        pass
+                    else:
+                        x.append(vectors.docvecs[doctag])
+                        y.append(0 if success_dict[doctag] == "failure" else 1)
+                        doc_ids.append(doctag)
+                else:
+                    pass
+            except KeyError:
                 pass
 
         counter = defaultdict(lambda: 0)
@@ -180,7 +198,7 @@ def success_prediction_task(data_set_name: str, success_dict, vector_names):
         "NuSVC"
     ]
     for cl in classifiers:
-        algo1 = "doc2vec"
+        algo1 = "xlm_pt"
         algo2 = "book2vec_concat"
         true_true = 0
         true_false = 0
@@ -306,25 +324,48 @@ def genre_prediction_task(data_set_name: str, genre_dict, vector_names):
 if __name__ == '__main__':
     c = DataHandler.load_maharjan_goodreads()
     algorithms = [
-        # "majority_class",
-        "avg_wv2doc",
-        "doc2vec",
+        # # "majority_class",
+        # "avg_wv2doc",
+        # "bow",
+        # "avg_wv2doc_restrict10000",
+        # "doc2vec",
         # "doc2vec_chunk",
-        "book2vec",
-        "book2vec_concat",
-        "book2vec_pca",
-        "book2vec_auto",
-        "book2vec_o_raw",
-        "book2vec_o_time",
-        "book2vec_o_loc",
-        "book2vec_o_atm",
-        "book2vec_o_sty",
+        # "psif",
+        # "bert_pt",
+        # "bert_sentence_based_1000_pt",
+        # "roberta_pt",
+        # "roberta_sentence_based_1000_pt",
+        # "xlm_pt",
+        # "xlm_sentence_based_1000_pt",
+        # "doc2vec_chunk",
+        # "book2vec",
+        # "book2vec_avg",
+        # "book2vec_net_only_concat",
+        # "book2vec_concat",
+        # "book2vec_pca",
+        # "book2vec_auto",
+        # "book2vec_o_raw",
+        # "book2vec_o_time",
+        # "book2vec_o_plot",
+        # "book2vec_o_loc",
+        # "book2vec_o_atm",
+        # "book2vec_o_sty",
+        # "book2vec_wo_raw_concat",
+        # "book2vec_net_concat",
+        "book2vec_dbow",
+        "book2vec_dbow_avg",
+        "book2vec_dbow_concat",
+        "book2vec_dbow_pca",
+        "book2vec_dbow_auto",
+
+
+        # "book2vec_dbow_concat",
+        # "bookwvec_window"
         # "book2vec_adv",
         # "book2vec_adv_concat",
     ]
     # EvaluationUtils.build_corpora()
     # EvaluationUtils.train_vecs()
-
 
     success_prediction_task("goodreads_genres", c.success_dict, algorithms)
 

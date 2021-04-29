@@ -31,15 +31,15 @@ def draw_result_multi_metrics(lst_iter, list_of_lists, title, metric: List[str])
         # plt.plot(lst_iter, lst_loss[0], f"{lst_loss[1][0]}-", label=label, linewidth=4.0)
     # plt.plot(lst_iter, lst_acc, '-r', label='accuracy')
 
-    plt.xlabel("Window Size")
-    plt.ylabel("Metric Score")
+    plt.xlabel("Context Window Size")
+    plt.ylabel("NDCG")
     plt.legend(loc='center right')
 
 
     if title:
         plt.title(title)
 
-    plt.xticks([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15])
+    plt.xticks([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
 
     # save image
     # plt.savefig(title+".png")  # should before show method
@@ -75,10 +75,10 @@ def draw_loss_curve_from_df(df: pd.DataFrame):
 
     # loss of iteration
     list_of_lists = {
-        "doc2vec Author": ([val[2] for val in algo_dict["doc2vec"] if val[0] == "AuthorTask"], 'r-'),
-        "doc2vec Series": ([val[2] for val in algo_dict["doc2vec"] if val[0] == "SeriesTask"], 'r--'),
-        "lib2vec Author": ([val[2] for val in algo_dict["book2vec"] if val[0] == "AuthorTask"],'g-'),
-        "lib2vec Series": ([val[2] for val in algo_dict["book2vec"] if val[0] == "SeriesTask"], 'g--'),
+        "doc2vec Author": ([val[2] for val in algo_dict["doc2vec"] if val[0] == "AuthorTask"], 'b-'),
+        "doc2vec Series": ([val[2] for val in algo_dict["doc2vec"] if val[0] == "SeriesTask"], 'b--'),
+        "lib2vec Author": ([val[2] for val in algo_dict["book2vec"] if val[0] == "AuthorTask"],'r-'),
+        "lib2vec Series": ([val[2] for val in algo_dict["book2vec"] if val[0] == "SeriesTask"], 'r--'),
         "book2vec_concat Author": ([val[2] for val in algo_dict["book2vec_concat"] if val[0] == "AuthorTask"], 'b-'),
         "book2vec_concat Series": ([val[2] for val in algo_dict["book2vec_concat"] if val[0] == "SeriesTask"], 'b--'),
                      }
@@ -93,18 +93,20 @@ def draw_multi_metric_curve_from_df(df: pd.DataFrame):
     print(df.columns)
     algo_dict = defaultdict(list)
     windows = []
-    metrics = ["ndcg", "prec10", "f_prec10", "rec10", "f110"]
+    metrics = ["ndcg"]
     for i, row in df.iterrows():
         algorithm = row["Algorithm"]
-        if "doc2vec" not in algorithm:
+        algorithm = algorithm.replace("_concat", "")
+        if "book2vec" not in algorithm:
             continue
         algorithm_parts = algorithm.split('_')
+        print(algorithm_parts)
         if len(algorithm_parts) == 2:
             name = algorithm_parts[0]
-            win = int(algorithm_parts[1].replace('win', ''))
+            win = int(algorithm_parts[1])
         elif len(algorithm_parts) == 3:
-            name = f'{algorithm_parts[0]}_{algorithm_parts[2]}'
-            win = int(algorithm_parts[1].replace('win', ''))
+            name = f'{algorithm_parts[0]}'
+            win = int(algorithm_parts[2])
         else:
             raise UserWarning("No proper format")
         if win not in windows:
@@ -113,7 +115,7 @@ def draw_multi_metric_curve_from_df(df: pd.DataFrame):
         # metric_results = {}
         for metric in metrics:
             # metric_results[metric].append(float(row[metric].split()[0]))
-            algo_dict[name].append((row["Task"], win, metric, float(row[metric].split()[0])))
+            algo_dict[name].append((row["Dataset"], row["Task"], win, metric, float(row[metric].split()[0])))
 
         # algo_dict[name].append((row["Task"], dim, metric_results))
 
@@ -123,41 +125,47 @@ def draw_multi_metric_curve_from_df(df: pd.DataFrame):
 
     # loss of iteration
     list_of_lists = {
-        "Author NDCG": ([val[3] for val in algo_dict["doc2vec"]
-                                 if val[0] == "AuthorTask" and val[2] == "ndcg"], '--r^'),
+        "Author DTA": ([val[4] for val in algo_dict["book2vec"]
+                                 if val[1] == "AuthorTask" and val[3] == "ndcg" and val[0] == "dta"], '--b^'),
 
-        "Series NDCG": ([val[3] for val in algo_dict["doc2vec"]
-                         if val[0] == "SeriesTask" and val[2] == "ndcg"], '--ro'),
+        "Series DTA": ([val[4] for val in algo_dict["book2vec"]
+                         if val[1] == "SeriesTask" and val[3] == "ndcg" and val[0] == "dta"], '--bo'),
+
+        "Author S-CGF": ([val[4] for val in algo_dict["book2vec"]
+                         if val[1] == "AuthorTask" and val[3] == "ndcg" and val[0] == "german_series"], '--r^'),
+
+        "Series S-CGF": ([val[4] for val in algo_dict["book2vec"]
+                         if val[1] == "SeriesTask" and val[3] == "ndcg" and val[0] == "german_series"], '--ro'),
 
         # "Author FairP@10": ([val[3] for val in algo_dict["doc2vec"]
         #                          if val[0] == "AuthorTask" and val[2] == "f_prec10"], '--c^'),
         # "Series FairP@10": ([val[3] for val in algo_dict["doc2vec"]
         #                  if val[0] == "SeriesTask" and val[2] == "f_prec10"], '--co'),
-        "Author P@10": ([val[3] for val in algo_dict["doc2vec"]
-                         if val[0] == "AuthorTask" and val[2] == "prec10"], '--b^'),
-        "Series P@10": ([val[3] for val in algo_dict["doc2vec"]
-                         if val[0] == "SeriesTask" and val[2] == "prec10"], '--bo'),
-        "Author R@10": ([val[3] for val in algo_dict["doc2vec"]
-                         if val[0] == "AuthorTask" and val[2] == "rec10"], '--g^'),
-        "Series R@10": ([val[3] for val in algo_dict["doc2vec"]
-                         if val[0] == "SeriesTask" and val[2] == "rec10"], '--go'),
-        "Author F1@10": ([val[3] for val in algo_dict["doc2vec"]
-                                 if val[0] == "AuthorTask" and val[2] == "f110"], '--k^'),
-        "Series F1@10": ([val[3] for val in algo_dict["doc2vec"]
-                          if val[0] == "SeriesTask" and val[2] == "f110"], '--ko'),
+        # "Author P@10": ([val[3] for val in algo_dict["book2vec"]
+        #                  if val[0] == "AuthorTask" and val[2] == "prec10"], '--b^'),
+        # "Series P@10": ([val[3] for val in algo_dict["book2vec"]
+        #                  if val[0] == "SeriesTask" and val[2] == "prec10"], '--bo'),
+        # "Author R@10": ([val[3] for val in algo_dict["book2vec"]
+        #                  if val[0] == "AuthorTask" and val[2] == "rec10"], '--g^'),
+        # "Series R@10": ([val[3] for val in algo_dict["book2vec"]
+        #                  if val[0] == "SeriesTask" and val[2] == "rec10"], '--go'),
+        # "Author F1@10": ([val[3] for val in algo_dict["book2vec"]
+        #                          if val[0] == "AuthorTask" and val[2] == "f110"], '--k^'),
+        # "Series F1@10": ([val[3] for val in algo_dict["book2vec"]
+        #                   if val[0] == "SeriesTask" and val[2] == "f110"], '--ko'),
 
-        # "doc2vec Author AP": ([val[3] for val in algo_dict["doc2vec"]
+        # "book2vec Author AP": ([val[3] for val in algo_dict["book2vec"]
         #                          if val[0] == "AuthorTask" and val[2] == "ap"], 'y-'),
-        # "doc2vec Author MRR": ([val[3] for val in algo_dict["doc2vec"]
+        # "book2vec Author MRR": ([val[3] for val in algo_dict["book2vec"]
         #                          if val[0] == "AuthorTask" and val[2] == "mrr"], 'c-'),
 
 
 
 
 
-        # "doc2vec Series AP": ([val[3] for val in algo_dict["doc2vec"]
+        # "book2vec Series AP": ([val[3] for val in algo_dict["book2vec"]
         #                        if val[0] == "SeriesTask" and val[2] == "ap"], 'y--'),
-        # "doc2vec Series MRR": ([val[3] for val in algo_dict["doc2vec"]
+        # "book2vec Series MRR": ([val[3] for val in algo_dict["book2vec"]
         #                         if val[0] == "SeriesTask" and val[2] == "mrr"], 'c--'),
 
         # "book2vec Series NDCG": ([val[3] for val in algo_dict["book2vec"]
@@ -174,7 +182,7 @@ def draw_multi_metric_curve_from_df(df: pd.DataFrame):
         # "book2vec_concat Author": ([val[2] for val in algo_dict["book2vec_concat"] if val[0] == "AuthorTask"], 'b-'),
         # "book2vec_concat Series": ([val[2] for val in algo_dict["book2vec_concat"] if val[0] == "SeriesTask"], 'b--'),
                      }
-    # lst_loss = [val[2] for val in algo_dict["doc2vec"] if val[0] == "SeriesTask"]
+    # lst_loss = [val[2] for val in algo_dict["book2vec"] if val[0] == "SeriesTask"]
     # lst_loss = np.random.randn(1, 100).reshape((100, ))
     print(list_of_lists)
     draw_result_multi_metrics(lst_iter, list_of_lists, None, metrics)
@@ -199,6 +207,6 @@ if __name__ == '__main__':
     # print(df.columns)
     # plot_column = "ndcg"
     # draw_loss_curve_from_df(pd.read_csv("result_doc_window/z_table_gb.csv"))
-    draw_multi_metric_curve_from_df(pd.read_csv("result_doc_window/z_table.csv"))
+    draw_multi_metric_curve_from_df(pd.read_csv("result_series_extensions/z_table_bert_window.csv"))
 
     # test_draw()

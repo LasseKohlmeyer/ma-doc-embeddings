@@ -130,6 +130,7 @@ class Vectorization:
         total_vec = total_vec or len_docvecs
         with utils.open(fname, 'ab') as fout:
             if write_first_line:
+                print(vectors_docs.shape)
                 fout.write(utils.to_utf8("%s %s\n" % (total_vec, vectors_docs.shape[1])))
             # store as in input order
             for i in range(len_docvecs):
@@ -201,7 +202,9 @@ class Vectorization:
 
         try:
             vecs = DocumentKeyedVectors(KeyedVectors.load_word2vec_format(fname=fname, binary=binary))
-            if combination == "concat":
+            if combination == "sum":
+                vecs = DocumentKeyedVectors(KeyedVectors.load_word2vec_format(fname=f'{fname}', binary=binary))
+            elif combination == "concat":
                 vecs = DocumentKeyedVectors(KeyedVectors.load_word2vec_format(fname=f'{fname}_con', binary=binary))
             elif combination == "pca":
                 vecs = DocumentKeyedVectors(KeyedVectors.load_word2vec_format(fname=f'{fname}_pca', binary=binary))
@@ -216,7 +219,12 @@ class Vectorization:
             else:
                 pass
         except FileNotFoundError:
-            if "_concat" in fname:
+            if "_sum" in fname:
+                combination = "sum"
+                fname = fname.replace("_sum", "")
+                vecs = DocumentKeyedVectors(KeyedVectors.load_word2vec_format(fname=f'{fname}', binary=binary))
+                return vecs, summation_method
+            elif "_concat" in fname:
                 combination = "con"
                 fname = fname.replace("_concat", "")
             elif "_pca" in fname:

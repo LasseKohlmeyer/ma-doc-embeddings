@@ -5,7 +5,7 @@ from corpus_structure import Corpus, ConfigLoader
 
 if __name__ == "__main__":
     config = ConfigLoader.get_config()
-    corpus_to_annotate = "german_books"
+    corpus_to_annotate = "dta"
     time_dict_path = os.path.join(config["system_storage"]["corpora"], 'plain_text', f'{corpus_to_annotate}_plain',
                                   'out', 'time_dict.json')
     with open(time_dict_path, encoding='utf-8') as json_file:

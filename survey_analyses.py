@@ -133,7 +133,7 @@ def kappa_score_single(list_of_ratings: List[str]):
     return fleiss_kappa_self(matrix), frequencies
 
 
-def majority_vote(list_of_ratings: List[Tuple[str, str]], facet_name: str):
+def majority_vote(list_of_ratings: List[Tuple[str, str]], facet_name: str = None):
     confidence = 1.0
     ratings = 1
     if len(set(list_of_ratings)) < 2:
@@ -154,9 +154,10 @@ def majority_vote(list_of_ratings: List[Tuple[str, str]], facet_name: str):
         sel = decision[0]
         answer_nr = decision[1]
 
-    print('-----------------')
-    print(facet_name, counter, sel, answer_nr, confidence, ratings)
-    print('-----------------')
+    if facet_name:
+        print('-----------------')
+        print(facet_name, counter, sel, answer_nr, confidence, ratings)
+        print('-----------------')
 
     return sel, answer_nr, confidence, ratings
 
@@ -199,9 +200,60 @@ def group_kappa_for_df(tri_df: pd.DataFrame, kappa_column: str = None):
     d = {}
     for kappa_column_key, kappa_values in kappa_multi.items():
         kappa_multi = np.array(kappa_values)
+        print(kappa_column_key, kappa_multi)
         d[kappa_column_key] = fleiss_kappa_self(kappa_multi)
 
     return d, voted_dict
+
+def group_kappa_new(tri_df: pd.DataFrame):
+    tuple_dict = defaultdict(lambda: defaultdict(list))
+    voted_dict = {}
+    for i, row in tri_df.iterrows():
+        tuple_dict[(row["Book 1"],
+                    row["Book 2"],
+                    row["Book 3"],
+                    row["Facet"]
+                    )][row["Group"]].append((row["Selection"], row["Answer Nr."]))
+    print('Before:', len(tuple_dict))
+    tuple_dict = {keys: values for keys, values in tuple_dict.items() if len(values) > 1}
+    print('After:', len(tuple_dict))
+    agreements = []
+    facet_aggreement = defaultdict(list)
+    for keys, values in tuple_dict.items():
+        group_1 = majority_vote(values[1])
+        group_2 = majority_vote(values[2])
+        agreement = False
+        if group_1[0] == group_2[0]: #or group_1[0] == "skip" or group_2[0] == "skip" or group_1[0] == "unsure" or group_2[0] == "unsure":
+            agreement = True
+        if group_1[2] < 0.5 and group_2[2] < 0.5:
+            agreement = True
+        if group_1[0] == "skip" or group_2[0] == "skip" or group_1[0] == "unsure" or group_2[0] == "unsure":
+            continue
+        agreements.append(agreement)
+        print(keys, agreement, group_1, group_2)
+
+        facet_aggreement[keys[-1]].append(agreement)
+    print(len(agreements))
+    print(len([agreement for agreement in agreements if agreement]) / len(agreements))
+    for facet, scores in facet_aggreement.items():
+        print(facet, len([agreement for agreement in scores if agreement]) / len(scores))
+
+
+    # kappa_multi = defaultdict(list)
+    # for (book_1, book_2, book3, facet_name, col), values in tuple_dict.items():
+    #     # print(key, len(values))
+    #     kappa_s, frequencies = kappa_score_single(values)
+    #     kappa_multi[col].append(np.array(frequencies))
+    #     voted = majority_vote(values, facet_name)
+    #     # print(kappa_s)
+    #     voted_dict[(book_1, book_2, book3, facet_name)] = voted
+    # d = {}
+    # for kappa_column_key, kappa_values in kappa_multi.items():
+    #     kappa_multi = np.array(kappa_values)
+    #     print(kappa_column_key, kappa_multi)
+    #     d[kappa_column_key] = fleiss_kappa_self(kappa_multi)
+    #
+    # return d, voted_dict
 
 
 def facet_kappa_for_df(tri_df: pd.DataFrame):
@@ -228,7 +280,7 @@ def facet_kappa_for_df(tri_df: pd.DataFrame):
 
 if __name__ == "__main__":
 
-    df = pd.read_csv("data_websci_2021-03-05_14-59.csv", delimiter='\t', encoding="utf-16")
+    df = pd.read_csv("data_websci_2021-03-25_11-23.csv", delimiter='\t', encoding="utf-16")
     df = df.fillna(-10)
 
     comparison_suffix_mapping = {
@@ -307,6 +359,9 @@ if __name__ == "__main__":
         book_id2german_title[index.replace('CP08_', '')] = german
     languages = df["LANGUAGE"].tolist()
 
+
+    print(len(df.loc[df['CP08'] > 2]))
+
     # Numbers of Known Books
     numbers_of_known_books = df["CP08"].tolist()
     numbers_of_known_books_dict = defaultdict(list)
@@ -324,9 +379,11 @@ if __name__ == "__main__":
             ttest = scipy.stats.ttest_ind(known_items, numbers_of_known_books_dict["eng"])
         else:
             ttest = (None, None)
-        known_tuples.append((key, np.mean(known_items), np.std(known_items), ttest[0], ttest[1]))
+        known_tuples.append((key, np.mean(known_items), np.std(known_items), np.min(known_items), np.max(known_items), ttest[0], ttest[1]))
 
-    book_knowledge_df = pd.DataFrame(known_tuples, columns=["Language", "Mean", "STD", "T-test stat", "T-test p"])
+    book_knowledge_df = pd.DataFrame(known_tuples, columns=["Language", "Mean", "STD", "Min", "Max",
+                                                            "T-test stat", "T-test p"])
+    book_knowledge_df = book_knowledge_df.round(4)
     book_knowledge_df.to_csv('results/human_assessment/book_knowledge.csv')
     # Overview to Book familarity with language sensitivity
 
@@ -361,13 +418,15 @@ if __name__ == "__main__":
     book_familarity_df = pd.DataFrame(book_tuples,
                                       columns=["Book ID", "Description", "Description German", "Language", "Unknown",
                                                "Known"])
+    latex_df = book_familarity_df[["Book ID", "Description", "Language", "Unknown", "Known"]]
     book_familarity_df = book_familarity_df.sort_values(by=['Book ID']).set_index(["Book ID", "Description",
                                                                                    "Description German",
                                                                                    "Language"])
 
-
-    # print(book_familarity_df)
     book_familarity_df.to_csv('results/human_assessment/gutenberg_classic_20/book_familarity.csv')
+
+    latex_df = latex_df.sort_values(by=['Book ID'])
+    latex_df = latex_df.pivot(index=["Book ID", "Description"], columns="Language", values=["Unknown", "Known"])
 
     # print('-----------------------------------------------------')
     facets = {
@@ -435,15 +494,26 @@ if __name__ == "__main__":
     print()
     kappa_df = pd.DataFrame([(key, score) for key, score in kappa_dict.items()], columns=["Attribut", "Kappa Score"])
     kappa_df.to_csv('results/human_assessment/kappa_scores.csv', index=False)
-    human_assessed_df = pd.DataFrame([(b1, b2, b3, facet, rating, answer_nr, confidence, rates)
-                                      for (b1, b2, b3, facet), (rating, answer_nr, confidence, rates) in all_kappa[1].items()
+    human_assessed_df = pd.DataFrame([(b1, b2, b3, facet, rating, answer_nr, agreement, rates)
+                                      for (b1, b2, b3, facet), (rating, answer_nr, agreement, rates) in all_kappa[1].items()
                                       # if rating != "skip" and rating != "unsure"
                                       ],
                                      columns=["Book 1", "Book 2", "Book 3", "Facet", "Selection",
-                                              "Selected Answer Nr.", "Confidence", "Answers"])
+                                              "Selected Answer Nr.", "Agreement", "Answers"])
     print(len(all_kappa[1].keys()))
     print(len(human_assessed_df.index))
     human_assessed_df.to_csv('results/human_assessment/gutenberg_classic_20/human_assessed.csv', index=False)
+
+    facet_df = human_assessed_df.loc[human_assessed_df['Answers'] > 0].groupby("Facet").std().reset_index()
+
+    print(facet_df)
+    print(len(human_assessed_df.index))
+    print(len(human_assessed_df.loc[human_assessed_df['Answers'] == 1].index))
+    facet_df.to_csv('results/human_assessment/gutenberg_classic_20/facets.csv', index=False)
+
+    print(group_kappa[0])
+
+    # print(latex_df.to_latex())
 
     # for column_name, cell in zip(column_names, row):
     #     if column_name.startswith("GE") and "_" not in column_name:
@@ -506,3 +576,4 @@ if __name__ == "__main__":
     #
     # # print(comparison_results_df)
     # comparison_results_df.to_csv('results/human_assessment/book_comparison.csv', index=False)
+    group_kappa_new(triangulation_df)

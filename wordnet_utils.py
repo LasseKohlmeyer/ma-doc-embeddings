@@ -127,8 +127,9 @@ class GermaNetUtils:
     @classmethod
     def get_time_words(cls) -> Set[str]:
         if not cls.time_words:
+
             germanet_nouns = cls.load_germanet_file("nomen.json")
-            # print((germanet_nouns.keys()))
+            print((germanet_nouns.keys()))
             # print(germanet_nouns["Artefakt"])
             time_categories = [
                 "Zeit",

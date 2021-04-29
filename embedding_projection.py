@@ -70,6 +70,7 @@ def link_color(label: str, neighbor: str):
         return label_color[0]
     return "#777777"
 
+
 def force_directed_graph(model, corpus: Corpus):
     top_n_docs = 3
     top_n_tfidf_words = 5000
@@ -134,7 +135,7 @@ def force_directed_graph(model, corpus: Corpus):
             reverted_word_neighbors[word_neighbor].add(doc_id)
     reverted_word_neighbors = {word: len(documents)
                                for word, documents in reverted_word_neighbors.items()
-                               if len(documents) > 1}
+                               if len(documents) >= 1}
     word_labels = [(word, "word") for word in word_labels if word in reverted_word_neighbors.keys()]
     word_neighbors = {doc_id: [word_sim for word_sim in word_sims if word_sim[0] in reverted_word_neighbors.keys()]
                       for doc_id, word_sims in word_neighbors.items()}
@@ -144,16 +145,49 @@ def force_directed_graph(model, corpus: Corpus):
     # print(labels)
     nodes = []
     label2id = {}
-    for i, (label, type) in enumerate(labels):
+
+    # word_doc_degree_dict = defaultdict(lambda: 1)
+    # for label, neighbors in document_neighbors.items():
+    #     for neighbor in neighbors:
+    #         print(label, neighbor)
+    #         word_doc_degree_dict[neighbor[0]] += 1
+    # print(word_doc_degree_dict)
+
+    word_degree_dict = defaultdict(lambda: 1)
+    doc_degree_dict = defaultdict(lambda: 1)
+    for label, neighbors in word_neighbors.items():
+        for neighbor in neighbors:
+            # print(label, neighbor)
+            doc_degree_dict[label] += 1
+            word_degree_dict[neighbor[0]] += 1
+    print(word_degree_dict)
+    # print(doc_degree_dict)
+
+    for i, (label, typ) in enumerate(labels):
         size = 100
         degree = 2.0
-        if type == "word":
+        closeness = 1
+        eigenvector = 1
+
+        if typ == "word":
             size = 50
             degree = 1.0
-        nodes.append({"betweenness": 1.0,
-                      "closeness": 1.0,
-                      "degree": degree,
-                      "eigenvector": 1.0,
+            print(label, typ, label in word_degree_dict)
+            if label in word_degree_dict:
+                closeness += word_degree_dict[label]
+                eigenvector += word_degree_dict[label] ** 3
+        else:
+            if label in doc_degree_dict:
+                closeness += doc_degree_dict[label]
+                eigenvector += doc_degree_dict[label]
+
+        closeness = float(closeness)
+        eigenvector = float(eigenvector)
+
+        nodes.append({"small": 1.0,
+                      "documents": closeness,
+                      "standard": degree,
+                      "words": eigenvector,
                       "colour": colors(label)[0],
                       "fontcolour": colors(label)[0],
                       "id": doc_id_replace(corpus, label),
@@ -163,10 +197,10 @@ def force_directed_graph(model, corpus: Corpus):
 
     links = []
     # print(labels, list(word_neighbors.keys())[-10:])
-    for (label, type) in labels:
+    for (label, typ) in labels:
         if label in document_neighbors:
             for doc_neighbor in document_neighbors[label]:
-                print(doc_neighbor)
+                # print(doc_neighbor)
                 links.append({"source": label2id[label],
                               "target": label2id[doc_neighbor[0]],
                               "value": int(doc_neighbor[1]*100),
@@ -223,19 +257,29 @@ def tsne_plot(model, corpus: Corpus):
     plt.figure(figsize=(16, 16))
     dots = []
     labs = []
-    for i in range(len(x)):
-        if not labels[i].endswith("raw"):
+    raw_mode = True
+
+    if raw_mode:
+        for i in range(len(x)):
             color, facet = colors(labels[i])
             ax = plt.scatter(x[i], y[i], c=color)
             if facet not in labs:
                 dots.append(ax)
                 labs.append(facet)
-            # plt.annotate(labels[i].split(" - ")[0],
-            #              xy=(x[i], y[i]),
-            #              xytext=(5, 2),
-            #              textcoords='offset points',
-            #              ha='right',
-            #              va='bottom')
+    else:
+        for i in range(len(x)):
+            if not labels[i].endswith("raw"):
+                color, facet = colors(labels[i])
+                ax = plt.scatter(x[i], y[i], c=color)
+                if facet not in labs:
+                    dots.append(ax)
+                    labs.append(facet)
+                    # plt.annotate(labels[i].split(" - ")[0],
+                    #              xy=(x[i], y[i]),
+                    #              xytext=(5, 2),
+                    #              textcoords='offset points',
+                    #              ha='right',
+                    #              va='bottom')
 
     labs = [label_replace(lab) for lab in labs]
     plt.legend(dots,
@@ -374,8 +418,9 @@ def neighbor_plot(model, corpus: Corpus):
 
 
 if __name__ == '__main__':
-    data_set_name = "classic_gutenberg"
+    # data_set_name = "classic_gutenberg"
     # data_set_name = "german_books"
+    data_set_name = "goodreads_genres"
     vectorization_algorithm = "book2vec"
     filter = "no_filter"  # "specific_words_strict"  # "no_filter"
     vec_path = Vectorization.build_vec_file_name("all",
@@ -395,6 +440,6 @@ if __name__ == '__main__':
                          load_entities=False
                          )
 
-    # tsne_plot(vectors, c)
+    tsne_plot(vecs, c)
     # neighbor_plot(vecs, c)
-    force_directed_graph(vecs, c)
+    # force_directed_graph(vecs, c)

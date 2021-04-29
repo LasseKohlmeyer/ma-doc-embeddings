@@ -193,10 +193,10 @@ def test_draw():
 
 
 if __name__ == '__main__':
-    # df = pd.read_csv("result_doc_window/z_table.csv")
+    # df = pd.read_csv("result_doc_window/z_table_gb.csv")
     # print(df.columns)
     # plot_column = "ndcg"
-    # draw_loss_curve_from_df(pd.read_csv("result_doc_window/z_table.csv"))
+    # draw_loss_curve_from_df(pd.read_csv("result_doc_window/z_table_gb.csv"))
     draw_multi_metric_curve_from_df(pd.read_csv("result_dimension/z_table.csv"))
 
     # test_draw()

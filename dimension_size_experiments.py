@@ -15,6 +15,7 @@ vectorization_algorithms = [
     "doc2vec_dim500",
     "doc2vec_dim700",
     "doc2vec_dim900",
+    "book2vec",
     "book2vec_dim50",
     "book2vec_dim50_concat",
     "book2vec_dim100",
@@ -46,10 +47,10 @@ task_names = [
 #                               filters=filters)
 #
 #
-# EvaluationUtils.train_vecs(data_sets=data_sets,
-#                            vectorization_algorithms=vectorization_algorithms,
-#                            filters=filters)
-#
+EvaluationUtils.train_vecs(data_sets=data_sets,
+                           vectorization_algorithms=vectorization_algorithms,
+                           filters=filters)
+
 # EvaluationUtils.run_evaluation(data_sets=data_sets,
 #                                vectorization_algorithms=vectorization_algorithms,
 #                                filters=filters,
@@ -57,7 +58,7 @@ task_names = [
 #                                result_dir=result_dir)
 
 # print(
-#     EvaluationUtils.create_paper_table(f"{result_dir}/simple_series_experiment_table.csv", f"{result_dir}/z_table.csv",
+#     EvaluationUtils.create_paper_table(f"{result_dir}/simple_series_experiment_table.csv", f"{result_dir}/z_table_gb.csv",
 #                                        used_metrics=["ndcg", "f_prec", "f_prec01", "f_prec03", "f_prec05",
 #                                                      "f_prec10",
 #                                                      "length_metric"],

@@ -4,7 +4,9 @@
     "tagged_german_books": "/path/to/dir",
     "german_books": "/path/to/dir",
     "german_series": "path/to/Corpora/Corpus of German-Language Fiction",
-    "litrec": "/path/to/dir"
+    "litrec": "/path/to/dir",
+    "dta": "/path/to/dir",
+    "dta_series": "/path/to/dir"
   },
   "system_storage": {
     "corpora" : "corpora",
