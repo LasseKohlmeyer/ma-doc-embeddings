@@ -25,7 +25,7 @@ from baselines.psif import PSIFVectors
 from extensions.text_summarisation import Summarizer
 from extensions.topic_modelling import TopicModeller
 from lib2vec.corpus_structure import Corpus, ConfigLoader, Language
-from vectorization_utils import Vectorization
+from lib2vec.vectorization_utils import Vectorization
 
 config = ConfigLoader.get_config()
 

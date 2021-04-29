@@ -6,7 +6,7 @@ import gensim
 
 from gensim.corpora import Dictionary
 from gensim.models.doc2vec import TaggedDocument
-from corpus_structure import Corpus, Document
+from lib2vec.corpus_structure import Corpus, Document
 from extensions.text_summarisation import Summarizer
 from extensions.wordnet_utils import NetWords
 

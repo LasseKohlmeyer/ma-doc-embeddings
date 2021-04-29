@@ -1197,7 +1197,7 @@ class EvaluationUtils:
                     log.append((vectorization_algorithm, task, doc_id, corpus.documents[doc_id], sim_doc[0],
                                 corpus.documents[sim_doc[0]], sim_doc[1]))
         log_df = pd.DataFrame(log, columns=["Algorithm", "Task", "doc_id", "Doc", "sim_doc_id", "Sim Doc", "Correct"])
-        log_df.to_csv(f'results/logged_decisions/{vectorization_algorithm}_neighbors.csv')
+        log_df.to_csv(f'../results/logged_decisions/{vectorization_algorithm}_neighbors.csv')
         missed_log = []
         for task, doc_id_dict in missed_dict.items():
             for doc_id, sim_docs in doc_id_dict.items():
@@ -1209,7 +1209,7 @@ class EvaluationUtils:
                     missed_log.append((vectorization_algorithm, task, doc_id, corpus.documents[doc_id], sim_doc, missed_doc
                                        ))
         log_df = pd.DataFrame(missed_log, columns=["Algorithm", "Task", "doc_id", "Doc", "missed doc_id", "Missed Doc"])
-        log_df.to_csv(f'results/logged_decisions/{vectorization_algorithm}_missed.csv')
+        log_df.to_csv(f'../results/logged_decisions/{vectorization_algorithm}_missed.csv')
 
         # print('res', len(results))
         if isinstance(results[0], dict):
@@ -1584,7 +1584,7 @@ if __name__ == '__main__':
     # EvaluationUtils.build_corpora()
     EvaluationUtils.train_vecs()
     EvaluationUtils.run_evaluation()
-    # print(EvaluationUtils.create_paper_table("results/simple_series_experiment_table.csv", "results/z_table_gb.csv",
+    # print(EvaluationUtils.create_paper_table("../results/simple_series_experiment_table.csv", "results/z_table_gb.csv",
     #                                          used_metrics=["ndcg", "prec", "prec01", "prec03", "prec05", "prec10",
     #                                                        "length_metric"],
     #                                          filters=["common_words_relaxed", "common_words_strict",
@@ -1592,7 +1592,7 @@ if __name__ == '__main__':
     #                                                   "common_words_relaxed_general_words_sensitive",
     #                                                   "common_words_doc_freq"]))
 
-    print(EvaluationUtils.create_paper_table("results/simple_series_experiment_table.csv", "../results/z_table.csv",
+    print(EvaluationUtils.create_paper_table("../results/simple_series_experiment_table.csv", "../results/z_table.csv",
                                              used_metrics=["ndcg", "f_prec", "f_prec01", "f_prec03", "f_prec05",
                                                            "f_prec10",
                                                            "length_metric"],
@@ -1600,12 +1600,12 @@ if __name__ == '__main__':
                                                       "specific_words_moderate",
                                                       "specific_words_strict"
                                                       ]))
-    # print(EvaluationUtils.create_paper_table("results/simple_series_experiment_table.csv", "results/z_table_gb.csv",
+    # print(EvaluationUtils.create_paper_table("../results/simple_series_experiment_table.csv", "results/z_table_gb.csv",
     #                                          used_metrics=["ndcg", "prec", "prec01", "prec03", "prec05",
     #                                                        "prec10",
     #                                                        "length_metric"],
     #                                          filters=["no_filter"]))
-    # print(EvaluationUtils.create_paper_table("results/simple_series_experiment_table.csv", "results/z_table_gb.csv",
+    # print(EvaluationUtils.create_paper_table("../results/simple_series_experiment_table.csv", "results/z_table_gb.csv",
     #                                          used_metrics=["ndcg", "rec", "pec01", "rec03", "rec05",
     #                                                        "rec10",
     #                                                        "length_metric"],
@@ -1614,7 +1614,7 @@ if __name__ == '__main__':
     #                                                   "specific_words_strict"
     #                                                   ]))
 
-    # print(EvaluationUtils.create_paper_table("results/simple_series_experiment_table.csv", "results/z_table_gb.csv",
+    # print(EvaluationUtils.create_paper_table("../results/simple_series_experiment_table.csv", "results/z_table_gb.csv",
     #                                          used_metrics=["ndcg", "f1", "f101", "f103", "f105",
     #                                                        "f110",
     #                                                        "length_metric"],

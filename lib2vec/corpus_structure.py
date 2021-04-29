@@ -15,8 +15,9 @@ from os import listdir
 from os.path import isfile, join
 import logging
 import numpy as np
-from aux_utils import ConfigLoader, Utils
-from gutenberg_meta import load_gutenberg_meta
+
+from lib2vec.aux_utils import ConfigLoader, Utils
+from lib2vec.gutenberg_meta import load_gutenberg_meta
 
 config = ConfigLoader.get_config()
 
@@ -739,7 +740,6 @@ class DataHandler:
                             if isfile(join(corpus_dir, genre, "success", f))]
             }
             genres_dict[genre] = load_genre
-
 
         documents = {}
         succes_dict = {}
@@ -1478,12 +1478,14 @@ class Corpus:
     @staticmethod
     def fast_load(number_of_subparts=None, size=None, data_set=None, filer_mode=None, fake_real=None, path=None,
                   load_entities: bool = True):
+
         if path is None:
             corpus_dir = Corpus.build_corpus_dir(number_of_subparts,
                                                  size,
                                                  data_set,
                                                  filer_mode,
                                                  fake_real)
+            print(corpus_dir)
             if os.path.exists(corpus_dir):
                 corpus = Corpus.load_corpus_from_dir_format(corpus_dir)
             else:

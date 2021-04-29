@@ -1,7 +1,7 @@
 import os
 from typing import Union
 
-from corpus_structure import DataHandler, Corpus, Preprocesser, ConfigLoader
+from lib2vec.corpus_structure import DataHandler, Corpus, Preprocesser, ConfigLoader
 
 config = ConfigLoader.get_config()
 
