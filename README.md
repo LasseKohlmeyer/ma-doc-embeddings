@@ -22,4 +22,4 @@ experiments/predicting_high_rated_books contains the evaluation for the Scenario
 
 The Book Comparison Survey is analyzed by boco_survey/survey_analyses.py and converted to a dataset.
 
-![Abstract Image of Multiple Facets](https://github.com/laslitz/ma-doc_embeddings/complete_neighborhood.png)
+![Abstract Image of Multiple Facets](https://github.com/LasLitz/ma-doc-embeddings/blob/main/figures/complete_neighborhood.png)
