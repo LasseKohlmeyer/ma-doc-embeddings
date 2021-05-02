@@ -14,8 +14,8 @@ data_sets = [
     # "litrec",
 ]
 vectorization_algorithms = [
-    "bow",
-    "avg_wv2doc",
+    # "bow",
+    # "avg_wv2doc",
     # "avg_wv2doc_restrict10000",
     # "doc2vec",
     # "doc2vec_chunk",
@@ -29,6 +29,9 @@ vectorization_algorithms = [
     # "xlm_pt",
     # # "xlm_pt_chunk",
     # # "xlm_sentence_based_1000_pt",
+    "bert_sentence_based_1000_pt",
+    "roberta_sentence_based_1000_pt",
+    "xlm_sentence_based_1000_pt",
     # "book2vec",
     # "book2vec_avg",
     # "book2vec_concat",

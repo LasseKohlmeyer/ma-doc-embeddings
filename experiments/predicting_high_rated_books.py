@@ -222,7 +222,7 @@ def success_prediction_task(data_set_name: str, success_dict, vector_names):
                                               ])
     print(df)
     df = df.pivot(index='Algorithm', columns='Classifier', values='Weighted F1')
-    df.to_csv("results/book_success_prediction/eval_scores.csv", index=True)
+    df.to_csv("../results/book_success_prediction/eval_scores.csv", index=True)
     print(df)
     print(df.to_latex())
 
@@ -347,11 +347,14 @@ if __name__ == '__main__':
         # "book2vec_o_sty",
         # "book2vec_wo_raw_concat",
         # "book2vec_net_concat",
-        "book2vec_dbow",
-        "book2vec_dbow_avg",
-        "book2vec_dbow_concat",
-        "book2vec_dbow_pca",
-        "book2vec_dbow_auto",
+        # "book2vec_dbow",
+        # "book2vec_dbow_avg",
+        # "book2vec_dbow_concat",
+        # "book2vec_dbow_pca",
+        # "book2vec_dbow_auto",
+        "bert_sentence_based_1000_pt",
+        "roberta_sentence_based_1000_pt",
+        "xlm_sentence_based_1000_pt",
 
 
         # "book2vec_dbow_concat",
